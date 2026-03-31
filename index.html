@@ -313,6 +313,36 @@ input,select,textarea,button{font-family:inherit}
 
 /* Import hidden input */
 #json-import-input{display:none}
+
+/* ── 日報 ── */
+.report-form-card{background:white;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px}
+.report-date-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.report-date-row input[type=date]{padding:8px 12px;border:1.5px solid #CBD5E0;border-radius:8px;font-size:14px;font-family:inherit}
+.report-weekday{font-size:14px;font-weight:700;color:#1F4E79}
+.report-entry{display:grid;grid-template-columns:1fr 2fr 80px 1fr 36px;gap:6px;align-items:center;margin-bottom:6px}
+.report-entry input,.report-entry select{padding:7px 10px;border:1.5px solid #CBD5E0;border-radius:8px;font-size:13px;font-family:inherit;width:100%}
+.report-entry input:focus,.report-entry select:focus{border-color:#2E75B6;outline:none}
+.report-entry .remove-btn{background:#FED7D7;border:none;border-radius:6px;color:#C53030;font-size:16px;cursor:pointer;padding:4px 8px;line-height:1}
+.report-entry .remove-btn:hover{background:#FC8181}
+.report-entry-header{display:grid;grid-template-columns:1fr 2fr 80px 1fr 36px;gap:6px;margin-bottom:4px}
+.report-entry-header span{font-size:11px;font-weight:700;color:#718096;padding:0 2px}
+.report-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.report-list-item{border:1px solid #E2E8F0;border-radius:8px;padding:14px;margin-bottom:10px;background:#FAFAFA}
+.report-list-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.report-list-date{font-size:15px;font-weight:700;color:#1F4E79}
+.report-list-table{width:100%;border-collapse:collapse;font-size:13px}
+.report-list-table th{background:#EBF8FF;padding:5px 8px;text-align:left;font-weight:600;color:#2E75B6;border-bottom:2px solid #BEE3F8}
+.report-list-table td{padding:5px 8px;border-bottom:1px solid #EDF2F7;vertical-align:top}
+.report-list-table tr:last-child td{border-bottom:none}
+/* 現場カード内日報 */
+.site-report-section{margin-top:14px;padding-top:12px;border-top:1px dashed #E2E8F0}
+.site-report-entry{font-size:12px;padding:6px 0;border-bottom:1px solid #EDF2F7;display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;align-items:start}
+.site-report-entry:last-child{border-bottom:none}
+@media(max-width:640px){
+  .report-entry{grid-template-columns:1fr 1fr;gap:6px}
+  .report-entry-header{display:none}
+  .report-entry .remove-btn{grid-column:2;justify-self:end;margin-top:-30px}
+}
 </style>
 </head>
 <body>
@@ -362,6 +392,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="exportJSON();closeMobileMenu()">💾 データ保存（JSON）</button>
     <button class="menu-btn" onclick="document.getElementById('json-import-input').click();closeMobileMenu()">📂 データ読込（JSON）</button>
+    <button class="menu-btn" onclick="switchTab('report');closeMobileMenu()">📋 日報入力</button>
     <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
     <button class="menu-btn" onclick="openTaskModal();closeMobileMenu()">✅ タスク追加</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
@@ -445,6 +476,32 @@ input,select,textarea,button{font-family:inherit}
     </div>
   </div>
 
+  <!-- ===== PAGE: 日報 ===== -->
+  <div class="section-page" id="page-report">
+    <!-- 日報入力フォーム -->
+    <div class="report-form-card">
+      <div class="section-head">📋 日報入力</div>
+      <div class="report-date-row">
+        <label style="font-size:13px;font-weight:600;color:#4A5568;">日付</label>
+        <input type="date" id="report-date-input" onchange="updateReportWeekday()">
+        <span class="report-weekday" id="report-weekday-label"></span>
+      </div>
+      <div class="report-entry-header">
+        <span>現場名</span><span>作業内容</span><span>作業時間(h)</span><span>作業者氏名</span><span></span>
+      </div>
+      <div id="report-entries-container"></div>
+      <div class="report-actions">
+        <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;" onclick="addReportRow()">＋ 行追加</button>
+        <button class="btn btn-green btn-sm" onclick="saveReport()">💾 日報を保存</button>
+      </div>
+    </div>
+    <!-- 過去の日報一覧 -->
+    <div class="report-form-card">
+      <div class="section-head" style="margin-bottom:12px;">📂 過去の日報</div>
+      <div id="report-list-container"></div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ===== BOTTOM NAV ===== -->
@@ -461,6 +518,9 @@ input,select,textarea,button{font-family:inherit}
     </button>
     <button class="bnav-btn" id="bnav-proc" onclick="switchTab('proc')">
       <span class="bnav-icon">🔧</span>工程
+    </button>
+    <button class="bnav-btn" id="bnav-report" onclick="switchTab('report')">
+      <span class="bnav-icon">📋</span>日報
     </button>
   </div>
 </nav>
@@ -649,7 +709,7 @@ async function uploadToCloud() {
   try {
     [btn,btnM].forEach(b=>{if(b){b.disabled=true;b.textContent='☁️ 保存中...';}});
     showToast('☁️ クラウドに保存中...');
-    const payload = {sites:SITES, tasks:TASKS, nextTaskId};
+    const payload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId};
     const res = await fetch(JSONBIN_URL, {
       method: 'PUT',
       headers: {
@@ -683,9 +743,12 @@ async function downloadFromCloud() {
     if (!d || !d.sites) throw new Error('データが見つかりません');
     SITES = d.sites;
     TASKS = d.tasks || [];
+    REPORTS = d.reports || [];
     nextTaskId = d.nextTaskId || 100;
+    nextReportId = d.nextReportId || 1;
     saveState();
     renderAll();
+    renderReportList();
     showToast('🔄 クラウド読込完了！', 3000);
   } catch(e) {
     showToast('❌ 読み込み失敗: ' + e.message, 3500);
@@ -748,8 +811,8 @@ function checkAuth() {
 // =========================================================
 // CONSTANTS & DATA
 // =========================================================
-const TODAY = new Date('2026-03-30');
-const THIS_WEEK_END = new Date('2026-04-05');
+const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+const THIS_WEEK_END = (() => { const d = new Date(TODAY); d.setDate(d.getDate() + (6 - d.getDay())); return d; })();
 
 const PROCESSES = [
   {key:'仮設',label:'仮設工事'},{key:'土工',label:'土工事'},{key:'基礎',label:'基礎工事'},
@@ -792,7 +855,9 @@ const DEFAULT_TASKS = [
 // =========================================================
 let SITES = [];
 let TASKS = [];
+let REPORTS = [];
 let nextTaskId = 100;
+let nextReportId = 1;
 let currentFilter = 'all';
 let unsaved = false;
 
@@ -803,14 +868,18 @@ function loadState() {
       const d = JSON.parse(raw);
       SITES = d.sites || JSON.parse(JSON.stringify(DEFAULT_SITES));
       TASKS = d.tasks || JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      REPORTS = d.reports || [];
       nextTaskId = d.nextTaskId || 100;
+      nextReportId = d.nextReportId || 1;
     } else {
       SITES = JSON.parse(JSON.stringify(DEFAULT_SITES));
       TASKS = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      REPORTS = [];
     }
   } catch(e) {
     SITES = JSON.parse(JSON.stringify(DEFAULT_SITES));
     TASKS = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+    REPORTS = [];
   }
 }
 
@@ -1341,7 +1410,8 @@ function openDetail(siteId){
       <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#4A5568;flex:1;" onclick="openSiteModal('${s.id}');closeDetail()">✏️ 現場を編集</button>
       <button class="btn btn-green btn-sm" style="flex:1;" onclick="openTaskModal();document.getElementById('t-site').value='${s.id}';closeDetail()">＋ タスク追加</button>
     </div>
-    <div>${taskHtml||'<div style="color:#718096;font-size:13px;padding:10px 0;">未完了のタスクはありません</div>'}</div>`;
+    <div>${taskHtml||'<div style="color:#718096;font-size:13px;padding:10px 0;">未完了のタスクはありません</div>'}</div>
+    ${buildSiteReportHtml(siteId)}`;
 
   document.getElementById('detail-panel').classList.add('open');
 }
@@ -1399,13 +1469,15 @@ let currentTab = 'sites';
 function switchTab(tab){
   currentTab = tab;
   // Update page visibility
-  ['sites','tasks','gantt','proc'].forEach(p=>{
+  ['sites','tasks','gantt','proc','report'].forEach(p=>{
     document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
-    document.getElementById('bnav-'+p).classList.toggle('active', p===tab);
+    const btn = document.getElementById('bnav-'+p);
+    if(btn) btn.classList.toggle('active', p===tab);
   });
   // Lazy-render gantt and process on first visit
   if(tab==='gantt') renderGantt();
   if(tab==='proc')  renderProcessDetail();
+  if(tab==='report') { initReportForm(); renderReportList(); }
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -1487,11 +1559,170 @@ document.addEventListener('keydown',e=>{
 });
 
 // =========================================================
+// 日報 FUNCTIONS
+// =========================================================
+const WEEKDAYS = ['日','月','火','水','木','金','土'];
+
+function initReportForm() {
+  // 今日の日付をセット
+  const d = new Date();
+  const iso = d.toISOString().split('T')[0];
+  const el = document.getElementById('report-date-input');
+  if (el && !el.value) { el.value = iso; updateReportWeekday(); }
+  // 行が空なら1行追加
+  const container = document.getElementById('report-entries-container');
+  if (container && container.children.length === 0) addReportRow();
+}
+
+function updateReportWeekday() {
+  const val = document.getElementById('report-date-input').value;
+  if (!val) return;
+  const d = new Date(val + 'T00:00:00');
+  const lbl = document.getElementById('report-weekday-label');
+  if (lbl) lbl.textContent = `（${WEEKDAYS[d.getDay()]}曜日）`;
+}
+
+function buildSiteOptions(selectedId) {
+  const blank = `<option value="">現場を選択</option>`;
+  const opts = SITES.map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${s.name}</option>`).join('');
+  return blank + opts;
+}
+
+function addReportRow(entry) {
+  const container = document.getElementById('report-entries-container');
+  if (!container) return;
+  const e = entry || {};
+  const div = document.createElement('div');
+  div.className = 'report-entry';
+  div.innerHTML = `
+    <select class="re-site">${buildSiteOptions(e.siteId||'')}</select>
+    <input type="text" class="re-content" placeholder="作業内容" value="${e.content||''}">
+    <input type="number" class="re-hours" placeholder="時間" min="0.5" max="24" step="0.5" value="${e.hours||''}">
+    <input type="text" class="re-worker" placeholder="作業者氏名" value="${e.worker||''}">
+    <button class="remove-btn" onclick="this.parentElement.remove()" title="行を削除">✕</button>`;
+  container.appendChild(div);
+}
+
+function saveReport() {
+  const dateVal = document.getElementById('report-date-input').value;
+  if (!dateVal) { showToast('⚠️ 日付を入力してください', 2500); return; }
+  const rows = document.querySelectorAll('#report-entries-container .report-entry');
+  const entries = [];
+  rows.forEach(row => {
+    const siteId = row.querySelector('.re-site').value;
+    const content = row.querySelector('.re-content').value.trim();
+    const hours = parseFloat(row.querySelector('.re-hours').value) || 0;
+    const worker = row.querySelector('.re-worker').value.trim();
+    if (siteId || content || worker) {
+      entries.push({ siteId, content, hours, worker });
+    }
+  });
+  if (entries.length === 0) { showToast('⚠️ 作業内容を入力してください', 2500); return; }
+
+  // 同じ日付の日報があれば上書き確認
+  const existing = REPORTS.find(r => r.date === dateVal);
+  if (existing) {
+    if (!confirm(`${fmtDateJP(dateVal)}の日報が既に存在します。上書きしますか？`)) return;
+    existing.entries = entries;
+  } else {
+    REPORTS.push({ id: nextReportId++, date: dateVal, entries });
+  }
+  // 日付降順でソート
+  REPORTS.sort((a,b) => b.date.localeCompare(a.date));
+  saveState();
+  renderReportList();
+  // フォームリセット
+  document.getElementById('report-entries-container').innerHTML = '';
+  addReportRow();
+  showToast('📋 日報を保存しました', 2500);
+}
+
+function deleteReport(date) {
+  if (!confirm(`${fmtDateJP(date)}の日報を削除しますか？`)) return;
+  const idx = REPORTS.findIndex(r => r.date === date);
+  if (idx !== -1) { REPORTS.splice(idx, 1); saveState(); renderReportList(); showToast('🗑️ 日報を削除しました'); }
+}
+
+function editReport(date) {
+  const r = REPORTS.find(r => r.date === date);
+  if (!r) return;
+  document.getElementById('report-date-input').value = r.date;
+  updateReportWeekday();
+  document.getElementById('report-entries-container').innerHTML = '';
+  r.entries.forEach(e => addReportRow(e));
+  switchTab('report');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function fmtDateJP(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getMonth()+1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
+}
+
+function buildSiteReportHtml(siteId) {
+  // その現場に関連する日報エントリを新しい順で最大10件表示
+  const items = [];
+  REPORTS.forEach(r => {
+    r.entries.forEach(e => {
+      if (e.siteId === siteId) items.push({ date: r.date, ...e });
+    });
+  });
+  items.sort((a,b) => b.date.localeCompare(a.date));
+  const show = items.slice(0, 180);
+  if (show.length === 0) return '';
+  const rows = show.map(e => `
+    <div class="site-report-entry">
+      <span style="color:#718096;white-space:nowrap;">${fmtDateJP(e.date)}</span>
+      <span style="font-weight:600;">${e.content||'—'}</span>
+      <span style="color:#4A5568;white-space:nowrap;">${e.hours||0}h</span>
+      <span style="color:#4A5568;">${e.worker||'—'}</span>
+    </div>`).join('');
+  return `<div class="site-report-section">
+    <div style="font-weight:700;font-size:12px;color:#1F4E79;margin-bottom:8px;">📋 作業日報（直近${show.length}件）</div>
+    ${rows}
+  </div>`;
+}
+
+function renderReportList() {
+  const el = document.getElementById('report-list-container');
+  if (!el) return;
+  if (REPORTS.length === 0) {
+    el.innerHTML = '<div style="color:#718096;font-size:13px;padding:8px 0;">日報はまだありません</div>';
+    return;
+  }
+  el.innerHTML = REPORTS.map(r => {
+    const rows = r.entries.map(e => {
+      const sn = SITES.find(s=>s.id===e.siteId);
+      return `<tr>
+        <td>${sn ? sn.name : (e.siteId||'—')}</td>
+        <td>${e.content||'—'}</td>
+        <td style="text-align:center;">${e.hours||0}h</td>
+        <td>${e.worker||'—'}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="report-list-item">
+      <div class="report-list-header">
+        <span class="report-list-date">📅 ${fmtDateJP(r.date)}</span>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-white btn-sm" style="border:1px solid #CBD5E0;" onclick="editReport('${r.date}')">✏️ 修正</button>
+          <button class="btn btn-red btn-sm" onclick="deleteReport('${r.date}')">🗑️</button>
+        </div>
+      </div>
+      <table class="report-list-table">
+        <thead><tr><th>現場名</th><th>作業内容</th><th>時間</th><th>作業者氏名</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+}
+
+// =========================================================
 // SAVE STATE (override to sync mobile indicator)
 // =========================================================
 function saveState(){
   try {
-    localStorage.setItem('kenba_data', JSON.stringify({sites:SITES,tasks:TASKS,nextTaskId}));
+    localStorage.setItem('kenba_data', JSON.stringify({sites:SITES,tasks:TASKS,reports:REPORTS,nextTaskId,nextReportId}));
   } catch(e){}
   unsaved=false;
   ['saveIndicator','saveIndicatorMobile'].forEach(id=>{
@@ -1535,6 +1766,7 @@ if (checkAuth()) {
   loadState();
   renderAll();
   saveState();
+  renderReportList();
 }
 </script>
 </body>

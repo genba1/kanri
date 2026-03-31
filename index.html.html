@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>建築現場 進捗管理ダッシュボード</title>
+<style>
+/* ── Login Screen ── */
+#loginScreen{position:fixed;inset:0;background:linear-gradient(135deg,#002060 0%,#1F4E79 60%,#2E75B6 100%);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-box{background:white;border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.35);text-align:center}
+.login-logo{font-size:48px;margin-bottom:12px}
+.login-title{font-size:20px;font-weight:700;color:#1F4E79;margin-bottom:4px}
+.login-sub{font-size:13px;color:#718096;margin-bottom:28px}
+.login-input{width:100%;padding:12px 16px;font-size:16px;border:2px solid #CBD5E0;border-radius:10px;outline:none;text-align:center;letter-spacing:.2em;transition:border .15s;font-family:inherit}
+.login-input:focus{border-color:#2E75B6;box-shadow:0 0 0 3px rgba(46,117,182,.15)}
+.login-btn{width:100%;margin-top:14px;padding:13px;background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.login-btn:hover{opacity:.9}
+.login-btn:active{opacity:.8}
+.login-error{margin-top:12px;color:#E53E3E;font-size:13px;font-weight:600;min-height:20px}
+.login-hint{margin-top:16px;font-size:11px;color:#A0AEC0;line-height:1.6}
+@media(max-width:640px){.login-box{padding:28px 20px}}
+
+/* ── Reset & Base ── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI','Hiragino Sans','Yu Gothic',sans-serif;background:#f0f4f8;color:#2d3748;font-size:14px}
+input,select,textarea,button{font-family:inherit}
+
+/* ── Top Bar ── */
+.top-bar{background:linear-gradient(135deg,#002060 0%,#1F4E79 60%,#2E75B6 100%);color:white;padding:14px 20px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:wrap}
+.top-bar h1{font-size:19px;font-weight:700;letter-spacing:.5px}
+.top-bar .subtitle{font-size:11px;opacity:.8;margin-top:2px}
+.top-bar-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.top-bar .date-badge{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);padding:5px 12px;border-radius:20px;font-size:12px;white-space:nowrap}
+
+/* ── Top Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:background .15s,transform .1s;white-space:nowrap}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn-white{background:white;color:#1F4E79}
+.btn-white:hover{background:#EBF8FF}
+.btn-green{background:#38A169;color:white}
+.btn-green:hover{background:#2F855A}
+.btn-amber{background:#D69E2E;color:white}
+.btn-amber:hover{background:#B7791F}
+.btn-red{background:#E53E3E;color:white}
+.btn-red:hover{background:#C53030}
+.btn-ghost{background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.4)}
+.btn-ghost:hover{background:rgba(255,255,255,.25)}
+.btn-sm{padding:4px 10px;font-size:12px;border-radius:6px}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:5px}
+.btn-icon{padding:5px 8px;border-radius:6px;background:#EDF2F7;border:none;cursor:pointer;font-size:14px;transition:background .15s}
+.btn-icon:hover{background:#BEE3F8}
+.btn-icon.del:hover{background:#FED7D7}
+
+/* ── Layout ── */
+.main{max-width:1440px;margin:0 auto;padding:18px}
+
+/* ── KPI cards ── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.kpi-card{background:white;border-radius:10px;padding:14px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:4px solid transparent;display:flex;align-items:center;gap:12px}
+.kpi-card .icon{font-size:26px}
+.kpi-card .val{font-size:28px;font-weight:700;line-height:1}
+.kpi-card .lbl{font-size:11px;color:#718096;margin-top:2px}
+.kpi-card.blue{border-color:#2E75B6}
+.kpi-card.green{border-color:#38a169}
+.kpi-card.amber{border-color:#d69e2e}
+.kpi-card.red{border-color:#e53e3e}
+
+/* ── Section ── */
+.section-head{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#1F4E79;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #BEE3F8}
+.card{background:white;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px}
+
+/* ── Site Cards ── */
+.sites-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sites-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.site-card{background:white;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:4px solid #2E75B6;transition:transform .15s,box-shadow .15s;position:relative}
+.site-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.site-card.selected{border-top-color:#d69e2e;box-shadow:0 0 0 2px #d69e2e}
+.site-card-actions{position:absolute;top:10px;right:10px;display:flex;gap:4px;opacity:0;transition:opacity .2s}
+.site-card:hover .site-card-actions{opacity:1}
+.site-card .site-id{font-size:11px;color:#718096;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.site-card .site-name{font-size:15px;font-weight:700;margin:4px 0 2px;padding-right:60px}
+.site-card .site-meta{font-size:12px;color:#718096;margin-bottom:4px}
+.status-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-bottom:8px}
+.badge-active{background:#C6F6D5;color:#276221}
+.badge-prep{background:#FEFCBF;color:#744210}
+.badge-complete{background:#BEE3F8;color:#1a365d}
+.badge-pause{background:#FED7D7;color:#9B2C2C}
+
+/* Progress bar */
+.prog-bar-wrap{margin:6px 0 4px}
+.prog-bar-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.prog-bar-bg{background:#EDF2F7;border-radius:6px;height:10px;overflow:hidden}
+.prog-bar-fill{height:100%;border-radius:6px;transition:width .6s ease}
+.prog-low{background:linear-gradient(90deg,#FC8181,#F56565)}
+.prog-mid{background:linear-gradient(90deg,#F6AD55,#ED8936)}
+.prog-high{background:linear-gradient(90deg,#68D391,#38A169)}
+
+/* Proc steps */
+.process-steps{display:flex;gap:3px;flex-wrap:wrap;margin-top:6px}
+.proc-step{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.proc-step:hover{opacity:.75}
+.proc-done{background:#C6F6D5;color:#276221}
+.proc-partial{background:#FEFCBF;color:#744210}
+.proc-none{background:#EDF2F7;color:#A0AEC0}
+
+.site-footer{display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#718096}
+
+/* ── Task list ── */
+.tasks-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.task-filters{display:flex;gap:6px;flex-wrap:wrap}
+.filter-btn{padding:5px 12px;border-radius:20px;border:1px solid #CBD5E0;background:white;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s,color .15s}
+.filter-btn.active{background:#2E75B6;color:white;border-color:#2E75B6}
+.filter-btn:hover:not(.active){background:#EBF8FF}
+
+.task-table{width:100%;border-collapse:collapse}
+.task-table th{background:#1F4E79;color:white;padding:8px 10px;text-align:left;font-size:12px;font-weight:600}
+.task-table td{padding:8px 10px;border-bottom:1px solid #E2E8F0;font-size:13px;vertical-align:middle}
+.task-table tr:last-child td{border-bottom:none}
+.task-table tr:hover td{background:#EBF8FF}
+.task-table .today-row td{background:#FFF5F5!important}
+.task-table .today-row:hover td{background:#FED7D7!important}
+.task-table .overdue-row td{background:#FFF5F5!important}
+
+.priority-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.p-high{background:#FED7D7;color:#C53030}
+.p-mid{background:#FEEBC8;color:#C05621}
+.p-low{background:#C6F6D5;color:#276221}
+
+.status-badge-sm{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.s-todo{background:#EDF2F7;color:#4A5568}
+.s-doing{background:#FEFCBF;color:#744210}
+.s-done{background:#C6F6D5;color:#276221}
+.s-hold{background:#FED7D7;color:#9B2C2C}
+
+.today-tag{display:inline-block;background:#E53E3E;color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px}
+.overdue-tag{display:inline-block;background:#9B2C2C;color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px}
+
+/* ── Gantt ── */
+.gantt-wrap{overflow-x:auto}
+.gantt-table{width:100%;border-collapse:collapse;min-width:600px}
+.gantt-table th{background:#1F4E79;color:white;padding:6px 10px;font-size:11px;text-align:center}
+.gantt-table td{padding:6px 8px;border-bottom:1px solid #E2E8F0;font-size:12px}
+
+/* ── Process Detail ── */
+.proc-detail-site{margin-bottom:16px;padding:12px;background:#F7FAFC;border-radius:8px}
+.proc-slider-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.proc-slider-label{width:70px;font-size:11px;font-weight:600;color:#4A5568;flex-shrink:0}
+.proc-slider{flex:1;height:6px;accent-color:#2E75B6;cursor:pointer}
+.proc-slider-val{width:38px;text-align:right;font-size:12px;font-weight:700;color:#2E75B6}
+
+/* ── Detail Panel ── */
+#detail-panel{position:fixed;right:-440px;top:0;width:440px;height:100vh;background:white;box-shadow:-4px 0 20px rgba(0,0,0,.15);transition:right .3s ease;z-index:100;overflow-y:auto;padding:20px}
+#detail-panel.open{right:0}
+#detail-panel .close-btn{position:absolute;top:12px;right:12px;background:#EDF2F7;border:none;border-radius:50%;width:28px;height:28px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.detail-row{display:flex;padding:6px 0;border-bottom:1px solid #EDF2F7;font-size:13px}
+.detail-row .dl{color:#718096;font-weight:600;width:80px;flex-shrink:0}
+.detail-task-item{padding:8px 12px;margin-bottom:6px;border-radius:8px;background:#F7FAFC;border-left:3px solid #2E75B6;font-size:13px}
+.detail-task-item.urgent{border-left-color:#E53E3E;background:#FFF5F5}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.show{opacity:1;pointer-events:all}
+.modal{background:white;border-radius:14px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);transform:scale(.95);transition:transform .2s}
+.modal-overlay.show .modal{transform:scale(1)}
+.modal-head{padding:18px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:white;z-index:1}
+.modal-head h2{font-size:16px;color:#1F4E79;font-weight:700}
+.modal-close{background:#EDF2F7;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.modal-body{padding:18px 20px}
+.modal-foot{padding:14px 20px;border-top:1px solid #E2E8F0;display:flex;justify-content:flex-end;gap:10px;position:sticky;bottom:0;background:white}
+
+/* Form elements */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:12px;font-weight:700;color:#4A5568;margin-bottom:5px}
+.form-input,.form-select,.form-textarea{width:100%;padding:8px 12px;border:1.5px solid #CBD5E0;border-radius:8px;font-size:13px;color:#2d3748;background:white;transition:border .15s}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:#2E75B6;box-shadow:0 0 0 3px rgba(46,117,182,.15)}
+.form-textarea{resize:vertical;min-height:70px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+
+/* Proc sliders in modal */
+.proc-modal-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #EDF2F7}
+.proc-modal-label{width:80px;font-size:12px;font-weight:600;color:#4A5568;flex-shrink:0}
+.proc-modal-slider{flex:1;accent-color:#2E75B6;cursor:pointer}
+.proc-modal-val{width:42px;text-align:right;font-size:13px;font-weight:700;color:#2E75B6}
+
+/* Toast notification */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#2d3748;color:white;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:600;z-index:999;transition:transform .3s;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── Bottom Nav (mobile only) ── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #E2E8F0;z-index:90;box-shadow:0 -2px 10px rgba(0,0,0,.1)}
+.bottom-nav-inner{display:flex;justify-content:space-around}
+.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;border:none;background:none;cursor:pointer;font-size:10px;font-weight:600;color:#718096;gap:3px;transition:color .15s;-webkit-tap-highlight-color:transparent}
+.bnav-btn .bnav-icon{font-size:20px;line-height:1}
+.bnav-btn.active{color:#1F4E79}
+.bnav-btn.active .bnav-icon{filter:drop-shadow(0 0 4px rgba(46,117,182,.5))}
+
+/* ── Task Cards (mobile) ── */
+.task-cards-list{display:none}
+.task-card{background:white;border-radius:10px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;border-left:4px solid #CBD5E0}
+.task-card.prio-high{border-left-color:#E53E3E}
+.task-card.prio-mid{border-left-color:#ED8936}
+.task-card.prio-low{border-left-color:#38A169}
+.task-card.is-today{background:#FFF8F8}
+.task-card-head{display:flex;align-items:flex-start;justify-content:space-between;padding:12px 12px 8px;gap:8px}
+.task-card-body{padding:0 12px 10px}
+.task-card-title{font-size:14px;font-weight:600;line-height:1.4;flex:1}
+.task-card-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.task-card-meta{font-size:12px;color:#718096;display:flex;flex-wrap:wrap;gap:8px}
+.task-card-actions{display:flex;gap:6px;padding:8px 12px;border-top:1px solid #F0F0F0;background:#FAFAFA}
+.task-card-status-sel{font-size:13px;padding:5px 8px;border:1.5px solid #CBD5E0;border-radius:8px;flex:1;background:white}
+
+/* ── Mobile menu panel ── */
+.mobile-menu-btn{display:none;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:white;border-radius:8px;padding:7px 10px;font-size:18px;cursor:pointer;line-height:1}
+.mobile-menu-panel{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.5);z-index:95}
+.mobile-menu-panel.show{display:block}
+.mobile-menu-sheet{position:absolute;top:0;right:0;bottom:0;width:260px;background:white;padding:20px 16px;box-shadow:-4px 0 20px rgba(0,0,0,.2)}
+.mobile-menu-sheet h3{font-size:14px;font-weight:700;color:#1F4E79;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #EDF2F7}
+.mobile-menu-sheet .menu-btn{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;margin-bottom:8px;border-radius:10px;border:none;background:#F7FAFC;font-size:14px;font-weight:600;cursor:pointer;text-align:left}
+.mobile-menu-sheet .menu-btn:active{background:#EBF8FF}
+
+/* ── Responsive 900px ── */
+@media(max-width:900px){
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .sites-grid{grid-template-columns:1fr 1fr}
+  #detail-panel{width:100%;right:auto;bottom:-95vh;top:auto;height:90vh;border-radius:16px 16px 0 0;transition:bottom .3s ease}
+  #detail-panel.open{bottom:0}
+  .form-row{grid-template-columns:1fr 1fr}
+  .form-row-3{grid-template-columns:1fr 1fr}
+}
+
+/* ── Responsive 640px (スマートフォン) ── */
+@media(max-width:640px){
+  /* Body bottom padding for nav */
+  body{padding-bottom:64px}
+  .main{padding:10px}
+
+  /* Top bar compact */
+  .top-bar{padding:10px 14px;gap:10px}
+  .top-bar h1{font-size:15px}
+  .top-bar .subtitle{display:none}
+  .top-bar-actions .save-indicator,
+  .top-bar-actions .btn-ghost,
+  .top-bar-actions .date-badge{display:none}
+  .mobile-menu-btn{display:block}
+
+  /* KPI 2x2 */
+  .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+  .kpi-card{padding:12px 14px}
+  .kpi-card .val{font-size:24px}
+  .kpi-card .icon{font-size:22px}
+
+  /* Cards */
+  .card{padding:14px;border-radius:10px;margin-bottom:12px}
+  .sites-grid{grid-template-columns:1fr}
+
+  /* Site card actions always visible on touch */
+  .site-card-actions{opacity:1}
+
+  /* Task: hide table, show cards */
+  .task-table-wrap{display:none}
+  .task-cards-list{display:block}
+  .bottom-nav{display:block}
+
+  /* Filter buttons: horizontal scroll */
+  .task-filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .task-filters::-webkit-scrollbar{display:none}
+  .filter-btn{white-space:nowrap;flex-shrink:0;padding:7px 14px;min-height:36px}
+
+  /* Section navigation pages */
+  .section-page{display:none}
+  .section-page.mob-active{display:block}
+
+  /* Add buttons */
+  .btn-sm{padding:8px 14px;font-size:13px}
+  .btn-icon{width:36px;height:36px;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
+
+  /* Modal: full-screen bottom sheet */
+  .modal-overlay{padding:0;align-items:flex-end}
+  .modal{border-radius:16px 16px 0 0;max-height:92vh;max-width:100%}
+
+  /* Detail panel: bottom sheet */
+  #detail-panel{width:100%;right:auto;bottom:-95vh;top:auto;height:88vh;border-radius:16px 16px 0 0;transition:bottom .3s ease;padding:16px}
+  #detail-panel.open{bottom:0}
+
+  /* Forms */
+  .form-row,.form-row-3{grid-template-columns:1fr}
+  .form-input,.form-select,.form-textarea{font-size:16px;padding:10px 12px}/* prevent iOS zoom */
+  .form-label{font-size:13px}
+
+  /* Process sliders */
+  .proc-slider{height:20px}/* larger touch target */
+
+  /* Toast above nav */
+  .toast{bottom:76px}
+
+  /* Gantt scrollable hint */
+  .gantt-wrap::before{content:'← 横にスクロールできます';display:block;font-size:11px;color:#718096;margin-bottom:6px}
+}
+
+/* Save indicator */
+.save-indicator{font-size:11px;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:4px}
+.save-indicator.saved::before{content:'✓';color:#68D391}
+.save-indicator.unsaved::before{content:'●';color:#F6AD55;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Checkbox */
+.task-check{width:16px;height:16px;cursor:pointer;accent-color:#38A169}
+
+.task-row-actions{display:flex;gap:3px;opacity:0;transition:opacity .2s}
+.task-table tr:hover .task-row-actions{opacity:1}
+
+/* Import hidden input */
+#json-import-input{display:none}
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">🏗️</div>
+    <div class="login-title">建築現場 進捗管理</div>
+    <div class="login-sub">パスワードを入力してください</div>
+    <input class="login-input" id="loginInput" type="password" placeholder="••••••••"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">ログイン</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-hint">※ パスワードを忘れた場合は管理者にお問い合わせください</div>
+  </div>
+</div>
+
+<!-- ===== TOP BAR ===== -->
+<div class="top-bar">
+  <div style="font-size:22px;">🏗️</div>
+  <div>
+    <h1>建築現場 進捗管理</h1>
+    <div class="subtitle">複数現場の進捗・タスクをリアルタイムで把握・編集</div>
+  </div>
+  <div class="top-bar-actions">
+    <div class="save-indicator" id="saveIndicator">保存済み</div>
+    <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="データをJSONファイルとして保存">💾 データ保存</button>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('json-import-input').click()" title="JSONファイルを読み込む">📂 データ読込</button>
+    <input type="file" id="json-import-input" accept=".json" onchange="importJSON(event)">
+    <div class="date-badge" id="currentDate"></div>
+    <!-- Mobile menu button -->
+    <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="ログアウト" style="font-size:12px;">🔒 ログアウト</button>
+    <button class="mobile-menu-btn" onclick="openMobileMenu()">☰</button>
+  </div>
+</div>
+
+<!-- ===== MOBILE MENU ===== -->
+<div class="mobile-menu-panel" id="mobileMenuPanel" onclick="closeMobileMenu()">
+  <div class="mobile-menu-sheet" onclick="event.stopPropagation()">
+    <h3>⚙️ メニュー</h3>
+    <div class="save-indicator" id="saveIndicatorMobile" style="margin-bottom:14px;color:#4A5568;font-size:12px;">保存済み</div>
+    <button class="menu-btn" onclick="exportJSON();closeMobileMenu()">💾 データ保存（JSON）</button>
+    <button class="menu-btn" onclick="document.getElementById('json-import-input').click();closeMobileMenu()">📂 データ読込（JSON）</button>
+    <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
+    <button class="menu-btn" onclick="openTaskModal();closeMobileMenu()">✅ タスク追加</button>
+    <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- KPI (always visible) -->
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="icon">🏗️</div><div><div class="val" id="kpi-sites">0</div><div class="lbl">管理現場数</div></div></div>
+    <div class="kpi-card amber"><div class="icon">📋</div><div><div class="val" id="kpi-today">0</div><div class="lbl">本日のタスク</div></div></div>
+    <div class="kpi-card red"><div class="icon">🔴</div><div><div class="val" id="kpi-urgent">0</div><div class="lbl">高優先度</div></div></div>
+    <div class="kpi-card green"><div class="icon">📈</div><div><div class="val" id="kpi-avg">—</div><div class="lbl">平均進捗率</div></div></div>
+  </div>
+
+  <!-- ===== PAGE: 現場 ===== -->
+  <div class="section-page mob-active" id="page-sites">
+    <div class="card">
+      <div class="sites-header">
+        <div class="section-head" style="margin-bottom:0;border:none;">🏢 現場一覧</div>
+        <button class="btn btn-green btn-sm" onclick="openSiteModal()">＋ 現場追加</button>
+      </div>
+      <div class="sites-grid" id="sitesGrid"></div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: タスク ===== -->
+  <div class="section-page" id="page-tasks">
+    <div class="card">
+      <div class="tasks-header">
+        <div class="section-head" style="margin-bottom:0;border:none;">✅ タスク管理</div>
+        <button class="btn btn-green btn-sm" onclick="openTaskModal()">＋ タスク追加</button>
+      </div>
+      <div class="task-filters" style="margin-bottom:12px;">
+        <button class="filter-btn active" onclick="filterTasks('all',this)">すべて</button>
+        <button class="filter-btn" onclick="filterTasks('today',this)">📅 本日</button>
+        <button class="filter-btn" onclick="filterTasks('week',this)">📆 今週</button>
+        <button class="filter-btn" onclick="filterTasks('high',this)">🔴 高優先度</button>
+        <button class="filter-btn" onclick="filterTasks('doing',this)">⚡ 進行中</button>
+        <button class="filter-btn" onclick="filterTasks('overdue',this)">⚠️ 期限超過</button>
+      </div>
+      <!-- Desktop: table -->
+      <div class="task-table-wrap" style="overflow-x:auto;">
+        <table class="task-table" id="taskTable">
+          <thead>
+            <tr>
+              <th style="width:30px;"></th>
+              <th>現場</th>
+              <th>タスク内容</th>
+              <th>担当</th>
+              <th>期限</th>
+              <th>優先度</th>
+              <th>ステータス</th>
+              <th>カテゴリ</th>
+              <th style="width:50px;">時間</th>
+              <th style="width:70px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="taskBody"></tbody>
+        </table>
+      </div>
+      <!-- Mobile: cards -->
+      <div class="task-cards-list" id="taskCards"></div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: 工期 ===== -->
+  <div class="section-page" id="page-gantt">
+    <div class="card">
+      <div class="section-head">📅 工期タイムライン</div>
+      <div class="gantt-wrap" id="ganttWrap"></div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: 工程 ===== -->
+  <div class="section-page" id="page-proc">
+    <div class="card">
+      <div class="section-head">🔧 工程別進捗（スライダーで編集）</div>
+      <div id="processDetail"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== BOTTOM NAV ===== -->
+<nav class="bottom-nav" id="bottomNav">
+  <div class="bottom-nav-inner">
+    <button class="bnav-btn active" id="bnav-sites" onclick="switchTab('sites')">
+      <span class="bnav-icon">🏢</span>現場
+    </button>
+    <button class="bnav-btn" id="bnav-tasks" onclick="switchTab('tasks')">
+      <span class="bnav-icon">✅</span>タスク
+    </button>
+    <button class="bnav-btn" id="bnav-gantt" onclick="switchTab('gantt')">
+      <span class="bnav-icon">📅</span>工期
+    </button>
+    <button class="bnav-btn" id="bnav-proc" onclick="switchTab('proc')">
+      <span class="bnav-icon">🔧</span>工程
+    </button>
+  </div>
+</nav>
+
+<!-- ===== DETAIL PANEL ===== -->
+<div id="detail-panel">
+  <button class="close-btn" onclick="closeDetail()">✕</button>
+  <div id="detail-content"></div>
+</div>
+
+<!-- ===== SITE MODAL ===== -->
+<div class="modal-overlay" id="siteModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="siteModalTitle">現場追加</h2>
+      <button class="modal-close" onclick="closeSiteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="siteEditId">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">現場ID *</label>
+          <input class="form-input" id="s-id" placeholder="例: S-006">
+        </div>
+        <div class="form-group">
+          <label class="form-label">ステータス</label>
+          <select class="form-select" id="s-status">
+            <option>施工中</option><option>準備中</option><option>竣工</option><option>一時停止</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">現場名 *</label>
+        <input class="form-input" id="s-name" placeholder="例: ○○マンション新築工事">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">所在地</label>
+          <input class="form-input" id="s-addr" placeholder="例: 東京都新宿区">
+        </div>
+        <div class="form-group">
+          <label class="form-label">工種・構造</label>
+          <input class="form-input" id="s-type" placeholder="例: RC造 地上10階建">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">担当者</label>
+          <input class="form-input" id="s-mgr" placeholder="例: 田中 健司">
+        </div>
+        <div class="form-group">
+          <label class="form-label">全体進捗率 (%)</label>
+          <input class="form-input" id="s-progress" type="number" min="0" max="100" placeholder="例: 42">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">着工日</label>
+          <input class="form-input" id="s-start" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">竣工予定日</label>
+          <input class="form-input" id="s-end" type="date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">現況メモ</label>
+        <input class="form-input" id="s-note" placeholder="例: 躯体4F施工中">
+      </div>
+
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #E2E8F0;">
+        <div style="font-weight:700;font-size:13px;color:#1F4E79;margin-bottom:10px;">🔧 工程別進捗 (%)</div>
+        <div id="siteModalProcs"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-white" style="color:#4A5568;border:1.5px solid #CBD5E0;" onclick="closeSiteModal()">キャンセル</button>
+      <button class="btn btn-green" onclick="saveSite()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TASK MODAL ===== -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="taskModalTitle">タスク追加</h2>
+      <button class="modal-close" onclick="closeTaskModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="taskEditId">
+      <div class="form-group">
+        <label class="form-label">タスク内容 *</label>
+        <input class="form-input" id="t-task" placeholder="例: 躯体4F 型枠検査の立会い準備">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">現場 *</label>
+          <select class="form-select" id="t-site"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">担当者</label>
+          <input class="form-input" id="t-mgr" placeholder="例: 田中 健司">
+        </div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="form-label">期限日 *</label>
+          <input class="form-input" id="t-due" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">優先度</label>
+          <select class="form-select" id="t-priority">
+            <option>高</option><option>中</option><option>低</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ステータス</label>
+          <select class="form-select" id="t-status">
+            <option>未着手</option><option>進行中</option><option>完了</option><option>保留</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">カテゴリ</label>
+          <select class="form-select" id="t-cat">
+            <option>品質管理</option><option>躯体工事</option><option>内装工事</option>
+            <option>設備工事</option><option>外構工事</option><option>仮設工事</option>
+            <option>書類作成</option><option>資材調達</option><option>安全管理</option>
+            <option>図面管理</option><option>近隣対応</option><option>その他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">所要時間 (h)</label>
+          <input class="form-input" id="t-hrs" type="number" min="0.5" max="24" step="0.5" placeholder="例: 2">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">備考</label>
+        <textarea class="form-textarea" id="t-note" placeholder="補足情報があれば入力"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-white" style="color:#4A5568;border:1.5px solid #CBD5E0;" onclick="closeTaskModal()">キャンセル</button>
+      <button class="btn btn-green" onclick="saveTask()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DELETE CONFIRM MODAL ===== -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-head"><h2 id="confirmTitle">削除の確認</h2><button class="modal-close" onclick="closeConfirm()">✕</button></div>
+    <div class="modal-body"><p id="confirmMsg" style="font-size:14px;color:#4A5568;line-height:1.6;"></p></div>
+    <div class="modal-foot">
+      <button class="btn btn-white" style="color:#4A5568;border:1.5px solid #CBD5E0;" onclick="closeConfirm()">キャンセル</button>
+      <button class="btn btn-red" id="confirmOkBtn">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TOAST ===== -->
+<div class="toast" id="toast"></div>
+
+<script>
+// =========================================================
+// パスワード認証
+// =========================================================
+// ▼ パスワードを変更したい場合:
+//   下記サイトで新しいパスワードのSHA-256ハッシュを取得して PASSWORD_HASH を書き換えてください
+//   https://emn178.github.io/online-tools/sha256.html
+const PASSWORD_HASH = 'ed43834746d6984a4b56d0d96d4bfe4b9db138e32860686c5773697b72789333'; // 初期パスワード: kenba2026
+const AUTH_KEY = 'kenba_auth';
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function doLogin() {
+  const pw = document.getElementById('loginInput').value;
+  if (!pw) { document.getElementById('loginError').textContent = 'パスワードを入力してください'; return; }
+  const hash = await sha256(pw);
+  if (hash === PASSWORD_HASH) {
+    localStorage.setItem(AUTH_KEY, '1');
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('loginError').textContent = '';
+    loadState(); renderAll(); saveState();
+  } else {
+    document.getElementById('loginError').textContent = '❌ パスワードが正しくありません';
+    document.getElementById('loginInput').value = '';
+    document.getElementById('loginInput').focus();
+    // 3回連続失敗で30秒ロック
+    const fails = parseInt(localStorage.getItem('kenba_fails')||'0') + 1;
+    localStorage.setItem('kenba_fails', fails);
+    if (fails >= 3) {
+      document.getElementById('loginInput').disabled = true;
+      document.querySelector('.login-btn').disabled = true;
+      document.getElementById('loginError').textContent = '⚠️ 入力を30秒間ブロックしました';
+      setTimeout(() => {
+        document.getElementById('loginInput').disabled = false;
+        document.querySelector('.login-btn').disabled = false;
+        localStorage.setItem('kenba_fails', '0');
+        document.getElementById('loginError').textContent = '';
+      }, 30000);
+    }
+  }
+}
+
+function doLogout() {
+  if (!confirm('ログアウトしますか？')) return;
+  localStorage.removeItem(AUTH_KEY);
+  location.reload();
+}
+
+function checkAuth() {
+  if (localStorage.getItem(AUTH_KEY) === '1') {
+    document.getElementById('loginScreen').style.display = 'none';
+    return true;
+  }
+  // ログイン画面を表示したままにする（データはロードしない）
+  document.getElementById('loginInput').focus();
+  return false;
+}
+
+// =========================================================
+// CONSTANTS & DATA
+// =========================================================
+const TODAY = new Date('2026-03-30');
+const THIS_WEEK_END = new Date('2026-04-05');
+
+const PROCESSES = [
+  {key:'仮設',label:'仮設工事'},{key:'土工',label:'土工事'},{key:'基礎',label:'基礎工事'},
+  {key:'躯体',label:'躯体工事'},{key:'屋根',label:'屋根工事'},{key:'外装',label:'外装工事'},
+  {key:'内装',label:'内装工事'},{key:'設備',label:'設備工事'},{key:'外構',label:'外構工事'},
+];
+
+// Default data
+const DEFAULT_SITES = [
+  {id:'S-001',name:'桜ヶ丘マンション新築工事',addr:'東京都世田谷区',type:'RC造 10階建',mgr:'田中 健司',start:'2025-10-01',end:'2026-09-30',progress:42,status:'施工中',note:'躯体4F施工中',
+   procs:[100,100,100,55,0,0,0,10,0]},
+  {id:'S-002',name:'青葉台戸建住宅',addr:'神奈川県横浜市',type:'木造2階建',mgr:'佐藤 美咲',start:'2026-01-15',end:'2026-08-31',progress:65,status:'施工中',note:'内装工事中',
+   procs:[100,100,100,100,100,80,50,60,0]},
+  {id:'S-003',name:'港区オフィスビル改修',addr:'東京都港区',type:'鉄骨造8階建',mgr:'鈴木 大輔',start:'2025-11-01',end:'2026-06-30',progress:78,status:'施工中',note:'仕上げ工事最終段階',
+   procs:[100,100,100,100,100,100,90,80,50]},
+  {id:'S-004',name:'川崎工場増築工事',addr:'神奈川県川崎市',type:'鉄骨造平屋',mgr:'山本 花子',start:'2026-02-01',end:'2026-12-20',progress:18,status:'施工中',note:'基礎工事中',
+   procs:[100,60,20,0,0,0,0,0,0]},
+  {id:'S-005',name:'府中市立小学校改修',addr:'東京都府中市',type:'RC造4階建',mgr:'高橋 翔太',start:'2026-03-01',end:'2026-09-15',progress:8,status:'準備中',note:'仮設工事中',
+   procs:[40,0,0,0,0,0,0,0,0]},
+];
+
+const DEFAULT_TASKS = [
+  {id:1, site:'S-001',task:'躯体4F 型枠検査の立会い準備',mgr:'田中 健司',due:'2026-03-30',priority:'高',status:'未着手',cat:'品質管理',hrs:2,note:'第三者機関との調整'},
+  {id:2, site:'S-001',task:'4Fスラブ コンクリート打設',mgr:'田中 健司',due:'2026-03-30',priority:'高',status:'進行中',cat:'躯体工事',hrs:8,note:'天候確認済み'},
+  {id:3, site:'S-001',task:'工程表更新・発注者報告',mgr:'田中 健司',due:'2026-04-01',priority:'中',status:'未着手',cat:'書類作成',hrs:1,note:'月次報告'},
+  {id:4, site:'S-002',task:'クロス貼り工事 最終確認',mgr:'佐藤 美咲',due:'2026-03-30',priority:'高',status:'進行中',cat:'内装工事',hrs:4,note:'居室2部屋残り'},
+  {id:5, site:'S-002',task:'キッチン設備取付立会い',mgr:'佐藤 美咲',due:'2026-04-02',priority:'中',status:'未着手',cat:'設備工事',hrs:3,note:'メーカー施工'},
+  {id:6, site:'S-003',task:'竣工検査書類の最終確認',mgr:'鈴木 大輔',due:'2026-03-31',priority:'高',status:'未着手',cat:'書類作成',hrs:4,note:'発注者提出期限'},
+  {id:7, site:'S-003',task:'外構工事 残工事確認',mgr:'鈴木 大輔',due:'2026-04-03',priority:'中',status:'未着手',cat:'外構工事',hrs:2,note:''},
+  {id:8, site:'S-004',task:'基礎配筋検査の手配',mgr:'山本 花子',due:'2026-03-30',priority:'高',status:'未着手',cat:'品質管理',hrs:1,note:'社内検査→第三者機関'},
+  {id:9, site:'S-004',task:'コンクリート発注 数量確認',mgr:'山本 花子',due:'2026-04-01',priority:'高',status:'未着手',cat:'資材調達',hrs:2,note:'4/5打設予定'},
+  {id:10,site:'S-004',task:'安全パトロール実施',mgr:'山本 花子',due:'2026-03-31',priority:'中',status:'未着手',cat:'安全管理',hrs:1,note:'月末パトロール'},
+  {id:11,site:'S-004',task:'施工図 基礎伏図チェック',mgr:'山本 花子',due:'2026-04-04',priority:'中',status:'未着手',cat:'図面管理',hrs:3,note:''},
+  {id:12,site:'S-005',task:'仮設足場組立完了確認',mgr:'高橋 翔太',due:'2026-03-31',priority:'高',status:'進行中',cat:'仮設工事',hrs:2,note:''},
+  {id:13,site:'S-005',task:'近隣挨拶（北側住民）',mgr:'高橋 翔太',due:'2026-04-01',priority:'中',status:'未着手',cat:'近隣対応',hrs:1,note:'工事騒音説明'},
+];
+
+// =========================================================
+// STATE
+// =========================================================
+let SITES = [];
+let TASKS = [];
+let nextTaskId = 100;
+let currentFilter = 'all';
+let unsaved = false;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('kenba_data');
+    if (raw) {
+      const d = JSON.parse(raw);
+      SITES = d.sites || JSON.parse(JSON.stringify(DEFAULT_SITES));
+      TASKS = d.tasks || JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      nextTaskId = d.nextTaskId || 100;
+    } else {
+      SITES = JSON.parse(JSON.stringify(DEFAULT_SITES));
+      TASKS = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+    }
+  } catch(e) {
+    SITES = JSON.parse(JSON.stringify(DEFAULT_SITES));
+    TASKS = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+  }
+}
+
+function saveState() {
+  try {
+    localStorage.setItem('kenba_data', JSON.stringify({sites:SITES, tasks:TASKS, nextTaskId}));
+  } catch(e) {}
+  unsaved = false;
+  document.getElementById('saveIndicator').className = 'save-indicator saved';
+  document.getElementById('saveIndicator').textContent = '自動保存済み';
+}
+
+function markUnsaved() {
+  unsaved = true;
+  document.getElementById('saveIndicator').className = 'save-indicator unsaved';
+  document.getElementById('saveIndicator').textContent = '未保存の変更あり';
+}
+
+// =========================================================
+// UTILITIES
+// =========================================================
+function isToday(dateStr) {
+  const d = new Date(dateStr);
+  return d.getFullYear()===TODAY.getFullYear()&&d.getMonth()===TODAY.getMonth()&&d.getDate()===TODAY.getDate();
+}
+function isThisWeek(dateStr){ const d=new Date(dateStr); return d>=TODAY&&d<=THIS_WEEK_END; }
+function isOverdue(dateStr){ const d=new Date(dateStr); return d<TODAY; }
+function fmtDate(dateStr){ if(!dateStr)return'—'; const d=new Date(dateStr); return `${d.getMonth()+1}/${d.getDate()}`; }
+function fmtDateFull(dateStr){ if(!dateStr)return'—'; const d=new Date(dateStr); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function progClass(v){ return v>=70?'prog-high':v>=30?'prog-mid':'prog-low'; }
+function procClass(v){ return v===100?'proc-done':v>0?'proc-partial':'proc-none'; }
+function priorityClass(p){ return p==='高'?'p-high':p==='中'?'p-mid':'p-low'; }
+function statusClass(s){ return{未着手:'s-todo',進行中:'s-doing',完了:'s-done',保留:'s-hold'}[s]||'s-todo'; }
+function daysLeft(dateStr){
+  const d=new Date(dateStr);
+  const diff=Math.round((d-TODAY)/86400000);
+  if(diff<0)return`<span style="color:#E53E3E;font-weight:700;">${Math.abs(diff)}日超過</span>`;
+  if(diff===0)return`<span style="color:#E53E3E;font-weight:700;">今日</span>`;
+  if(diff<=3)return`<span style="color:#ED8936;font-weight:700;">あと${diff}日</span>`;
+  return`<span style="color:#718096;">あと${diff}日</span>`;
+}
+function siteName(id){ const s=SITES.find(x=>x.id===id); return s?s.name:'—'; }
+function showToast(msg,dur=2200){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+// =========================================================
+// KPI
+// =========================================================
+function renderKPI(){
+  const todayCount=TASKS.filter(t=>isToday(t.due)&&t.status!=='完了').length;
+  const urgentCount=TASKS.filter(t=>t.priority==='高'&&t.status!=='完了').length;
+  const avgProg=SITES.length?Math.round(SITES.reduce((s,x)=>s+x.progress,0)/SITES.length):0;
+  document.getElementById('kpi-sites').textContent=SITES.length;
+  document.getElementById('kpi-today').textContent=todayCount;
+  document.getElementById('kpi-urgent').textContent=urgentCount;
+  document.getElementById('kpi-avg').textContent=avgProg+'%';
+  const d=TODAY;
+  document.getElementById('currentDate').textContent=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（月）`;
+}
+
+// =========================================================
+// SITES
+// =========================================================
+function renderSites(){
+  const grid=document.getElementById('sitesGrid');
+  if(!SITES.length){
+    grid.innerHTML='<div style="color:#718096;padding:20px;text-align:center;">現場がありません。「＋ 現場追加」から追加してください。</div>';
+    return;
+  }
+  const badgeMap={施工中:'badge-active',準備中:'badge-prep',竣工:'badge-complete',一時停止:'badge-pause'};
+  grid.innerHTML=SITES.map(s=>{
+    const pct=s.progress;
+    const pc=progClass(pct);
+    const procs=s.procs||Array(9).fill(0);
+    const procHTML=PROCESSES.map((p,i)=>`<span class="proc-step ${procClass(procs[i])}" title="${p.label} ${procs[i]}%">${p.key}</span>`).join('');
+    const badgeCls=badgeMap[s.status]||'badge-active';
+    const todayT=TASKS.filter(t=>t.site===s.id&&isToday(t.due)&&t.status!=='完了').length;
+    const weekT=TASKS.filter(t=>t.site===s.id&&isThisWeek(t.due)&&t.status!=='完了').length;
+    return`<div class="site-card" id="card-${s.id}">
+      <div class="site-card-actions">
+        <button class="btn-icon" onclick="openSiteModal('${s.id}')" title="編集">✏️</button>
+        <button class="btn-icon del" onclick="confirmDeleteSite('${s.id}')" title="削除">🗑️</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div class="site-id">${s.id}</div>
+        <span class="status-badge ${badgeCls}">${s.status}</span>
+      </div>
+      <div class="site-name" onclick="openDetail('${s.id}')" style="cursor:pointer;">${s.name}</div>
+      <div class="site-meta">📍 ${s.addr||'—'} &nbsp;｜&nbsp; 👷 ${s.mgr||'—'}</div>
+      ${s.note?`<div class="site-meta" style="color:#E53E3E;font-size:11px;">📝 ${s.note}</div>`:''}
+      <div class="prog-bar-wrap">
+        <div class="prog-bar-label">
+          <span style="font-weight:600;color:#2d3748;">全体進捗</span>
+          <span style="font-weight:700;color:#2E75B6;">${pct}%</span>
+        </div>
+        <div class="prog-bar-bg"><div class="prog-bar-fill ${pc}" style="width:${pct}%"></div></div>
+      </div>
+      <div class="process-steps" onclick="openSiteModal('${s.id}')" title="クリックで工程進捗を編集">${procHTML}</div>
+      <div class="site-footer">
+        <span>📅 本日: <strong style="color:#E53E3E;">${todayT}</strong>件</span>
+        <span>📆 今週: <strong style="color:#ED8936;">${weekT}</strong>件</span>
+        <span>竣工 ${fmtDate(s.end)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// =========================================================
+// SITE MODAL
+// =========================================================
+function openSiteModal(siteId){
+  const isEdit=!!siteId;
+  document.getElementById('siteModalTitle').textContent=isEdit?'現場編集':'現場追加';
+  document.getElementById('siteEditId').value=siteId||'';
+
+  // Build proc sliders
+  const procsEl=document.getElementById('siteModalProcs');
+  procsEl.innerHTML=PROCESSES.map((p,i)=>`
+    <div class="proc-modal-row">
+      <div class="proc-modal-label">${p.label}</div>
+      <input class="proc-modal-slider" id="sp-${i}" type="range" min="0" max="100" step="5" value="0"
+        oninput="document.getElementById('spv-${i}').textContent=this.value+'%'">
+      <div class="proc-modal-val" id="spv-${i}">0%</div>
+    </div>`).join('');
+
+  if(isEdit){
+    const s=SITES.find(x=>x.id===siteId);
+    if(!s)return;
+    document.getElementById('s-id').value=s.id;
+    document.getElementById('s-id').disabled=true;
+    document.getElementById('s-name').value=s.name;
+    document.getElementById('s-addr').value=s.addr||'';
+    document.getElementById('s-type').value=s.type||'';
+    document.getElementById('s-mgr').value=s.mgr||'';
+    document.getElementById('s-progress').value=s.progress||0;
+    document.getElementById('s-start').value=s.start||'';
+    document.getElementById('s-end').value=s.end||'';
+    document.getElementById('s-note').value=s.note||'';
+    document.getElementById('s-status').value=s.status||'施工中';
+    const procs=s.procs||Array(9).fill(0);
+    PROCESSES.forEach((_,i)=>{
+      document.getElementById(`sp-${i}`).value=procs[i];
+      document.getElementById(`spv-${i}`).textContent=procs[i]+'%';
+    });
+  } else {
+    ['s-id','s-name','s-addr','s-type','s-mgr','s-note'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('s-id').disabled=false;
+    document.getElementById('s-progress').value=0;
+    document.getElementById('s-start').value='';
+    document.getElementById('s-end').value='';
+    document.getElementById('s-status').value='施工中';
+  }
+  document.getElementById('siteModal').classList.add('show');
+}
+
+function closeSiteModal(){ document.getElementById('siteModal').classList.remove('show'); }
+
+function saveSite(){
+  const isEdit=!!document.getElementById('siteEditId').value;
+  const id=isEdit?document.getElementById('siteEditId').value:document.getElementById('s-id').value.trim();
+  const name=document.getElementById('s-name').value.trim();
+  if(!id){showToast('⚠️ 現場IDを入力してください');return;}
+  if(!name){showToast('⚠️ 現場名を入力してください');return;}
+  if(!isEdit&&SITES.find(s=>s.id===id)){showToast('⚠️ このIDは既に使用されています');return;}
+
+  const procs=PROCESSES.map((_,i)=>parseInt(document.getElementById(`sp-${i}`).value)||0);
+  const obj={
+    id,name,
+    addr:document.getElementById('s-addr').value.trim(),
+    type:document.getElementById('s-type').value.trim(),
+    mgr:document.getElementById('s-mgr').value.trim(),
+    progress:parseInt(document.getElementById('s-progress').value)||0,
+    start:document.getElementById('s-start').value,
+    end:document.getElementById('s-end').value,
+    note:document.getElementById('s-note').value.trim(),
+    status:document.getElementById('s-status').value,
+    procs,
+  };
+
+  if(isEdit){ const idx=SITES.findIndex(s=>s.id===id); if(idx>=0)SITES[idx]=obj; }
+  else { SITES.push(obj); }
+
+  closeSiteModal();
+  renderAll();
+  saveState();
+  showToast(isEdit?'✅ 現場を更新しました':'✅ 現場を追加しました');
+}
+
+function confirmDeleteSite(siteId){
+  const s=SITES.find(x=>x.id===siteId);
+  const taskCount=TASKS.filter(t=>t.site===siteId).length;
+  document.getElementById('confirmMsg').innerHTML=
+    `<strong>「${s.name}」</strong> を削除しますか？<br><br>`+
+    (taskCount?`この現場には <strong>${taskCount}件</strong> のタスクが紐付いています。<br>現場を削除するとタスクも削除されます。<br><br>`:'')+'この操作は元に戻せません。';
+  document.getElementById('confirmOkBtn').onclick=()=>{
+    SITES=SITES.filter(x=>x.id!==siteId);
+    TASKS=TASKS.filter(t=>t.site!==siteId);
+    closeConfirm(); renderAll(); saveState();
+    showToast('🗑️ 現場を削除しました');
+  };
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+// =========================================================
+// TASKS
+// =========================================================
+function filterTasks(f,btn){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTasks();
+}
+
+function renderTasks(){
+  let filtered=TASKS.filter(t=>{
+    if(currentFilter==='today') return isToday(t.due)&&t.status!=='完了';
+    if(currentFilter==='week')  return isThisWeek(t.due)&&t.status!=='完了';
+    if(currentFilter==='high')  return t.priority==='高'&&t.status!=='完了';
+    if(currentFilter==='doing') return t.status==='進行中';
+    if(currentFilter==='overdue') return isOverdue(t.due)&&t.status!=='完了';
+    return true;
+  });
+
+  const tbody=document.getElementById('taskBody');
+  if(!filtered.length){
+    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:#718096;padding:20px;">該当するタスクはありません</td></tr>';
+    return;
+  }
+
+  // Sort: overdue first, then today, then by date
+  filtered.sort((a,b)=>{
+    const aOver=isOverdue(a.due)&&a.status!=='完了';
+    const bOver=isOverdue(b.due)&&b.status!=='完了';
+    if(aOver!==bOver)return aOver?-1:1;
+    return new Date(a.due)-new Date(b.due);
+  });
+
+  tbody.innerHTML=filtered.map(t=>{
+    const isT=isToday(t.due)&&t.status!=='完了';
+    const isO=isOverdue(t.due)&&t.status!=='完了'&&!isToday(t.due);
+    const rowCls=isO?'overdue-row':isT?'today-row':'';
+    const sname=siteName(t.site);
+    const shortName=sname.length>10?sname.substring(0,10)+'…':sname;
+    return`<tr class="${rowCls}" id="task-row-${t.id}">
+      <td><input type="checkbox" class="task-check" ${t.status==='完了'?'checked':''} onchange="toggleTaskDone(${t.id},this)"></td>
+      <td>
+        <span style="font-size:11px;font-weight:600;color:#2E75B6;">${t.site}</span><br>
+        <span style="font-size:11px;color:#718096;">${shortName}</span>
+      </td>
+      <td>
+        <span ${t.status==='完了'?'style="text-decoration:line-through;color:#A0AEC0;"':''}>${t.task}</span>
+        ${isT?'<span class="today-tag">本日</span>':''}
+        ${isO?'<span class="overdue-tag">期限超過</span>':''}
+        ${t.note?`<br><span style="font-size:11px;color:#718096;">💬 ${t.note}</span>`:''}
+      </td>
+      <td style="white-space:nowrap;">${t.mgr||'—'}</td>
+      <td style="white-space:nowrap;">${fmtDate(t.due)}<br>${daysLeft(t.due)}</td>
+      <td><span class="priority-badge ${priorityClass(t.priority)}">${t.priority}</span></td>
+      <td>
+        <select class="form-select" style="padding:3px 6px;font-size:12px;min-width:80px;" onchange="updateTaskStatus(${t.id},this.value)">
+          ${['未着手','進行中','完了','保留'].map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td><span style="background:#EDF2F7;padding:2px 6px;border-radius:4px;font-size:11px;">${t.cat}</span></td>
+      <td style="text-align:center;">${t.hrs}h</td>
+      <td>
+        <div class="task-row-actions">
+          <button class="btn-icon btn-sm" onclick="openTaskModal(${t.id})" title="編集">✏️</button>
+          <button class="btn-icon del btn-sm" onclick="confirmDeleteTask(${t.id})" title="削除">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleTaskDone(id,cb){
+  const t=TASKS.find(x=>x.id===id);
+  if(t){ t.status=cb.checked?'完了':'未着手'; renderTasks(); renderKPI(); renderSites(); saveState(); }
+}
+
+function updateTaskStatus(id,val){
+  const t=TASKS.find(x=>x.id===id);
+  if(t){ t.status=val; renderKPI(); renderSites(); saveState(); showToast('✅ ステータスを更新しました'); }
+}
+
+// =========================================================
+// TASK MODAL
+// =========================================================
+function openTaskModal(taskId){
+  const isEdit=taskId!==undefined;
+  document.getElementById('taskModalTitle').textContent=isEdit?'タスク編集':'タスク追加';
+  document.getElementById('taskEditId').value=isEdit?taskId:'';
+
+  // Populate site dropdown
+  const sel=document.getElementById('t-site');
+  sel.innerHTML=SITES.map(s=>`<option value="${s.id}">${s.id} - ${s.name}</option>`).join('');
+
+  if(isEdit){
+    const t=TASKS.find(x=>x.id===taskId);
+    if(!t)return;
+    document.getElementById('t-task').value=t.task;
+    sel.value=t.site;
+    document.getElementById('t-mgr').value=t.mgr||'';
+    document.getElementById('t-due').value=t.due;
+    document.getElementById('t-priority').value=t.priority;
+    document.getElementById('t-status').value=t.status;
+    document.getElementById('t-cat').value=t.cat;
+    document.getElementById('t-hrs').value=t.hrs||1;
+    document.getElementById('t-note').value=t.note||'';
+  } else {
+    document.getElementById('t-task').value='';
+    document.getElementById('t-mgr').value=SITES.length?SITES[0].mgr:'';
+    document.getElementById('t-due').value=fmtDateFull(TODAY.toISOString());
+    document.getElementById('t-priority').value='中';
+    document.getElementById('t-status').value='未着手';
+    document.getElementById('t-cat').value='その他';
+    document.getElementById('t-hrs').value=1;
+    document.getElementById('t-note').value='';
+    // Auto-fill manager when site changes
+    sel.onchange=()=>{
+      const s=SITES.find(x=>x.id===sel.value);
+      if(s)document.getElementById('t-mgr').value=s.mgr||'';
+    };
+  }
+  document.getElementById('taskModal').classList.add('show');
+}
+
+function closeTaskModal(){ document.getElementById('taskModal').classList.remove('show'); }
+
+function saveTask(){
+  const isEdit=!!document.getElementById('taskEditId').value;
+  const taskText=document.getElementById('t-task').value.trim();
+  const due=document.getElementById('t-due').value;
+  if(!taskText){showToast('⚠️ タスク内容を入力してください');return;}
+  if(!due){showToast('⚠️ 期限日を入力してください');return;}
+
+  const obj={
+    id:isEdit?parseInt(document.getElementById('taskEditId').value):nextTaskId++,
+    site:document.getElementById('t-site').value,
+    task:taskText,
+    mgr:document.getElementById('t-mgr').value.trim(),
+    due,
+    priority:document.getElementById('t-priority').value,
+    status:document.getElementById('t-status').value,
+    cat:document.getElementById('t-cat').value,
+    hrs:parseFloat(document.getElementById('t-hrs').value)||1,
+    note:document.getElementById('t-note').value.trim(),
+  };
+
+  if(isEdit){ const idx=TASKS.findIndex(t=>t.id===obj.id); if(idx>=0)TASKS[idx]=obj; }
+  else { TASKS.push(obj); }
+
+  closeTaskModal();
+  renderAll();
+  saveState();
+  showToast(isEdit?'✅ タスクを更新しました':'✅ タスクを追加しました');
+}
+
+function confirmDeleteTask(taskId){
+  const t=TASKS.find(x=>x.id===taskId);
+  document.getElementById('confirmMsg').innerHTML=
+    `タスク <strong>「${t.task}」</strong> を削除しますか？<br><br>この操作は元に戻せません。`;
+  document.getElementById('confirmOkBtn').onclick=()=>{
+    TASKS=TASKS.filter(x=>x.id!==taskId);
+    closeConfirm(); renderAll(); saveState();
+    showToast('🗑️ タスクを削除しました');
+  };
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+// =========================================================
+// CONFIRM MODAL
+// =========================================================
+function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); }
+
+// =========================================================
+// GANTT
+// =========================================================
+function renderGantt(){
+  if(!SITES.length){ document.getElementById('ganttWrap').innerHTML='<div style="color:#718096;padding:10px;">現場データがありません</div>'; return; }
+  const allStarts=SITES.filter(s=>s.start).map(s=>new Date(s.start));
+  const allEnds=SITES.filter(s=>s.end).map(s=>new Date(s.end));
+  if(!allStarts.length){ document.getElementById('ganttWrap').innerHTML='<div style="color:#718096;padding:10px;">工期データがありません</div>'; return; }
+  const minDate=new Date(Math.min(...allStarts));
+  minDate.setDate(1);
+  const maxDate=new Date(Math.max(...allEnds));
+  maxDate.setMonth(maxDate.getMonth()+1,1);
+  const totalDays=(maxDate-minDate)/86400000;
+
+  function pos(dateStr){ return Math.max(0,Math.min(100,(new Date(dateStr)-minDate)/86400000/totalDays*100)); }
+  function width(s,e){ return Math.max(1,(new Date(e)-new Date(s))/86400000/totalDays*100); }
+  const todayPos=pos(TODAY.toISOString().split('T')[0]);
+
+  let html=`<table class="gantt-table" style="table-layout:fixed;">
+    <colgroup><col style="width:170px;"><col style="width:90px;"><col></colgroup>
+    <thead><tr><th>現場名</th><th>担当者</th><th>工期 (${minDate.getFullYear()}/{${minDate.getMonth()+1}} 〜 ${maxDate.getFullYear()}/${maxDate.getMonth()+1})</th></tr></thead>
+    <tbody>`;
+
+  SITES.forEach(s=>{
+    if(!s.start||!s.end){ html+=`<tr><td style="font-size:12px;font-weight:600;">${s.name.substring(0,14)}</td><td style="font-size:12px;color:#718096;">${s.mgr||'—'}</td><td style="color:#A0AEC0;font-size:12px;">工期未設定</td></tr>`; return; }
+    const l=pos(s.start); const w=width(s.start,s.end); const pw=w*s.progress/100;
+    html+=`<tr>
+      <td style="font-size:12px;font-weight:600;">${s.name.length>14?s.name.substring(0,14)+'…':s.name}</td>
+      <td style="font-size:12px;color:#718096;">${s.mgr||'—'}</td>
+      <td><div style="position:relative;height:24px;">
+        <div style="position:absolute;left:${l}%;width:${w}%;top:5px;height:14px;background:#BEE3F8;border-radius:3px;"></div>
+        <div style="position:absolute;left:${l}%;width:${pw}%;top:5px;height:14px;background:#2E75B6;border-radius:3px;"></div>
+        <div style="position:absolute;left:${todayPos}%;top:0;width:2px;height:24px;background:#E53E3E;z-index:5;"></div>
+        <div style="position:absolute;left:${l+pw}%;top:3px;font-size:10px;font-weight:700;color:#2E75B6;">${s.progress}%</div>
+      </div></td>
+    </tr>`;
+  });
+
+  html+=`</tbody></table><div style="font-size:11px;color:#718096;margin-top:6px;">■ <span style="color:#2E75B6;">■</span> 進捗済み &nbsp; <span style="background:#BEE3F8;padding:1px 6px;border-radius:2px;">　</span> 残工期 &nbsp; <span style="color:#E53E3E;">│</span> 本日 (${TODAY.getMonth()+1}/${TODAY.getDate()})</div>`;
+  document.getElementById('ganttWrap').innerHTML=html;
+}
+
+// =========================================================
+// PROCESS DETAIL (with sliders)
+// =========================================================
+function renderProcessDetail(){
+  if(!SITES.length){ document.getElementById('processDetail').innerHTML='<div style="color:#718096;padding:10px;">現場データがありません</div>'; return; }
+  let html='';
+  SITES.forEach(s=>{
+    const procs=s.procs||Array(9).fill(0);
+    html+=`<div class="proc-detail-site">
+      <div style="font-weight:700;font-size:13px;color:#1F4E79;margin-bottom:10px;">${s.id} — ${s.name} &nbsp;<span style="font-size:11px;color:#718096;font-weight:400;">（スライダーをドラッグして進捗を更新）</span></div>`;
+    PROCESSES.forEach((p,i)=>{
+      const v=procs[i];
+      const bg=v===100?'#C6F6D5':v>0?'#FEFCBF':'#EDF2F7';
+      const fg=v===100?'#276221':v>0?'#744210':'#A0AEC0';
+      html+=`<div class="proc-slider-row">
+        <div class="proc-slider-label">${p.label}</div>
+        <input class="proc-slider" type="range" min="0" max="100" step="5" value="${v}"
+          oninput="updateProc('${s.id}',${i},this.value,this)"
+          onchange="saveState()">
+        <div class="proc-slider-val" id="pv-${s.id}-${i}" style="color:${fg};">${v}%</div>
+      </div>`;
+    });
+    html+='</div>';
+  });
+  document.getElementById('processDetail').innerHTML=html;
+}
+
+function updateProc(siteId,procIdx,val,slider){
+  const s=SITES.find(x=>x.id===siteId);
+  if(!s)return;
+  if(!s.procs)s.procs=Array(9).fill(0);
+  s.procs[procIdx]=parseInt(val);
+  document.getElementById(`pv-${siteId}-${procIdx}`).textContent=val+'%';
+  // Update overall progress (average of procs)
+  s.progress=Math.round(s.procs.reduce((a,b)=>a+b,0)/s.procs.length);
+  // Update site card live
+  const card=document.getElementById('card-'+siteId);
+  if(card){
+    const pb=card.querySelector('.prog-bar-fill');
+    if(pb){ pb.style.width=s.progress+'%'; pb.className='prog-bar-fill '+progClass(s.progress); }
+    const lbl=card.querySelectorAll('.prog-bar-label span')[1];
+    if(lbl)lbl.textContent=s.progress+'%';
+    const steps=card.querySelectorAll('.proc-step');
+    if(steps.length===PROCESSES.length){
+      steps.forEach((el,i)=>{ el.className='proc-step '+procClass(s.procs[i]); });
+    }
+  }
+  renderKPI();
+  markUnsaved();
+}
+
+// =========================================================
+// DETAIL PANEL
+// =========================================================
+function openDetail(siteId){
+  const s=SITES.find(x=>x.id===siteId);
+  if(!s)return;
+  document.querySelectorAll('.site-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('card-'+siteId)?.classList.add('selected');
+
+  const siteTasks=TASKS.filter(t=>t.site===siteId&&t.status!=='完了');
+  const todayT=siteTasks.filter(t=>isToday(t.due));
+  const weekT=siteTasks.filter(t=>isThisWeek(t.due)&&!isToday(t.due));
+  const otherT=siteTasks.filter(t=>!isThisWeek(t.due));
+  const procs=s.procs||Array(9).fill(0);
+
+  let taskHtml='';
+  if(todayT.length){
+    taskHtml+=`<div style="font-weight:700;font-size:12px;color:#E53E3E;margin:10px 0 4px;">📌 本日のタスク</div>`;
+    todayT.forEach(t=>{taskHtml+=`<div class="detail-task-item urgent"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${t.cat} ｜ ${t.hrs}h ｜ <span class="priority-badge ${priorityClass(t.priority)}">${t.priority}</span></div>${t.note?`<div style="font-size:11px;color:#718096;">💬 ${t.note}</div>`:''}</div>`;});
+  }
+  if(weekT.length){
+    taskHtml+=`<div style="font-weight:700;font-size:12px;color:#ED8936;margin:10px 0 4px;">📆 今週のタスク</div>`;
+    weekT.forEach(t=>{taskHtml+=`<div class="detail-task-item"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${fmtDate(t.due)} ｜ ${t.cat} ｜ ${t.hrs}h</div></div>`;});
+  }
+  if(otherT.length){
+    taskHtml+=`<div style="font-weight:700;font-size:12px;color:#718096;margin:10px 0 4px;">🗓 その他タスク</div>`;
+    otherT.forEach(t=>{taskHtml+=`<div class="detail-task-item" style="border-left-color:#CBD5E0;"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${fmtDate(t.due)} ｜ ${t.cat}</div></div>`;});
+  }
+
+  const procMini=PROCESSES.map((p,i)=>{
+    const v=procs[i];
+    const bg=v===100?'#C6F6D5':v>0?'#FEFCBF':'#EDF2F7';
+    const fg=v===100?'#276221':v>0?'#744210':'#A0AEC0';
+    return`<span style="background:${bg};color:${fg};font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;">${p.key} ${v}%</span>`;
+  }).join('');
+
+  document.getElementById('detail-content').innerHTML=`
+    <div style="font-size:11px;font-weight:600;color:#2E75B6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${s.id}</div>
+    <div style="font-size:16px;font-weight:700;color:#1F4E79;margin-bottom:4px;padding-right:36px;">${s.name}</div>
+    <div style="margin:10px 0;padding:12px;background:#F7FAFC;border-radius:8px;">
+      <div class="detail-row"><div class="dl">所在地</div><div>📍 ${s.addr||'—'}</div></div>
+      <div class="detail-row"><div class="dl">工種</div><div>${s.type||'—'}</div></div>
+      <div class="detail-row"><div class="dl">担当者</div><div>👷 ${s.mgr||'—'}</div></div>
+      <div class="detail-row"><div class="dl">着工</div><div>${s.start?fmtDate(s.start):'—'}</div></div>
+      <div class="detail-row"><div class="dl">竣工予定</div><div>${s.end?fmtDate(s.end)+' ('+daysLeft(s.end)+')':'—'}</div></div>
+      ${s.note?`<div class="detail-row" style="border:none;"><div class="dl">現況</div><div style="color:#E53E3E;font-weight:600;">📝 ${s.note}</div></div>`:''}
+    </div>
+    <div style="margin-bottom:10px;">
+      <div style="font-weight:700;font-size:12px;color:#1F4E79;margin-bottom:6px;">全体進捗 ${s.progress}%</div>
+      <div class="prog-bar-bg" style="height:14px;"><div class="prog-bar-fill ${progClass(s.progress)}" style="width:${s.progress}%;height:100%;"></div></div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div style="font-weight:700;font-size:12px;color:#1F4E79;margin-bottom:6px;">工程別進捗</div>
+      <div style="display:flex;gap:3px;flex-wrap:wrap;">${procMini}</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#4A5568;flex:1;" onclick="openSiteModal('${s.id}');closeDetail()">✏️ 現場を編集</button>
+      <button class="btn btn-green btn-sm" style="flex:1;" onclick="openTaskModal();document.getElementById('t-site').value='${s.id}';closeDetail()">＋ タスク追加</button>
+    </div>
+    <div>${taskHtml||'<div style="color:#718096;font-size:13px;padding:10px 0;">未完了のタスクはありません</div>'}</div>`;
+
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail(){
+  document.getElementById('detail-panel').classList.remove('open');
+  document.querySelectorAll('.site-card').forEach(c=>c.classList.remove('selected'));
+}
+
+// =========================================================
+// JSON EXPORT / IMPORT
+// =========================================================
+function exportJSON(){
+  const data=JSON.stringify({sites:SITES,tasks:TASKS,nextTaskId,exportedAt:new Date().toISOString()},null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='現場進捗データ_'+new Date().toISOString().split('T')[0]+'.json';
+  a.click(); URL.revokeObjectURL(url);
+  showToast('💾 JSONファイルを保存しました');
+}
+
+function importJSON(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(!d.sites||!d.tasks)throw new Error('invalid');
+      SITES=d.sites; TASKS=d.tasks; nextTaskId=d.nextTaskId||100;
+      renderAll(); saveState();
+      showToast('📂 データを読み込みました',3000);
+    }catch(err){
+      showToast('⚠️ ファイルの形式が正しくありません',3000);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+}
+
+// =========================================================
+// MOBILE MENU
+// =========================================================
+function openMobileMenu(){ document.getElementById('mobileMenuPanel').classList.add('show'); }
+function closeMobileMenu(){ document.getElementById('mobileMenuPanel').classList.remove('show'); }
+
+// Sync mobile save indicator
+const _origSaveState = saveState;
+
+// =========================================================
+// BOTTOM NAV TAB SWITCHING
+// =========================================================
+let currentTab = 'sites';
+function switchTab(tab){
+  currentTab = tab;
+  // Update page visibility
+  ['sites','tasks','gantt','proc'].forEach(p=>{
+    document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
+    document.getElementById('bnav-'+p).classList.toggle('active', p===tab);
+  });
+  // Lazy-render gantt and process on first visit
+  if(tab==='gantt') renderGantt();
+  if(tab==='proc')  renderProcessDetail();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// =========================================================
+// TASK CARDS (mobile)
+// =========================================================
+function renderTaskCards(){
+  let filtered=TASKS.filter(t=>{
+    if(currentFilter==='today') return isToday(t.due)&&t.status!=='完了';
+    if(currentFilter==='week')  return isThisWeek(t.due)&&t.status!=='完了';
+    if(currentFilter==='high')  return t.priority==='高'&&t.status!=='完了';
+    if(currentFilter==='doing') return t.status==='進行中';
+    if(currentFilter==='overdue') return isOverdue(t.due)&&t.status!=='完了';
+    return true;
+  });
+  filtered.sort((a,b)=>{
+    const aO=isOverdue(a.due)&&a.status!=='完了';
+    const bO=isOverdue(b.due)&&b.status!=='完了';
+    if(aO!==bO)return aO?-1:1;
+    return new Date(a.due)-new Date(b.due);
+  });
+
+  const el=document.getElementById('taskCards');
+  if(!filtered.length){
+    el.innerHTML='<div style="color:#718096;text-align:center;padding:20px;">該当するタスクはありません</div>';
+    return;
+  }
+  const prioCls={高:'prio-high',中:'prio-mid',低:'prio-low'};
+  el.innerHTML=filtered.map(t=>{
+    const isT=isToday(t.due)&&t.status!=='完了';
+    const isO=isOverdue(t.due)&&t.status!=='完了'&&!isToday(t.due);
+    const done=t.status==='完了';
+    return`<div class="task-card ${prioCls[t.priority]||''} ${isT?'is-today':''}">
+      <div class="task-card-head">
+        <div class="task-card-title" style="${done?'text-decoration:line-through;color:#A0AEC0;':''}">${t.task}${isT?'<span class="today-tag">本日</span>':''}${isO?'<span class="overdue-tag">超過</span>':''}</div>
+        <input type="checkbox" class="task-check" style="width:20px;height:20px;flex-shrink:0;" ${done?'checked':''} onchange="toggleTaskDone(${t.id},this)">
+      </div>
+      <div class="task-card-body">
+        <div class="task-card-badges">
+          <span class="priority-badge ${priorityClass(t.priority)}">${t.priority}</span>
+          <span class="status-badge-sm ${statusClass(t.status)}">${t.status}</span>
+          <span style="background:#EDF2F7;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600;">${t.cat}</span>
+        </div>
+        <div class="task-card-meta">
+          <span>📍 ${siteName(t.site).substring(0,12)}</span>
+          <span>👷 ${t.mgr||'—'}</span>
+          <span>📅 ${fmtDate(t.due)}（${daysLeft(t.due).replace(/<[^>]*>/g,'')}）</span>
+          <span>⏱ ${t.hrs}h</span>
+        </div>
+        ${t.note?`<div style="margin-top:6px;font-size:12px;color:#718096;">💬 ${t.note}</div>`:''}
+      </div>
+      <div class="task-card-actions">
+        <select class="task-card-status-sel" onchange="updateTaskStatus(${t.id},this.value)">
+          ${['未着手','進行中','完了','保留'].map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <button class="btn-icon" onclick="openTaskModal(${t.id})" title="編集" style="min-width:40px;min-height:40px;">✏️</button>
+        <button class="btn-icon del" onclick="confirmDeleteTask(${t.id})" title="削除" style="min-width:40px;min-height:40px;">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// =========================================================
+// CLOSE MODALS ON OVERLAY CLICK
+// =========================================================
+['siteModal','taskModal','confirmModal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(e){
+    if(e.target===this)this.classList.remove('show');
+  });
+});
+
+// Close detail panel on Escape
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    closeDetail();
+    closeMobileMenu();
+    ['siteModal','taskModal','confirmModal'].forEach(id=>document.getElementById(id).classList.remove('show'));
+  }
+});
+
+// =========================================================
+// SAVE STATE (override to sync mobile indicator)
+// =========================================================
+function saveState(){
+  try {
+    localStorage.setItem('kenba_data', JSON.stringify({sites:SITES,tasks:TASKS,nextTaskId}));
+  } catch(e){}
+  unsaved=false;
+  ['saveIndicator','saveIndicatorMobile'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.className='save-indicator saved';el.textContent='自動保存済み';}
+  });
+}
+
+// =========================================================
+// RENDER ALL
+// =========================================================
+function renderAll(){
+  renderKPI();
+  renderSites();
+  renderTasks();
+  renderTaskCards();
+  // Only render heavy sections if tab is active (mobile) or always on desktop
+  if(window.innerWidth>640||currentTab==='gantt') renderGantt();
+  if(window.innerWidth>640||currentTab==='proc')  renderProcessDetail();
+  // Sync date to mobile menu
+  const d=TODAY;
+  const dateStr=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+  const el=document.getElementById('currentDateMobile');
+  if(el)el.textContent='📅 '+dateStr;
+}
+
+// Also call renderTaskCards inside filterTasks
+const _origFilterTasks=filterTasks;
+filterTasks=function(f,btn){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTasks();
+  renderTaskCards();
+};
+
+// =========================================================
+// INIT
+// =========================================================
+if (checkAuth()) {
+  loadState();
+  renderAll();
+  saveState();
+}
+</script>
+</body>
+</html>

@@ -392,6 +392,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="exportJSON();closeMobileMenu()">💾 データ保存（JSON）</button>
     <button class="menu-btn" onclick="document.getElementById('json-import-input').click();closeMobileMenu()">📂 データ読込（JSON）</button>
+    <button class="menu-btn" onclick="clearAllData();closeMobileMenu()" style="color:#E53E3E;font-size:12px;">🗑️ データを全削除（初期化）</button>
     <button class="menu-btn" onclick="switchTab('report');closeMobileMenu()">📋 日報入力</button>
     <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
     <button class="menu-btn" onclick="openTaskModal();closeMobileMenu()">✅ タスク追加</button>
@@ -900,14 +901,7 @@ function loadState() {
   }
 }
 
-function saveState() {
-  try {
-    localStorage.setItem('kenba_data', JSON.stringify({sites:SITES, tasks:TASKS, nextTaskId}));
-  } catch(e) {}
-  unsaved = false;
-  document.getElementById('saveIndicator').className = 'save-indicator saved';
-  document.getElementById('saveIndicator').textContent = '自動保存済み';
-}
+// saveState は下部の定義を使用（重複定義を削除）
 
 function markUnsaved() {
   unsaved = true;
@@ -1636,6 +1630,23 @@ function renderReportList() {
       </table>
     </div>`;
   }).join('');
+}
+
+// =========================================================
+// DATA CLEAR (全データ削除)
+// =========================================================
+function clearAllData(){
+  if(!confirm('⚠️ 全データを削除して初期化します。\n現場・タスク・日報がすべて消えます。\nこの操作は元に戻せません。\n\nよろしいですか？')) return;
+  if(!confirm('本当に削除しますか？\nデータは完全に消えます。')) return;
+  SITES = [];
+  TASKS = [];
+  REPORTS = [];
+  nextTaskId = 100;
+  nextReportId = 1;
+  localStorage.removeItem('kenba_data');
+  renderAll();
+  renderReportList();
+  showToast('🗑️ データを初期化しました。現場追加から登録してください。', 3000);
 }
 
 // =========================================================

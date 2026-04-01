@@ -56,7 +56,7 @@ input,select,textarea,button{font-family:inherit}
 .main{max-width:1440px;margin:0 auto;padding:18px}
 
 /* ── KPI cards ── */
-.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
 .kpi-card{background:white;border-radius:10px;padding:14px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:4px solid transparent;display:flex;align-items:center;gap:12px}
 .kpi-card .icon{font-size:26px}
 .kpi-card .val{font-size:28px;font-weight:700;line-height:1}
@@ -222,7 +222,7 @@ input,select,textarea,button{font-family:inherit}
 
 /* ── Responsive 900px ── */
 @media(max-width:900px){
-  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .kpi-row{grid-template-columns:repeat(3,1fr)}
   .sites-grid{grid-template-columns:1fr 1fr}
   #detail-panel{width:100%;right:auto;bottom:-95vh;top:auto;height:90vh;border-radius:16px 16px 0 0;transition:bottom .3s ease}
   #detail-panel.open{bottom:0}
@@ -375,6 +375,7 @@ input,select,textarea,button{font-family:inherit}
     <input type="file" id="json-import-input" accept=".json" onchange="importJSON(event)">
     <button class="btn btn-ghost btn-sm" id="cloudSaveBtn" onclick="uploadToCloud()" title="クラウドに保存（PC↔スマホ同期）">☁️ クラウド保存</button>
     <button class="btn btn-ghost btn-sm" id="cloudLoadBtn" onclick="downloadFromCloud()" title="クラウドから最新データを読み込む">🔄 クラウド読込</button>
+    <button class="btn btn-ghost btn-sm" onclick="testCloudConnection()" title="クラウド接続テスト" style="font-size:11px;color:#276749;">🔍 接続テスト</button>
     <div class="date-badge" id="currentDate"></div>
     <!-- Mobile menu button -->
     <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="ログアウト" style="font-size:12px;">🔒 ログアウト</button>
@@ -389,12 +390,15 @@ input,select,textarea,button{font-family:inherit}
     <div class="save-indicator" id="saveIndicatorMobile" style="margin-bottom:14px;color:#4A5568;font-size:12px;">保存済み</div>
     <button class="menu-btn" id="cloudSaveBtnM" onclick="uploadToCloud()" style="background:#EBF8FF;color:#1F4E79;font-weight:700;">☁️ クラウド保存</button>
     <button class="menu-btn" id="cloudLoadBtnM" onclick="downloadFromCloud()" style="background:#EBF8FF;color:#1F4E79;">🔄 クラウド読込</button>
+    <button class="menu-btn" onclick="testCloudConnection()" style="background:#F0FFF4;color:#276749;font-size:12px;">🔍 接続テスト</button>
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="exportJSON();closeMobileMenu()">💾 データ保存（JSON）</button>
     <button class="menu-btn" onclick="document.getElementById('json-import-input').click();closeMobileMenu()">📂 データ読込（JSON）</button>
     <button class="menu-btn" onclick="switchTab('report');closeMobileMenu()">📋 日報入力</button>
     <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
     <button class="menu-btn" onclick="openTaskModal();closeMobileMenu()">✅ タスク追加</button>
+    <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
+    <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
   </div>
 </div>
@@ -406,7 +410,6 @@ input,select,textarea,button{font-family:inherit}
     <div class="kpi-card blue"><div class="icon">🏗️</div><div><div class="val" id="kpi-sites">0</div><div class="lbl">管理現場数</div></div></div>
     <div class="kpi-card amber"><div class="icon">📋</div><div><div class="val" id="kpi-today">0</div><div class="lbl">本日のタスク</div></div></div>
     <div class="kpi-card red"><div class="icon">🔴</div><div><div class="val" id="kpi-urgent">0</div><div class="lbl">高優先度</div></div></div>
-    <div class="kpi-card green"><div class="icon">📈</div><div><div class="val" id="kpi-avg">—</div><div class="lbl">平均進捗率</div></div></div>
   </div>
 
   <!-- ===== PAGE: 現場 ===== -->
@@ -474,12 +477,24 @@ input,select,textarea,button{font-family:inherit}
         <input type="date" id="report-date-input" onchange="updateReportWeekday()">
         <span class="report-weekday" id="report-weekday-label"></span>
       </div>
-      <div class="report-entry-header">
-        <span>現場名</span><span>作業内容</span><span>作業時間(h)</span><span>作業者氏名</span><span></span>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:13px;font-weight:600;color:#4A5568;display:block;margin-bottom:4px;">現場名</label>
+        <select class="form-select" id="report-site-select" style="max-width:320px;"></select>
       </div>
-      <div id="report-entries-container"></div>
-      <div class="report-actions">
-        <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;" onclick="addReportRow()">＋ 行追加</button>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;" id="report-rows-table">
+          <thead>
+            <tr style="background:#EBF8FF;">
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:#2E75B6;border-bottom:2px solid #BEE3F8;white-space:nowrap;">#</th>
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:#2E75B6;border-bottom:2px solid #BEE3F8;">作業内容</th>
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:#2E75B6;border-bottom:2px solid #BEE3F8;white-space:nowrap;">作業者氏名</th>
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:#2E75B6;border-bottom:2px solid #BEE3F8;white-space:nowrap;">作業時間(h)</th>
+            </tr>
+          </thead>
+          <tbody id="report-entries-container"></tbody>
+        </table>
+      </div>
+      <div class="report-actions" style="margin-top:14px;">
         <button class="btn btn-green btn-sm" onclick="saveReport()">💾 日報を保存</button>
         <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#718096;" onclick="cancelEditReport()">✕ キャンセル</button>
       </div>
@@ -722,10 +737,13 @@ async function uploadToCloud() {
       },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const errText = await res.text().catch(()=>'');
+      throw new Error('HTTP ' + res.status + (errText ? ' : ' + errText.slice(0,80) : ''));
+    }
     showToast('☁️ クラウド保存完了！PC↔スマホ同期されました', 3000);
   } catch(e) {
-    showToast('❌ クラウド保存失敗: ' + e.message, 3500);
+    alert('❌ クラウド保存失敗\n\n' + e.message + '\n\nBin ID: ' + JSONBIN_BIN_ID + '\n\n【対処法】\n①ページを再読み込みして再試行\n②ブラウザのコンソール(F12)でエラー詳細を確認\n③JSONBin.ioのサイトでBin IDとAPIキーを確認');
   } finally {
     [btn,btnM].forEach(b=>{if(b){b.disabled=false;b.textContent='☁️ クラウド保存';}});
   }
@@ -741,10 +759,15 @@ async function downloadFromCloud() {
     const res = await fetch(JSONBIN_URL + '/latest', {
       headers: { 'X-Master-Key': JSONBIN_KEY }
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const errText = await res.text().catch(()=>'');
+      throw new Error('HTTP ' + res.status + (errText ? ' : ' + errText.slice(0,120) : ''));
+    }
     const json = await res.json();
     const d = json.record;
-    if (!d || !d.sites) throw new Error('データが見つかりません');
+    if (!d || !d.sites) {
+      throw new Error('現場データが見つかりません。\nBinの内容: ' + JSON.stringify(d).slice(0,100));
+    }
     SITES = d.sites;
     TASKS = d.tasks || [];
     REPORTS = d.reports || [];
@@ -753,11 +776,37 @@ async function downloadFromCloud() {
     saveState();
     renderAll();
     renderReportList();
-    showToast('🔄 クラウド読込完了！', 3000);
+    showToast('🔄 クラウド読込完了！現場' + SITES.length + '件を読み込みました', 3000);
   } catch(e) {
-    showToast('❌ 読み込み失敗: ' + e.message, 3500);
+    alert('❌ クラウド読込失敗\n\n' + e.message + '\n\n【対処法】\n①まず「☁️ クラウド保存」を一度実行してみてください\n②Bin IDが正しいか確認: ' + JSONBIN_BIN_ID + '\n③APIキーを確認し、正しければJSONBin.ioのサイトでBinを再作成してください');
   } finally {
     [btn,btnM].forEach(b=>{if(b){b.disabled=false;b.textContent='🔄 クラウド読込';}});
+  }
+}
+
+async function testCloudConnection() {
+  showToast('🔍 接続テスト中...');
+  try {
+    const res = await fetch(JSONBIN_URL + '/latest', {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    const text = await res.text();
+    let msg = '📡 接続テスト結果\n\n';
+    msg += 'HTTPステータス: ' + res.status + '\n';
+    if (res.ok) {
+      const json = JSON.parse(text);
+      const d = json.record;
+      msg += '✅ 接続成功！\n';
+      msg += '現場数: ' + (d && d.sites ? d.sites.length : '不明') + '\n';
+      msg += 'タスク数: ' + (d && d.tasks ? d.tasks.length : '不明') + '\n';
+      msg += '日報数: ' + (d && d.reports ? d.reports.length : '不明');
+    } else {
+      msg += '❌ エラー\n';
+      msg += text.slice(0, 200);
+    }
+    alert(msg);
+  } catch(e) {
+    alert('❌ 接続テスト失敗\n\n' + e.message + '\n\nネットワーク接続を確認してください');
   }
 }
 
@@ -1452,24 +1501,24 @@ document.addEventListener('keydown',e=>{
 // =========================================================
 const WEEKDAYS = ['日','月','火','水','木','金','土'];
 
+const REPORT_ROW_COUNT = 10; // 固定行数
+
 function initReportForm() {
   // 今日の日付をセット
   const d = new Date();
   const iso = d.toISOString().split('T')[0];
   const el = document.getElementById('report-date-input');
   if (el && !el.value) { el.value = iso; updateReportWeekday(); }
+  // 現場ドロップダウンを最新リストで更新
+  const sel = document.getElementById('report-site-select');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = buildSiteOptions(cur);
+  }
+  // 行が空なら10行初期化
   const container = document.getElementById('report-entries-container');
   if (!container) return;
-  if (container.children.length === 0) {
-    // 行が空なら1行追加
-    addReportRow();
-  } else {
-    // 既存の行のドロップダウンを最新の現場リストで更新
-    container.querySelectorAll('.re-site').forEach(sel => {
-      const cur = sel.value;
-      sel.innerHTML = buildSiteOptions(cur);
-    });
-  }
+  if (container.children.length === 0) buildReportRows([]);
 }
 
 function updateReportWeekday() {
@@ -1486,53 +1535,52 @@ function buildSiteOptions(selectedId) {
   return blank + opts;
 }
 
-function addReportRow(entry) {
+function buildReportRows(entries) {
   const container = document.getElementById('report-entries-container');
   if (!container) return;
-  const e = entry || {};
-  const div = document.createElement('div');
-  div.className = 'report-entry';
-  div.innerHTML = `
-    <select class="re-site">${buildSiteOptions(e.siteId||'')}</select>
-    <input type="text" class="re-content" placeholder="作業内容" value="${e.content||''}">
-    <input type="number" class="re-hours" placeholder="時間" min="0.5" max="24" step="0.5" value="${e.hours||''}">
-    <input type="text" class="re-worker" placeholder="作業者氏名" value="${e.worker||''}">
-    <button class="remove-btn" onclick="this.parentElement.remove()" title="行を削除">✕</button>`;
-  container.appendChild(div);
+  container.innerHTML = '';
+  for (let i = 0; i < REPORT_ROW_COUNT; i++) {
+    const e = entries[i] || {};
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid #EDF2F7;';
+    tr.innerHTML = `
+      <td style="padding:4px 6px;color:#A0AEC0;font-size:12px;text-align:center;">${i+1}</td>
+      <td style="padding:4px 6px;"><input type="text" class="re-content form-input" placeholder="作業内容" value="${e.content||''}" style="padding:6px 8px;font-size:13px;"></td>
+      <td style="padding:4px 6px;"><input type="text" class="re-worker form-input" placeholder="氏名" value="${e.worker||''}" style="padding:6px 8px;font-size:13px;"></td>
+      <td style="padding:4px 6px;"><input type="number" class="re-hours form-input" placeholder="時間" min="0.5" max="24" step="0.5" value="${e.hours||''}" style="padding:6px 8px;font-size:13px;width:70px;"></td>`;
+    container.appendChild(tr);
+  }
 }
 
 function saveReport() {
   const dateVal = document.getElementById('report-date-input').value;
   if (!dateVal) { showToast('⚠️ 日付を入力してください', 2500); return; }
-  const rows = document.querySelectorAll('#report-entries-container .report-entry');
+  const siteId = document.getElementById('report-site-select').value;
+  if (!siteId) { showToast('⚠️ 現場を選択してください', 2500); return; }
+  const rows = document.querySelectorAll('#report-entries-container tr');
   const entries = [];
   rows.forEach(row => {
-    const siteId = row.querySelector('.re-site').value;
     const content = row.querySelector('.re-content').value.trim();
-    const hours = parseFloat(row.querySelector('.re-hours').value) || 0;
-    const worker = row.querySelector('.re-worker').value.trim();
-    if (siteId || content || worker) {
-      entries.push({ siteId, content, hours, worker });
-    }
+    const worker  = row.querySelector('.re-worker').value.trim();
+    const hours   = parseFloat(row.querySelector('.re-hours').value) || 0;
+    if (content || worker) entries.push({ siteId, content, hours, worker });
   });
   if (entries.length === 0) { showToast('⚠️ 作業内容を入力してください', 2500); return; }
 
   const editingId = parseInt(document.getElementById('report-editing-id').value) || 0;
   if (editingId) {
-    // 修正モード：既存レコードを上書き
     const existing = REPORTS.find(r => r.id === editingId);
-    if (existing) { existing.date = dateVal; existing.entries = entries; }
+    if (existing) { existing.date = dateVal; existing.siteId = siteId; existing.entries = entries; }
     document.getElementById('report-editing-id').value = '';
   } else {
-    // 新規：常に新しいレコードとして追加
-    REPORTS.push({ id: nextReportId++, date: dateVal, entries });
+    REPORTS.push({ id: nextReportId++, date: dateVal, siteId, entries });
   }
   REPORTS.sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
   saveState();
   renderReportList();
   // フォームリセット
-  document.getElementById('report-entries-container').innerHTML = '';
-  addReportRow();
+  buildReportRows([]);
+  document.getElementById('report-site-select').value = '';
   showToast('📋 日報を保存しました', 2500);
 }
 
@@ -1546,8 +1594,8 @@ function deleteReport(id) {
 
 function cancelEditReport() {
   document.getElementById('report-editing-id').value = '';
-  document.getElementById('report-entries-container').innerHTML = '';
-  addReportRow();
+  buildReportRows([]);
+  document.getElementById('report-site-select').value = '';
   showToast('修正をキャンセルしました', 1800);
 }
 
@@ -1556,9 +1604,9 @@ function editReport(id) {
   if (!r) return;
   document.getElementById('report-date-input').value = r.date;
   document.getElementById('report-editing-id').value = r.id;
+  document.getElementById('report-site-select').value = r.siteId || (r.entries[0]?.siteId||'');
   updateReportWeekday();
-  document.getElementById('report-entries-container').innerHTML = '';
-  r.entries.forEach(e => addReportRow(e));
+  buildReportRows(r.entries);
   switchTab('report');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }

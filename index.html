@@ -425,7 +425,10 @@ input,select,textarea,button{font-family:inherit}
     <div class="card">
       <div class="tasks-header">
         <div class="section-head" style="margin-bottom:0;border:none;">✅ タスク管理</div>
-        <button class="btn btn-green btn-sm" onclick="openTaskModal()">＋ タスク追加</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-red btn-sm" onclick="deleteCompletedTasks()" title="完了ステータスのタスクを一括削除">🗑️ 完了済み削除</button>
+          <button class="btn btn-green btn-sm" onclick="openTaskModal()">＋ タスク追加</button>
+        </div>
       </div>
       <div class="task-filters" style="margin-bottom:12px;">
         <button class="filter-btn active" onclick="filterTasks('all',this)">すべて</button>
@@ -460,27 +463,12 @@ input,select,textarea,button{font-family:inherit}
     </div>
   </div>
 
-  <!-- ===== PAGE: 工期 ===== -->
-  <div class="section-page" id="page-gantt">
-    <div class="card">
-      <div class="section-head">📅 工期タイムライン</div>
-      <div class="gantt-wrap" id="ganttWrap"></div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: 工程 ===== -->
-  <div class="section-page" id="page-proc">
-    <div class="card">
-      <div class="section-head">🔧 工程別進捗（スライダーで編集）</div>
-      <div id="processDetail"></div>
-    </div>
-  </div>
-
   <!-- ===== PAGE: 日報 ===== -->
   <div class="section-page" id="page-report">
     <!-- 日報入力フォーム -->
     <div class="report-form-card">
       <div class="section-head">📋 日報入力</div>
+      <input type="hidden" id="report-editing-id" value="">
       <div class="report-date-row">
         <label style="font-size:13px;font-weight:600;color:#4A5568;">日付</label>
         <input type="date" id="report-date-input" onchange="updateReportWeekday()">
@@ -493,6 +481,7 @@ input,select,textarea,button{font-family:inherit}
       <div class="report-actions">
         <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;" onclick="addReportRow()">＋ 行追加</button>
         <button class="btn btn-green btn-sm" onclick="saveReport()">💾 日報を保存</button>
+        <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#718096;" onclick="cancelEditReport()">✕ キャンセル</button>
       </div>
     </div>
     <!-- 過去の日報一覧 -->
@@ -512,12 +501,6 @@ input,select,textarea,button{font-family:inherit}
     </button>
     <button class="bnav-btn" id="bnav-tasks" onclick="switchTab('tasks')">
       <span class="bnav-icon">✅</span>タスク
-    </button>
-    <button class="bnav-btn" id="bnav-gantt" onclick="switchTab('gantt')">
-      <span class="bnav-icon">📅</span>工期
-    </button>
-    <button class="bnav-btn" id="bnav-proc" onclick="switchTab('proc')">
-      <span class="bnav-icon">🔧</span>工程
     </button>
     <button class="bnav-btn" id="bnav-report" onclick="switchTab('report')">
       <span class="bnav-icon">📋</span>日報
@@ -548,7 +531,7 @@ input,select,textarea,button{font-family:inherit}
         <div class="form-group">
           <label class="form-label">ステータス</label>
           <select class="form-select" id="s-status">
-            <option>施工中</option><option>準備中</option><option>竣工</option><option>一時停止</option>
+            <option>計画見積</option><option>準備中</option><option>工事中</option><option>完了請求</option>
           </select>
         </div>
       </div>
@@ -562,19 +545,45 @@ input,select,textarea,button{font-family:inherit}
           <input class="form-input" id="s-addr" placeholder="例: 東京都新宿区">
         </div>
         <div class="form-group">
-          <label class="form-label">工種・構造</label>
-          <input class="form-input" id="s-type" placeholder="例: RC造 地上10階建">
+          <label class="form-label">工種</label>
+          <input class="form-input" id="s-koushyu" list="koushyu-list" placeholder="選択または直接入力">
+          <datalist id="koushyu-list">
+            <option value="改修工事">
+            <option value="外装塗装工事">
+            <option value="風呂入替工事">
+            <option value="洗面台入替工事">
+            <option value="トイレ入替工事">
+            <option value="改装工事">
+            <option value="新装工事">
+            <option value="新築工事">
+          </datalist>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">担当者</label>
-          <input class="form-input" id="s-mgr" placeholder="例: 田中 健司">
+          <label class="form-label">構造</label>
+          <input class="form-input" id="s-type" placeholder="例: RC造 地上10階建">
         </div>
         <div class="form-group">
-          <label class="form-label">全体進捗率 (%)</label>
-          <input class="form-input" id="s-progress" type="number" min="0" max="100" placeholder="例: 42">
+          <label class="form-label">担当者</label>
+          <select class="form-select" id="s-mgr">
+            <option value="">選択してください</option>
+            <option value="山川">山川</option>
+            <option value="社長">社長</option>
+            <option value="会長">会長</option>
+          </select>
         </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">請負形態</label>
+          <select class="form-select" id="s-contract">
+            <option value="">選択してください</option>
+            <option value="元請">元請</option>
+            <option value="下請">下請</option>
+          </select>
+        </div>
+        <div class="form-group"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -589,11 +598,6 @@ input,select,textarea,button{font-family:inherit}
       <div class="form-group">
         <label class="form-label">現況メモ</label>
         <input class="form-input" id="s-note" placeholder="例: 躯体4F施工中">
-      </div>
-
-      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #E2E8F0;">
-        <div style="font-weight:700;font-size:13px;color:#1F4E79;margin-bottom:10px;">🔧 工程別進捗 (%)</div>
-        <div id="siteModalProcs"></div>
       </div>
     </div>
     <div class="modal-foot">
@@ -822,13 +826,13 @@ const PROCESSES = [
 
 // Default data
 const DEFAULT_SITES = [
-  {id:'S-001',name:'桜ヶ丘マンション新築工事',addr:'東京都世田谷区',type:'RC造 10階建',mgr:'田中 健司',start:'2025-10-01',end:'2026-09-30',progress:42,status:'施工中',note:'躯体4F施工中',
+  {id:'S-001',name:'桜ヶ丘マンション新築工事',addr:'東京都世田谷区',type:'RC造 10階建',mgr:'田中 健司',start:'2025-10-01',end:'2026-09-30',progress:42,status:'工事中',note:'躯体4F施工中',
    procs:[100,100,100,55,0,0,0,10,0]},
-  {id:'S-002',name:'青葉台戸建住宅',addr:'神奈川県横浜市',type:'木造2階建',mgr:'佐藤 美咲',start:'2026-01-15',end:'2026-08-31',progress:65,status:'施工中',note:'内装工事中',
+  {id:'S-002',name:'青葉台戸建住宅',addr:'神奈川県横浜市',type:'木造2階建',mgr:'佐藤 美咲',start:'2026-01-15',end:'2026-08-31',progress:65,status:'工事中',note:'内装工事中',
    procs:[100,100,100,100,100,80,50,60,0]},
-  {id:'S-003',name:'港区オフィスビル改修',addr:'東京都港区',type:'鉄骨造8階建',mgr:'鈴木 大輔',start:'2025-11-01',end:'2026-06-30',progress:78,status:'施工中',note:'仕上げ工事最終段階',
+  {id:'S-003',name:'港区オフィスビル改修',addr:'東京都港区',type:'鉄骨造8階建',mgr:'鈴木 大輔',start:'2025-11-01',end:'2026-06-30',progress:78,status:'工事中',note:'仕上げ工事最終段階',
    procs:[100,100,100,100,100,100,90,80,50]},
-  {id:'S-004',name:'川崎工場増築工事',addr:'神奈川県川崎市',type:'鉄骨造平屋',mgr:'山本 花子',start:'2026-02-01',end:'2026-12-20',progress:18,status:'施工中',note:'基礎工事中',
+  {id:'S-004',name:'川崎工場増築工事',addr:'神奈川県川崎市',type:'鉄骨造平屋',mgr:'山本 花子',start:'2026-02-01',end:'2026-12-20',progress:18,status:'工事中',note:'基礎工事中',
    procs:[100,60,20,0,0,0,0,0,0]},
   {id:'S-005',name:'府中市立小学校改修',addr:'東京都府中市',type:'RC造4階建',mgr:'高橋 翔太',start:'2026-03-01',end:'2026-09-15',progress:8,status:'準備中',note:'仮設工事中',
    procs:[40,0,0,0,0,0,0,0,0]},
@@ -952,17 +956,15 @@ function renderSites(){
     grid.innerHTML='<div style="color:#718096;padding:20px;text-align:center;">現場がありません。「＋ 現場追加」から追加してください。</div>';
     return;
   }
-  const badgeMap={施工中:'badge-active',準備中:'badge-prep',竣工:'badge-complete',一時停止:'badge-pause'};
-  grid.innerHTML=SITES.map(s=>{
-    const pct=s.progress;
-    const pc=progClass(pct);
-    const procs=s.procs||Array(9).fill(0);
-    const procHTML=PROCESSES.map((p,i)=>`<span class="proc-step ${procClass(procs[i])}" title="${p.label} ${procs[i]}%">${p.key}</span>`).join('');
+  const badgeMap={計画見積:'badge-pause',準備中:'badge-prep',工事中:'badge-active',完了請求:'badge-complete'};
+  const statusOrder={計画見積:0,準備中:1,工事中:2,完了請求:3};
+  const sorted=[...SITES].sort((a,b)=>(statusOrder[a.status]??99)-(statusOrder[b.status]??99));
+  grid.innerHTML=sorted.map(s=>{
     const badgeCls=badgeMap[s.status]||'badge-active';
     const todayT=TASKS.filter(t=>t.site===s.id&&isToday(t.due)&&t.status!=='完了').length;
     const weekT=TASKS.filter(t=>t.site===s.id&&isThisWeek(t.due)&&t.status!=='完了').length;
-    return`<div class="site-card" id="card-${s.id}">
-      <div class="site-card-actions">
+    return`<div class="site-card" id="card-${s.id}" onclick="openDetail('${s.id}')" style="cursor:pointer;">
+      <div class="site-card-actions" onclick="event.stopPropagation()">
         <button class="btn-icon" onclick="openSiteModal('${s.id}')" title="編集">✏️</button>
         <button class="btn-icon del" onclick="confirmDeleteSite('${s.id}')" title="削除">🗑️</button>
       </div>
@@ -970,21 +972,16 @@ function renderSites(){
         <div class="site-id">${s.id}</div>
         <span class="status-badge ${badgeCls}">${s.status}</span>
       </div>
-      <div class="site-name" onclick="openDetail('${s.id}')" style="cursor:pointer;">${s.name}</div>
+      <div class="site-name">${s.name}</div>
       <div class="site-meta">📍 ${s.addr||'—'} &nbsp;｜&nbsp; 👷 ${s.mgr||'—'}</div>
       ${s.note?`<div class="site-meta" style="color:#E53E3E;font-size:11px;">📝 ${s.note}</div>`:''}
-      <div class="prog-bar-wrap">
-        <div class="prog-bar-label">
-          <span style="font-weight:600;color:#2d3748;">全体進捗</span>
-          <span style="font-weight:700;color:#2E75B6;">${pct}%</span>
-        </div>
-        <div class="prog-bar-bg"><div class="prog-bar-fill ${pc}" style="width:${pct}%"></div></div>
-      </div>
-      <div class="process-steps" onclick="openSiteModal('${s.id}')" title="クリックで工程進捗を編集">${procHTML}</div>
       <div class="site-footer">
         <span>📅 本日: <strong style="color:#E53E3E;">${todayT}</strong>件</span>
         <span>📆 今週: <strong style="color:#ED8936;">${weekT}</strong>件</span>
-        <span>竣工 ${fmtDate(s.end)}</span>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:#718096;display:flex;gap:10px;">
+        <span>🔨 着工 ${fmtDate(s.start)||'—'}</span>
+        <span>🏁 竣工 ${fmtDate(s.end)||'—'}</span>
       </div>
     </div>`;
   }).join('');
@@ -998,16 +995,6 @@ function openSiteModal(siteId){
   document.getElementById('siteModalTitle').textContent=isEdit?'現場編集':'現場追加';
   document.getElementById('siteEditId').value=siteId||'';
 
-  // Build proc sliders
-  const procsEl=document.getElementById('siteModalProcs');
-  procsEl.innerHTML=PROCESSES.map((p,i)=>`
-    <div class="proc-modal-row">
-      <div class="proc-modal-label">${p.label}</div>
-      <input class="proc-modal-slider" id="sp-${i}" type="range" min="0" max="100" step="5" value="0"
-        oninput="document.getElementById('spv-${i}').textContent=this.value+'%'">
-      <div class="proc-modal-val" id="spv-${i}">0%</div>
-    </div>`).join('');
-
   if(isEdit){
     const s=SITES.find(x=>x.id===siteId);
     if(!s)return;
@@ -1015,25 +1002,21 @@ function openSiteModal(siteId){
     document.getElementById('s-id').disabled=true;
     document.getElementById('s-name').value=s.name;
     document.getElementById('s-addr').value=s.addr||'';
+    document.getElementById('s-koushyu').value=s.koushyu||'';
     document.getElementById('s-type').value=s.type||'';
     document.getElementById('s-mgr').value=s.mgr||'';
-    document.getElementById('s-progress').value=s.progress||0;
     document.getElementById('s-start').value=s.start||'';
     document.getElementById('s-end').value=s.end||'';
     document.getElementById('s-note').value=s.note||'';
-    document.getElementById('s-status').value=s.status||'施工中';
-    const procs=s.procs||Array(9).fill(0);
-    PROCESSES.forEach((_,i)=>{
-      document.getElementById(`sp-${i}`).value=procs[i];
-      document.getElementById(`spv-${i}`).textContent=procs[i]+'%';
-    });
+    document.getElementById('s-status').value=s.status||'工事中';
+    document.getElementById('s-contract').value=s.contract||'';
   } else {
-    ['s-id','s-name','s-addr','s-type','s-mgr','s-note'].forEach(id=>document.getElementById(id).value='');
+    ['s-id','s-name','s-addr','s-koushyu','s-type','s-mgr','s-note'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('s-contract').value='';
     document.getElementById('s-id').disabled=false;
-    document.getElementById('s-progress').value=0;
     document.getElementById('s-start').value='';
     document.getElementById('s-end').value='';
-    document.getElementById('s-status').value='施工中';
+    document.getElementById('s-status').value='工事中';
   }
   document.getElementById('siteModal').classList.add('show');
 }
@@ -1048,18 +1031,20 @@ function saveSite(){
   if(!name){showToast('⚠️ 現場名を入力してください');return;}
   if(!isEdit&&SITES.find(s=>s.id===id)){showToast('⚠️ このIDは既に使用されています');return;}
 
-  const procs=PROCESSES.map((_,i)=>parseInt(document.getElementById(`sp-${i}`).value)||0);
+  const existing=SITES.find(s=>s.id===id);
   const obj={
     id,name,
     addr:document.getElementById('s-addr').value.trim(),
+    koushyu:document.getElementById('s-koushyu').value.trim(),
     type:document.getElementById('s-type').value.trim(),
     mgr:document.getElementById('s-mgr').value.trim(),
-    progress:parseInt(document.getElementById('s-progress').value)||0,
+    progress:existing?existing.progress:0,
     start:document.getElementById('s-start').value,
     end:document.getElementById('s-end').value,
     note:document.getElementById('s-note').value.trim(),
     status:document.getElementById('s-status').value,
-    procs,
+    contract:document.getElementById('s-contract').value,
+    procs:existing?existing.procs:Array(9).fill(0),
   };
 
   if(isEdit){ const idx=SITES.findIndex(s=>s.id===id); if(idx>=0)SITES[idx]=obj; }
@@ -1241,6 +1226,19 @@ function saveTask(){
   showToast(isEdit?'✅ タスクを更新しました':'✅ タスクを追加しました');
 }
 
+function deleteCompletedTasks(){
+  const count = TASKS.filter(t => t.status === '完了').length;
+  if (count === 0) { showToast('完了済みのタスクはありません', 2000); return; }
+  document.getElementById('confirmMsg').innerHTML =
+    `完了ステータスのタスクが <strong>${count}件</strong> あります。<br>まとめて削除しますか？<br><br>この操作は元に戻せません。`;
+  document.getElementById('confirmOkBtn').onclick = () => {
+    TASKS = TASKS.filter(t => t.status !== '完了');
+    closeConfirm(); renderAll(); saveState();
+    showToast(`🗑️ 完了済みタスクを${count}件削除しました`);
+  };
+  document.getElementById('confirmModal').classList.add('show');
+}
+
 function confirmDeleteTask(taskId){
   const t=TASKS.find(x=>x.id===taskId);
   document.getElementById('confirmMsg').innerHTML=
@@ -1257,99 +1255,6 @@ function confirmDeleteTask(taskId){
 // CONFIRM MODAL
 // =========================================================
 function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); }
-
-// =========================================================
-// GANTT
-// =========================================================
-function renderGantt(){
-  if(!SITES.length){ document.getElementById('ganttWrap').innerHTML='<div style="color:#718096;padding:10px;">現場データがありません</div>'; return; }
-  const allStarts=SITES.filter(s=>s.start).map(s=>new Date(s.start));
-  const allEnds=SITES.filter(s=>s.end).map(s=>new Date(s.end));
-  if(!allStarts.length){ document.getElementById('ganttWrap').innerHTML='<div style="color:#718096;padding:10px;">工期データがありません</div>'; return; }
-  const minDate=new Date(Math.min(...allStarts));
-  minDate.setDate(1);
-  const maxDate=new Date(Math.max(...allEnds));
-  maxDate.setMonth(maxDate.getMonth()+1,1);
-  const totalDays=(maxDate-minDate)/86400000;
-
-  function pos(dateStr){ return Math.max(0,Math.min(100,(new Date(dateStr)-minDate)/86400000/totalDays*100)); }
-  function width(s,e){ return Math.max(1,(new Date(e)-new Date(s))/86400000/totalDays*100); }
-  const todayPos=pos(TODAY.toISOString().split('T')[0]);
-
-  let html=`<table class="gantt-table" style="table-layout:fixed;">
-    <colgroup><col style="width:170px;"><col style="width:90px;"><col></colgroup>
-    <thead><tr><th>現場名</th><th>担当者</th><th>工期 (${minDate.getFullYear()}/{${minDate.getMonth()+1}} 〜 ${maxDate.getFullYear()}/${maxDate.getMonth()+1})</th></tr></thead>
-    <tbody>`;
-
-  SITES.forEach(s=>{
-    if(!s.start||!s.end){ html+=`<tr><td style="font-size:12px;font-weight:600;">${s.name.substring(0,14)}</td><td style="font-size:12px;color:#718096;">${s.mgr||'—'}</td><td style="color:#A0AEC0;font-size:12px;">工期未設定</td></tr>`; return; }
-    const l=pos(s.start); const w=width(s.start,s.end); const pw=w*s.progress/100;
-    html+=`<tr>
-      <td style="font-size:12px;font-weight:600;">${s.name.length>14?s.name.substring(0,14)+'…':s.name}</td>
-      <td style="font-size:12px;color:#718096;">${s.mgr||'—'}</td>
-      <td><div style="position:relative;height:24px;">
-        <div style="position:absolute;left:${l}%;width:${w}%;top:5px;height:14px;background:#BEE3F8;border-radius:3px;"></div>
-        <div style="position:absolute;left:${l}%;width:${pw}%;top:5px;height:14px;background:#2E75B6;border-radius:3px;"></div>
-        <div style="position:absolute;left:${todayPos}%;top:0;width:2px;height:24px;background:#E53E3E;z-index:5;"></div>
-        <div style="position:absolute;left:${l+pw}%;top:3px;font-size:10px;font-weight:700;color:#2E75B6;">${s.progress}%</div>
-      </div></td>
-    </tr>`;
-  });
-
-  html+=`</tbody></table><div style="font-size:11px;color:#718096;margin-top:6px;">■ <span style="color:#2E75B6;">■</span> 進捗済み &nbsp; <span style="background:#BEE3F8;padding:1px 6px;border-radius:2px;">　</span> 残工期 &nbsp; <span style="color:#E53E3E;">│</span> 本日 (${TODAY.getMonth()+1}/${TODAY.getDate()})</div>`;
-  document.getElementById('ganttWrap').innerHTML=html;
-}
-
-// =========================================================
-// PROCESS DETAIL (with sliders)
-// =========================================================
-function renderProcessDetail(){
-  if(!SITES.length){ document.getElementById('processDetail').innerHTML='<div style="color:#718096;padding:10px;">現場データがありません</div>'; return; }
-  let html='';
-  SITES.forEach(s=>{
-    const procs=s.procs||Array(9).fill(0);
-    html+=`<div class="proc-detail-site">
-      <div style="font-weight:700;font-size:13px;color:#1F4E79;margin-bottom:10px;">${s.id} — ${s.name} &nbsp;<span style="font-size:11px;color:#718096;font-weight:400;">（スライダーをドラッグして進捗を更新）</span></div>`;
-    PROCESSES.forEach((p,i)=>{
-      const v=procs[i];
-      const bg=v===100?'#C6F6D5':v>0?'#FEFCBF':'#EDF2F7';
-      const fg=v===100?'#276221':v>0?'#744210':'#A0AEC0';
-      html+=`<div class="proc-slider-row">
-        <div class="proc-slider-label">${p.label}</div>
-        <input class="proc-slider" type="range" min="0" max="100" step="5" value="${v}"
-          oninput="updateProc('${s.id}',${i},this.value,this)"
-          onchange="saveState()">
-        <div class="proc-slider-val" id="pv-${s.id}-${i}" style="color:${fg};">${v}%</div>
-      </div>`;
-    });
-    html+='</div>';
-  });
-  document.getElementById('processDetail').innerHTML=html;
-}
-
-function updateProc(siteId,procIdx,val,slider){
-  const s=SITES.find(x=>x.id===siteId);
-  if(!s)return;
-  if(!s.procs)s.procs=Array(9).fill(0);
-  s.procs[procIdx]=parseInt(val);
-  document.getElementById(`pv-${siteId}-${procIdx}`).textContent=val+'%';
-  // Update overall progress (average of procs)
-  s.progress=Math.round(s.procs.reduce((a,b)=>a+b,0)/s.procs.length);
-  // Update site card live
-  const card=document.getElementById('card-'+siteId);
-  if(card){
-    const pb=card.querySelector('.prog-bar-fill');
-    if(pb){ pb.style.width=s.progress+'%'; pb.className='prog-bar-fill '+progClass(s.progress); }
-    const lbl=card.querySelectorAll('.prog-bar-label span')[1];
-    if(lbl)lbl.textContent=s.progress+'%';
-    const steps=card.querySelectorAll('.proc-step');
-    if(steps.length===PROCESSES.length){
-      steps.forEach((el,i)=>{ el.className='proc-step '+procClass(s.procs[i]); });
-    }
-  }
-  renderKPI();
-  markUnsaved();
-}
 
 // =========================================================
 // DETAIL PANEL
@@ -1380,31 +1285,18 @@ function openDetail(siteId){
     otherT.forEach(t=>{taskHtml+=`<div class="detail-task-item" style="border-left-color:#CBD5E0;"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${fmtDate(t.due)} ｜ ${t.cat}</div></div>`;});
   }
 
-  const procMini=PROCESSES.map((p,i)=>{
-    const v=procs[i];
-    const bg=v===100?'#C6F6D5':v>0?'#FEFCBF':'#EDF2F7';
-    const fg=v===100?'#276221':v>0?'#744210':'#A0AEC0';
-    return`<span style="background:${bg};color:${fg};font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;">${p.key} ${v}%</span>`;
-  }).join('');
-
   document.getElementById('detail-content').innerHTML=`
     <div style="font-size:11px;font-weight:600;color:#2E75B6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${s.id}</div>
     <div style="font-size:16px;font-weight:700;color:#1F4E79;margin-bottom:4px;padding-right:36px;">${s.name}</div>
     <div style="margin:10px 0;padding:12px;background:#F7FAFC;border-radius:8px;">
       <div class="detail-row"><div class="dl">所在地</div><div>📍 ${s.addr||'—'}</div></div>
-      <div class="detail-row"><div class="dl">工種</div><div>${s.type||'—'}</div></div>
+      <div class="detail-row"><div class="dl">工種</div><div>${s.koushyu||'—'}</div></div>
+      <div class="detail-row"><div class="dl">構造</div><div>${s.type||'—'}</div></div>
       <div class="detail-row"><div class="dl">担当者</div><div>👷 ${s.mgr||'—'}</div></div>
+      <div class="detail-row"><div class="dl">請負形態</div><div>${s.contract||'—'}</div></div>
       <div class="detail-row"><div class="dl">着工</div><div>${s.start?fmtDate(s.start):'—'}</div></div>
       <div class="detail-row"><div class="dl">竣工予定</div><div>${s.end?fmtDate(s.end)+' ('+daysLeft(s.end)+')':'—'}</div></div>
       ${s.note?`<div class="detail-row" style="border:none;"><div class="dl">現況</div><div style="color:#E53E3E;font-weight:600;">📝 ${s.note}</div></div>`:''}
-    </div>
-    <div style="margin-bottom:10px;">
-      <div style="font-weight:700;font-size:12px;color:#1F4E79;margin-bottom:6px;">全体進捗 ${s.progress}%</div>
-      <div class="prog-bar-bg" style="height:14px;"><div class="prog-bar-fill ${progClass(s.progress)}" style="width:${s.progress}%;height:100%;"></div></div>
-    </div>
-    <div style="margin-bottom:10px;">
-      <div style="font-weight:700;font-size:12px;color:#1F4E79;margin-bottom:6px;">工程別進捗</div>
-      <div style="display:flex;gap:3px;flex-wrap:wrap;">${procMini}</div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:12px;">
       <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#4A5568;flex:1;" onclick="openSiteModal('${s.id}');closeDetail()">✏️ 現場を編集</button>
@@ -1469,14 +1361,11 @@ let currentTab = 'sites';
 function switchTab(tab){
   currentTab = tab;
   // Update page visibility
-  ['sites','tasks','gantt','proc','report'].forEach(p=>{
+  ['sites','tasks','report'].forEach(p=>{
     document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
     const btn = document.getElementById('bnav-'+p);
     if(btn) btn.classList.toggle('active', p===tab);
   });
-  // Lazy-render gantt and process on first visit
-  if(tab==='gantt') renderGantt();
-  if(tab==='proc')  renderProcessDetail();
   if(tab==='report') { initReportForm(); renderReportList(); }
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -1569,9 +1458,18 @@ function initReportForm() {
   const iso = d.toISOString().split('T')[0];
   const el = document.getElementById('report-date-input');
   if (el && !el.value) { el.value = iso; updateReportWeekday(); }
-  // 行が空なら1行追加
   const container = document.getElementById('report-entries-container');
-  if (container && container.children.length === 0) addReportRow();
+  if (!container) return;
+  if (container.children.length === 0) {
+    // 行が空なら1行追加
+    addReportRow();
+  } else {
+    // 既存の行のドロップダウンを最新の現場リストで更新
+    container.querySelectorAll('.re-site').forEach(sel => {
+      const cur = sel.value;
+      sel.innerHTML = buildSiteOptions(cur);
+    });
+  }
 }
 
 function updateReportWeekday() {
@@ -1619,16 +1517,17 @@ function saveReport() {
   });
   if (entries.length === 0) { showToast('⚠️ 作業内容を入力してください', 2500); return; }
 
-  // 同じ日付の日報があれば上書き確認
-  const existing = REPORTS.find(r => r.date === dateVal);
-  if (existing) {
-    if (!confirm(`${fmtDateJP(dateVal)}の日報が既に存在します。上書きしますか？`)) return;
-    existing.entries = entries;
+  const editingId = parseInt(document.getElementById('report-editing-id').value) || 0;
+  if (editingId) {
+    // 修正モード：既存レコードを上書き
+    const existing = REPORTS.find(r => r.id === editingId);
+    if (existing) { existing.date = dateVal; existing.entries = entries; }
+    document.getElementById('report-editing-id').value = '';
   } else {
+    // 新規：常に新しいレコードとして追加
     REPORTS.push({ id: nextReportId++, date: dateVal, entries });
   }
-  // 日付降順でソート
-  REPORTS.sort((a,b) => b.date.localeCompare(a.date));
+  REPORTS.sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
   saveState();
   renderReportList();
   // フォームリセット
@@ -1637,16 +1536,26 @@ function saveReport() {
   showToast('📋 日報を保存しました', 2500);
 }
 
-function deleteReport(date) {
-  if (!confirm(`${fmtDateJP(date)}の日報を削除しますか？`)) return;
-  const idx = REPORTS.findIndex(r => r.date === date);
-  if (idx !== -1) { REPORTS.splice(idx, 1); saveState(); renderReportList(); showToast('🗑️ 日報を削除しました'); }
+function deleteReport(id) {
+  const r = REPORTS.find(r => r.id === id);
+  if (!r) return;
+  if (!confirm(`${fmtDateJP(r.date)}の日報を削除しますか？`)) return;
+  REPORTS = REPORTS.filter(r => r.id !== id);
+  saveState(); renderReportList(); showToast('🗑️ 日報を削除しました');
 }
 
-function editReport(date) {
-  const r = REPORTS.find(r => r.date === date);
+function cancelEditReport() {
+  document.getElementById('report-editing-id').value = '';
+  document.getElementById('report-entries-container').innerHTML = '';
+  addReportRow();
+  showToast('修正をキャンセルしました', 1800);
+}
+
+function editReport(id) {
+  const r = REPORTS.find(r => r.id === id);
   if (!r) return;
   document.getElementById('report-date-input').value = r.date;
+  document.getElementById('report-editing-id').value = r.id;
   updateReportWeekday();
   document.getElementById('report-entries-container').innerHTML = '';
   r.entries.forEach(e => addReportRow(e));
@@ -1705,8 +1614,8 @@ function renderReportList() {
       <div class="report-list-header">
         <span class="report-list-date">📅 ${fmtDateJP(r.date)}</span>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-white btn-sm" style="border:1px solid #CBD5E0;" onclick="editReport('${r.date}')">✏️ 修正</button>
-          <button class="btn btn-red btn-sm" onclick="deleteReport('${r.date}')">🗑️</button>
+          <button class="btn btn-white btn-sm" style="border:1px solid #CBD5E0;" onclick="editReport(${r.id})">✏️ 修正</button>
+          <button class="btn btn-red btn-sm" onclick="deleteReport(${r.id})">🗑️</button>
         </div>
       </div>
       <table class="report-list-table">
@@ -1740,8 +1649,6 @@ function renderAll(){
   renderTasks();
   renderTaskCards();
   // Only render heavy sections if tab is active (mobile) or always on desktop
-  if(window.innerWidth>640||currentTab==='gantt') renderGantt();
-  if(window.innerWidth>640||currentTab==='proc')  renderProcessDetail();
   // Sync date to mobile menu
   const d=TODAY;
   const dateStr=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;

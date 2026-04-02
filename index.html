@@ -1057,9 +1057,9 @@ function saveSite(){
   if(isEdit){ const idx=SITES.findIndex(s=>s.id===id); if(idx>=0)SITES[idx]=obj; }
   else { SITES.push(obj); }
 
+  saveState();      // ← 先にデータを保存してからUIを更新
   closeSiteModal();
   renderAll();
-  saveState();
   showToast(isEdit?'✅ 現場を更新しました':'✅ 現場を追加しました');
 }
 
@@ -1643,7 +1643,7 @@ function clearAllData(){
   REPORTS = [];
   nextTaskId = 100;
   nextReportId = 1;
-  localStorage.removeItem('kenba_data');
+  saveState();      // ← 空の状態をlocalStorageに保存（更新後もデモデータが復活しないよう）
   renderAll();
   renderReportList();
   showToast('🗑️ データを初期化しました。現場追加から登録してください。', 3000);
@@ -1667,11 +1667,16 @@ function saveState(){
 // RENDER ALL
 // =========================================================
 function renderAll(){
-  renderKPI();
-  renderSites();
-  renderTasks();
-  renderTaskCards();
-  // Only render heavy sections if tab is active (mobile) or always on desktop
+  try { renderKPI(); } catch(e){ console.error('renderKPI error',e); }
+  try {
+    renderSites();
+  } catch(e){
+    console.error('renderSites error',e);
+    const grid=document.getElementById('sitesGrid');
+    if(grid) grid.innerHTML='<div style="color:#E53E3E;padding:20px;text-align:center;">⚠️ 現場一覧の表示でエラーが発生しました。ページを再読み込みしてください。</div>';
+  }
+  try { renderTasks(); } catch(e){ console.error('renderTasks error',e); }
+  try { renderTaskCards(); } catch(e){ console.error('renderTaskCards error',e); }
   // Sync date to mobile menu
   const d=TODAY;
   const dateStr=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;

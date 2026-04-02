@@ -76,7 +76,7 @@ input,select,textarea,button{font-family:inherit}
 .site-card{background:white;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:4px solid #2E75B6;transition:transform .15s,box-shadow .15s;position:relative}
 .site-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
 .site-card.selected{border-top-color:#d69e2e;box-shadow:0 0 0 2px #d69e2e}
-.site-card-actions{position:absolute;top:10px;right:10px;display:flex;gap:4px;opacity:0;transition:opacity .2s}
+.site-card-actions{display:flex;gap:4px;opacity:0.3;transition:opacity .2s}
 .site-card:hover .site-card-actions{opacity:1}
 .site-card .site-id{font-size:11px;color:#718096;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 .site-card .site-name{font-size:15px;font-weight:700;margin:4px 0 2px;padding-right:60px}
@@ -375,6 +375,7 @@ input,select,textarea,button{font-family:inherit}
     <input type="file" id="json-import-input" accept=".json" onchange="importJSON(event)">
     <button class="btn btn-ghost btn-sm" id="cloudSaveBtn" onclick="uploadToCloud()" title="クラウドに保存（PC↔スマホ同期）">☁️ クラウド保存</button>
     <button class="btn btn-ghost btn-sm" id="cloudLoadBtn" onclick="downloadFromCloud()" title="クラウドから最新データを読み込む">🔄 クラウド読込</button>
+    <span id="autoBackupLabel" style="font-size:10px;color:#718096;white-space:nowrap;"></span>
     <div class="date-badge" id="currentDate"></div>
     <!-- Mobile menu button -->
     <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="ログアウト" style="font-size:12px;">🔒 ログアウト</button>
@@ -389,6 +390,7 @@ input,select,textarea,button{font-family:inherit}
     <div class="save-indicator" id="saveIndicatorMobile" style="margin-bottom:14px;color:#4A5568;font-size:12px;">保存済み</div>
     <button class="menu-btn" id="cloudSaveBtnM" onclick="uploadToCloud()" style="background:#EBF8FF;color:#1F4E79;font-weight:700;">☁️ クラウド保存</button>
     <button class="menu-btn" id="cloudLoadBtnM" onclick="downloadFromCloud()" style="background:#EBF8FF;color:#1F4E79;">🔄 クラウド読込</button>
+    <div id="autoBackupLabelM" style="font-size:11px;color:#718096;text-align:center;padding:2px 0;"></div>
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="exportJSON();closeMobileMenu()">💾 データ保存（JSON）</button>
     <button class="menu-btn" onclick="document.getElementById('json-import-input').click();closeMobileMenu()">📂 データ読込（JSON）</button>
@@ -721,12 +723,12 @@ const JSONBIN_BIN_ID = '69cb54ca36566621a8648c60';
 const JSONBIN_KEY = '$2a$10$74w1.yCNnZnxHCry4HKdg.53wJazGo8QgflY1e.zLIUudpjGstXTm';
 const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
 
-async function uploadToCloud() {
+async function uploadToCloud(silent=false) {
   const btn = document.getElementById('cloudSaveBtn');
   const btnM = document.getElementById('cloudSaveBtnM');
   try {
     [btn,btnM].forEach(b=>{if(b){b.disabled=true;b.textContent='☁️ 保存中...';}});
-    showToast('☁️ クラウドに保存中...');
+    if(!silent) showToast('☁️ クラウドに保存中...');
     const payload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId};
     const res = await fetch(JSONBIN_URL, {
       method: 'PUT',
@@ -737,12 +739,36 @@ async function uploadToCloud() {
       body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    showToast('☁️ クラウド保存完了！PC↔スマホ同期されました', 3000);
+    const now = new Date();
+    const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    if(silent){
+      showToast(`☁️ 自動バックアップ完了（${hhmm}）`, 2000);
+    } else {
+      showToast('☁️ クラウド保存完了！PC↔スマホ同期されました', 3000);
+    }
+    updateAutoBackupLabel(hhmm);
   } catch(e) {
-    showToast('❌ クラウド保存失敗: ' + e.message, 3500);
+    if(!silent) showToast('❌ クラウド保存失敗: ' + e.message, 3500);
   } finally {
     [btn,btnM].forEach(b=>{if(b){b.disabled=false;b.textContent='☁️ クラウド保存';}});
   }
+}
+
+function updateAutoBackupLabel(hhmm){
+  ['autoBackupLabel','autoBackupLabelM'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.textContent='最終自動保存: '+hhmm;
+  });
+}
+
+// 自動バックアップ: 30分ごとにクラウド保存
+const AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000;
+function startAutoBackup(){
+  setInterval(async ()=>{
+    if(SITES.length > 0 || TASKS.length > 0){
+      await uploadToCloud(true);
+    }
+  }, AUTO_BACKUP_INTERVAL_MS);
 }
 
 async function downloadFromCloud() {
@@ -976,15 +1002,15 @@ function renderSites(){
     const todayT=TASKS.filter(t=>t.site===s.id&&isToday(t.due)&&t.status!=='完了').length;
     const weekT=TASKS.filter(t=>t.site===s.id&&isThisWeek(t.due)&&t.status!=='完了').length;
     return`<div class="site-card" id="card-${s.id}" onclick="openDetail('${s.id}')" style="cursor:pointer;">
-      <div class="site-card-actions" onclick="event.stopPropagation()">
-        <button class="btn-icon" onclick="openSiteModal('${s.id}')" title="編集">✏️</button>
-        <button class="btn-icon del" onclick="confirmDeleteSite('${s.id}')" title="削除">🗑️</button>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:start;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <div class="site-id">${s.id}</div>
-        <span class="status-badge ${badgeCls}">${s.status}</span>
+        <div class="site-card-actions" onclick="event.stopPropagation()" style="position:static;opacity:inherit;display:flex;gap:4px;">
+          <button class="btn-icon" onclick="openSiteModal('${s.id}')" title="編集">✏️</button>
+          <button class="btn-icon del" onclick="confirmDeleteSite('${s.id}')" title="削除">🗑️</button>
+        </div>
       </div>
-      <div class="site-name">${s.name}</div>
+      <span class="status-badge ${badgeCls}">${s.status}</span>
+      <div class="site-name" style="padding-right:0;">${s.name}</div>
       <div class="site-meta">📍 ${s.addr||'—'} &nbsp;｜&nbsp; 👷 ${s.mgr||'—'}</div>
       ${s.note?`<div class="site-meta" style="color:#E53E3E;font-size:11px;">📝 ${s.note}</div>`:''}
       <div class="site-footer">
@@ -1707,6 +1733,7 @@ if (checkAuth()) {
   renderAll();
   saveState();
   renderReportList();
+  startAutoBackup(); // 30分ごとの自動クラウドバックアップ開始
 }
 </script>
 </body>

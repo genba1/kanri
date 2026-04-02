@@ -480,7 +480,7 @@ input,select,textarea,button{font-family:inherit}
       </div>
       <div style="margin-bottom:12px;">
         <label style="font-size:13px;font-weight:600;color:#4A5568;display:block;margin-bottom:4px;">現場名</label>
-        <select class="form-select" id="report-site-select" style="max-width:320px;"></select>
+        <select class="form-select" id="report-site-select" style="max-width:320px;" onfocus="this.innerHTML=buildSiteOptions(this.value)"></select>
       </div>
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;" id="report-rows-table">

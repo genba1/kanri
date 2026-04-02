@@ -542,7 +542,7 @@ input,select,textarea,button{font-family:inherit}
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">現場ID *</label>
-          <input class="form-input" id="s-id" placeholder="例: S-006">
+          <input class="form-input" id="s-id" placeholder="例: 26041（2026年4月1番目）">
         </div>
         <div class="form-group">
           <label class="form-label">ステータス</label>
@@ -553,12 +553,12 @@ input,select,textarea,button{font-family:inherit}
       </div>
       <div class="form-group">
         <label class="form-label">現場名 *</label>
-        <input class="form-input" id="s-name" placeholder="例: ○○マンション新築工事">
+        <input class="form-input" id="s-name" placeholder="例: ○○邸改修工事">
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">所在地</label>
-          <input class="form-input" id="s-addr" placeholder="例: 東京都新宿区">
+          <input class="form-input" id="s-addr" placeholder="例: 明石市">
         </div>
         <div class="form-group">
           <label class="form-label">工種</label>
@@ -578,7 +578,7 @@ input,select,textarea,button{font-family:inherit}
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">構造</label>
-          <input class="form-input" id="s-type" placeholder="例: RC造 地上10階建">
+          <input class="form-input" id="s-type" placeholder="例: 木造2階建">
         </div>
         <div class="form-group">
           <label class="form-label">担当者</label>
@@ -613,7 +613,7 @@ input,select,textarea,button{font-family:inherit}
       </div>
       <div class="form-group">
         <label class="form-label">現況メモ</label>
-        <input class="form-input" id="s-note" placeholder="例: 躯体4F施工中">
+        <input class="form-input" id="s-note" placeholder="例: 内装工事中">
       </div>
     </div>
     <div class="modal-foot">
@@ -1708,6 +1708,11 @@ function renderAll(){
   }
   try { renderTasks(); } catch(e){ console.error('renderTasks error',e); }
   try { renderTaskCards(); } catch(e){ console.error('renderTaskCards error',e); }
+  // 日報フォームの現場ドロップダウンを更新（PC/スマホ共通）
+  try {
+    const sel = document.getElementById('report-site-select');
+    if(sel){ const cur=sel.value; sel.innerHTML=buildSiteOptions(cur); }
+  } catch(e){ console.error('report-site-select error',e); }
   // Sync date to mobile menu
   const d=TODAY;
   const dateStr=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;

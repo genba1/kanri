@@ -1708,11 +1708,8 @@ function renderAll(){
   }
   try { renderTasks(); } catch(e){ console.error('renderTasks error',e); }
   try { renderTaskCards(); } catch(e){ console.error('renderTaskCards error',e); }
-  // 日報フォームの現場ドロップダウンを更新（PC/スマホ共通）
-  try {
-    const sel = document.getElementById('report-site-select');
-    if(sel){ const cur=sel.value; sel.innerHTML=buildSiteOptions(cur); }
-  } catch(e){ console.error('report-site-select error',e); }
+  // 日報フォームを初期化（PC/スマホ共通）- ドロップダウン更新＋行が空なら10行作成
+  try { initReportForm(); } catch(e){ console.error('initReportForm error',e); }
   // Sync date to mobile menu
   const d=TODAY;
   const dateStr=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;

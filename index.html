@@ -460,7 +460,7 @@ input,select,textarea,button{font-family:inherit}
               <th>期限</th>
               <th>優先度</th>
               <th>ステータス</th>
-              <th>カテゴリ</th>
+
               <th style="width:50px;">時間</th>
               <th style="width:70px;">操作</th>
             </tr>
@@ -673,15 +673,6 @@ input,select,textarea,button{font-family:inherit}
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">カテゴリ</label>
-          <select class="form-select" id="t-cat">
-            <option>品質管理</option><option>躯体工事</option><option>内装工事</option>
-            <option>設備工事</option><option>外構工事</option><option>仮設工事</option>
-            <option>書類作成</option><option>資材調達</option><option>安全管理</option>
-            <option>図面管理</option><option>近隣対応</option><option>その他</option>
-          </select>
-        </div>
         <div class="form-group">
           <label class="form-label">所要時間 (h)</label>
           <input class="form-input" id="t-hrs" type="number" min="0.5" max="24" step="0.5" placeholder="例: 2">
@@ -1210,7 +1201,7 @@ function renderTasks(){
           ${['未着手','進行中','完了','保留'].map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
-      <td><span style="background:#EDF2F7;padding:2px 6px;border-radius:4px;font-size:11px;">${t.cat}</span></td>
+
       <td style="text-align:center;">${t.hrs}h</td>
       <td>
         <div class="task-row-actions">
@@ -1253,7 +1244,6 @@ function openTaskModal(taskId){
     document.getElementById('t-due').value=t.due;
     document.getElementById('t-priority').value=t.priority;
     document.getElementById('t-status').value=t.status;
-    document.getElementById('t-cat').value=t.cat;
     document.getElementById('t-hrs').value=t.hrs||1;
     document.getElementById('t-note').value=t.note||'';
   } else {
@@ -1262,7 +1252,6 @@ function openTaskModal(taskId){
     document.getElementById('t-due').value=fmtDateFull(TODAY.toISOString());
     document.getElementById('t-priority').value='中';
     document.getElementById('t-status').value='未着手';
-    document.getElementById('t-cat').value='その他';
     document.getElementById('t-hrs').value=1;
     document.getElementById('t-note').value='';
     // Auto-fill manager when site changes
@@ -1291,7 +1280,6 @@ function saveTask(){
     due,
     priority:document.getElementById('t-priority').value,
     status:document.getElementById('t-status').value,
-    cat:document.getElementById('t-cat').value,
     hrs:parseFloat(document.getElementById('t-hrs').value)||1,
     note:document.getElementById('t-note').value.trim(),
   };
@@ -1353,15 +1341,15 @@ function openDetail(siteId){
   let taskHtml='';
   if(todayT.length){
     taskHtml+=`<div style="font-weight:700;font-size:12px;color:#E53E3E;margin:10px 0 4px;">📌 本日のタスク</div>`;
-    todayT.forEach(t=>{taskHtml+=`<div class="detail-task-item urgent"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${t.cat} ｜ ${t.hrs}h ｜ <span class="priority-badge ${priorityClass(t.priority)}">${t.priority}</span></div>${t.note?`<div style="font-size:11px;color:#718096;">💬 ${t.note}</div>`:''}</div>`;});
+    todayT.forEach(t=>{taskHtml+=`<div class="detail-task-item urgent"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${t.hrs}h ｜ <span class="priority-badge ${priorityClass(t.priority)}">${t.priority}</span></div>${t.note?`<div style="font-size:11px;color:#718096;">💬 ${t.note}</div>`:''}</div>`;});
   }
   if(weekT.length){
     taskHtml+=`<div style="font-weight:700;font-size:12px;color:#ED8936;margin:10px 0 4px;">📆 今週のタスク</div>`;
-    weekT.forEach(t=>{taskHtml+=`<div class="detail-task-item"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${fmtDate(t.due)} ｜ ${t.cat} ｜ ${t.hrs}h</div></div>`;});
+    weekT.forEach(t=>{taskHtml+=`<div class="detail-task-item"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${fmtDate(t.due)} ｜ ${t.hrs}h</div></div>`;});
   }
   if(otherT.length){
     taskHtml+=`<div style="font-weight:700;font-size:12px;color:#718096;margin:10px 0 4px;">🗓 その他タスク</div>`;
-    otherT.forEach(t=>{taskHtml+=`<div class="detail-task-item" style="border-left-color:#CBD5E0;"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${fmtDate(t.due)} ｜ ${t.cat}</div></div>`;});
+    otherT.forEach(t=>{taskHtml+=`<div class="detail-task-item" style="border-left-color:#CBD5E0;"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${fmtDate(t.due)}</div></div>`;});
   }
 
   document.getElementById('detail-content').innerHTML=`
@@ -1487,7 +1475,7 @@ function renderTaskCards(){
         <div class="task-card-badges">
           <span class="priority-badge ${priorityClass(t.priority)}">${t.priority}</span>
           <span class="status-badge-sm ${statusClass(t.status)}">${t.status}</span>
-          <span style="background:#EDF2F7;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600;">${t.cat}</span>
+
         </div>
         <div class="task-card-meta">
           <span>📍 ${siteName(t.site).substring(0,12)}</span>

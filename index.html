@@ -562,17 +562,19 @@ input,select,textarea,button{font-family:inherit}
         </div>
         <div class="form-group">
           <label class="form-label">工種</label>
-          <input class="form-input" id="s-koushyu" list="koushyu-list" placeholder="選択または直接入力">
-          <datalist id="koushyu-list">
-            <option value="改修工事">
-            <option value="外装塗装工事">
-            <option value="風呂入替工事">
-            <option value="洗面台入替工事">
-            <option value="トイレ入替工事">
-            <option value="改装工事">
-            <option value="新装工事">
-            <option value="新築工事">
-          </datalist>
+          <select class="form-select" id="s-koushyu-sel" onchange="onKoushyuChange(this)">
+            <option value="">選択してください</option>
+            <option value="改修工事">改修工事</option>
+            <option value="外装塗装工事">外装塗装工事</option>
+            <option value="風呂入替工事">風呂入替工事</option>
+            <option value="洗面台入替工事">洗面台入替工事</option>
+            <option value="トイレ入替工事">トイレ入替工事</option>
+            <option value="改装工事">改装工事</option>
+            <option value="新装工事">新装工事</option>
+            <option value="新築工事">新築工事</option>
+            <option value="__other__">その他（直接入力）</option>
+          </select>
+          <input class="form-input" id="s-koushyu" placeholder="工種を入力" style="display:none;margin-top:6px;">
         </div>
       </div>
       <div class="form-row">
@@ -1040,7 +1042,7 @@ function openSiteModal(siteId){
     document.getElementById('s-id').disabled=true;
     document.getElementById('s-name').value=s.name;
     document.getElementById('s-addr').value=s.addr||'';
-    document.getElementById('s-koushyu').value=s.koushyu||'';
+    setKoushyuField(s.koushyu||'');
     document.getElementById('s-type').value=s.type||'';
     document.getElementById('s-mgr').value=s.mgr||'';
     document.getElementById('s-start').value=s.start||'';
@@ -1049,7 +1051,8 @@ function openSiteModal(siteId){
     document.getElementById('s-status').value=s.status||'工事中';
     document.getElementById('s-contract').value=s.contract||'';
   } else {
-    ['s-id','s-name','s-addr','s-koushyu','s-type','s-mgr','s-note'].forEach(id=>document.getElementById(id).value='');
+    ['s-id','s-name','s-addr','s-type','s-mgr','s-note'].forEach(id=>document.getElementById(id).value='');
+    setKoushyuField('');
     document.getElementById('s-contract').value='';
     document.getElementById('s-id').disabled=false;
     document.getElementById('s-start').value='';
@@ -1060,6 +1063,38 @@ function openSiteModal(siteId){
 }
 
 function closeSiteModal(){ document.getElementById('siteModal').classList.remove('show'); }
+
+// 工種フィールドのヘルパー
+function onKoushyuChange(sel){
+  const txt = document.getElementById('s-koushyu');
+  if(sel.value === '__other__'){
+    txt.style.display = 'block';
+    txt.value = '';
+    txt.focus();
+  } else {
+    txt.style.display = 'none';
+    txt.value = sel.value;
+  }
+}
+function setKoushyuField(val){
+  const sel = document.getElementById('s-koushyu-sel');
+  const txt = document.getElementById('s-koushyu');
+  const known = ['改修工事','外装塗装工事','風呂入替工事','洗面台入替工事','トイレ入替工事','改装工事','新装工事','新築工事'];
+  if(!val){
+    sel.value=''; txt.value=''; txt.style.display='none';
+  } else if(known.includes(val)){
+    sel.value=val; txt.value=val; txt.style.display='none';
+  } else {
+    sel.value='__other__'; txt.value=val; txt.style.display='block';
+  }
+}
+function getKoushyuValue(){
+  const sel = document.getElementById('s-koushyu-sel');
+  if(sel.value === '__other__' || sel.value === ''){
+    return document.getElementById('s-koushyu').value.trim();
+  }
+  return sel.value;
+}
 
 function saveSite(){
   const isEdit=!!document.getElementById('siteEditId').value;
@@ -1073,7 +1108,7 @@ function saveSite(){
   const obj={
     id,name,
     addr:document.getElementById('s-addr').value.trim(),
-    koushyu:document.getElementById('s-koushyu').value.trim(),
+    koushyu:getKoushyuValue(),
     type:document.getElementById('s-type').value.trim(),
     mgr:document.getElementById('s-mgr').value.trim(),
     progress:existing?existing.progress:0,

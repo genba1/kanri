@@ -1452,7 +1452,7 @@ function switchTab(tab){
     if(btn) btn.classList.toggle('active', p===tab);
   });
   if(tab==='report') { initReportForm(); renderReportList(); }
-  window.scrollTo({top:0,behavior:'smooth'});
+  else { window.scrollTo({top:0,behavior:'smooth'}); }
 }
 
 // =========================================================
@@ -1644,7 +1644,11 @@ function editReport(id) {
   updateReportWeekday();
   buildReportRows(r.entries);
   switchTab('report');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // 日報入力フォームの先頭へスクロール
+  setTimeout(()=>{
+    const el = document.getElementById('page-report');
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 80);
 }
 
 function fmtDateJP(dateStr) {

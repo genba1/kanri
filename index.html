@@ -1429,13 +1429,17 @@ const _origSaveState = saveState;
 // =========================================================
 function goToReportWithSite(siteId){
   switchTab('report');
-  // 現場セレクトに該当現場をセット
-  const sel = document.getElementById('report-site-select');
-  if(sel){
-    sel.innerHTML = buildSiteOptions(siteId);
-    sel.value = siteId;
-  }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // initReportForm()がswitchTab内で走るため、setTimeout後に現場をセット
+  setTimeout(()=>{
+    const sel = document.getElementById('report-site-select');
+    if(sel){
+      sel.innerHTML = buildSiteOptions(siteId);
+      sel.value = siteId;
+    }
+    // 日報セクションへスクロール（PC・スマホ共通）
+    const reportPage = document.getElementById('page-report');
+    if(reportPage) reportPage.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 80);
 }
 
 let currentTab = 'sites';

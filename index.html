@@ -1365,9 +1365,12 @@ function openDetail(siteId){
       <div class="detail-row"><div class="dl">竣工予定</div><div>${s.end?fmtDate(s.end)+' ('+daysLeft(s.end)+')':'—'}</div></div>
       ${s.note?`<div class="detail-row" style="border:none;"><div class="dl">現況</div><div style="color:#E53E3E;font-weight:600;">📝 ${s.note}</div></div>`:''}
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
       <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#4A5568;flex:1;" onclick="openSiteModal('${s.id}');closeDetail()">✏️ 現場を編集</button>
       <button class="btn btn-green btn-sm" style="flex:1;" onclick="openTaskModal();document.getElementById('t-site').value='${s.id}';closeDetail()">＋ タスク追加</button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <button class="btn btn-amber btn-sm" style="width:100%;" onclick="goToReportWithSite('${s.id}');closeDetail()">📋 日報入力へ</button>
     </div>
     <div>${taskHtml||'<div style="color:#718096;font-size:13px;padding:10px 0;">未完了のタスクはありません</div>'}</div>
     ${buildSiteReportHtml(siteId)}`;
@@ -1424,6 +1427,17 @@ const _origSaveState = saveState;
 // =========================================================
 // BOTTOM NAV TAB SWITCHING
 // =========================================================
+function goToReportWithSite(siteId){
+  switchTab('report');
+  // 現場セレクトに該当現場をセット
+  const sel = document.getElementById('report-site-select');
+  if(sel){
+    sel.innerHTML = buildSiteOptions(siteId);
+    sel.value = siteId;
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 let currentTab = 'sites';
 function switchTab(tab){
   currentTab = tab;

@@ -1158,32 +1158,6 @@ function archiveSite(siteId){
     const d = new Date(str+'T00:00:00');
     return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${weekNames[d.getDay()]}）`;
   };
-  const procs = s.procs||Array(9).fill(0);
-
-  // ── 工程進捗テーブル ──
-  const procRows = PROCESSES.map((p,i)=>`
-    <tr>
-      <td>${p.label}</td>
-      <td>
-        <div style="background:#e2e8f0;border-radius:4px;height:12px;width:200px;overflow:hidden;display:inline-block;vertical-align:middle;">
-          <div style="background:#2E75B6;height:100%;width:${procs[i]}%;"></div>
-        </div>
-      </td>
-      <td style="text-align:right;font-weight:700;color:#2E75B6;">${procs[i]}%</td>
-    </tr>`).join('');
-
-  // ── タスク一覧 ──
-  const taskRows = siteTasks.length===0
-    ? '<tr><td colspan="5" style="color:#718096;text-align:center;">タスクなし</td></tr>'
-    : siteTasks.map(t=>`
-    <tr>
-      <td>${t.task}</td>
-      <td>${t.mgr||'—'}</td>
-      <td>${fmtD(t.due)}</td>
-      <td>${t.priority}</td>
-      <td>${t.status}</td>
-    </tr>`).join('');
-
   // ── 日報一覧 ──
   const reportBlocks = siteReports.length===0
     ? '<p style="color:#718096;">日報なし</p>'
@@ -1258,18 +1232,6 @@ function archiveSite(siteId){
   <tr><td class="label">着工日</td><td>${fmtD(s.start)}</td><td class="label">竣工予定日</td><td>${fmtD(s.end)}</td></tr>
 </table>
 
-<h2>📊 工程進捗</h2>
-<table>
-  <thead><tr><th style="width:120px;">工程</th><th>進捗</th><th style="width:60px;text-align:right;">達成率</th></tr></thead>
-  <tbody>${procRows}</tbody>
-</table>
-
-<h2>✅ タスク一覧（${siteTasks.length}件）</h2>
-<table>
-  <thead><tr><th>タスク内容</th><th>担当</th><th>期限</th><th>優先度</th><th>ステータス</th></tr></thead>
-  <tbody>${taskRows}</tbody>
-</table>
-
 <h2>📝 日報一覧（${siteReports.length}件）</h2>
 ${reportBlocks}
 
@@ -1294,12 +1256,11 @@ ${reportBlocks}
 
   // ── ダウンロード後に削除確認 ──
   setTimeout(()=>{
-    const taskCount = siteTasks.length;
     const reportCount = siteReports.length;
     const msg =
       `「${s.name}」のアーカイブを保存しました。\n\n` +
       `この現場をダッシュボードから削除しますか？\n` +
-      `（タスク ${taskCount}件・日報 ${reportCount}件も削除されます）\n\n` +
+      `（日報 ${reportCount}件も削除されます）\n\n` +
       `※ HTMLファイルとして保存済みのため、後から確認できます。`;
     if(confirm(msg)){
       SITES   = SITES.filter(x=>x.id!==siteId);

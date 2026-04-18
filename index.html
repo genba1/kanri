@@ -1142,6 +1142,178 @@ function confirmDeleteSite(siteId){
 }
 
 // =========================================================
+// ARCHIVE
+// =========================================================
+function archiveSite(siteId){
+  const s = SITES.find(x=>x.id===siteId);
+  if(!s){ showToast('⚠️ 現場が見つかりません'); return; }
+
+  const siteTasks = TASKS.filter(t=>t.site===siteId);
+  const siteReports = REPORTS.filter(r=>r.siteId===siteId)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  const weekNames=['日','月','火','水','木','金','土'];
+  const fmtD = str => {
+    if(!str) return '—';
+    const d = new Date(str+'T00:00:00');
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${weekNames[d.getDay()]}）`;
+  };
+  const procs = s.procs||Array(9).fill(0);
+
+  // ── 工程進捗テーブル ──
+  const procRows = PROCESSES.map((p,i)=>`
+    <tr>
+      <td>${p.label}</td>
+      <td>
+        <div style="background:#e2e8f0;border-radius:4px;height:12px;width:200px;overflow:hidden;display:inline-block;vertical-align:middle;">
+          <div style="background:#2E75B6;height:100%;width:${procs[i]}%;"></div>
+        </div>
+      </td>
+      <td style="text-align:right;font-weight:700;color:#2E75B6;">${procs[i]}%</td>
+    </tr>`).join('');
+
+  // ── タスク一覧 ──
+  const taskRows = siteTasks.length===0
+    ? '<tr><td colspan="5" style="color:#718096;text-align:center;">タスクなし</td></tr>'
+    : siteTasks.map(t=>`
+    <tr>
+      <td>${t.task}</td>
+      <td>${t.mgr||'—'}</td>
+      <td>${fmtD(t.due)}</td>
+      <td>${t.priority}</td>
+      <td>${t.status}</td>
+    </tr>`).join('');
+
+  // ── 日報一覧 ──
+  const reportBlocks = siteReports.length===0
+    ? '<p style="color:#718096;">日報なし</p>'
+    : siteReports.map(r=>{
+        const entryRows = r.entries.map(e=>`
+          <tr>
+            <td>${e.content||'—'}</td>
+            <td>${e.worker||'—'}</td>
+            <td style="text-align:right;">${e.hours||0}h</td>
+          </tr>`).join('');
+        const totalHours = r.entries.reduce((s,e)=>s+(parseFloat(e.hours)||0),0);
+        return `
+        <div style="margin-bottom:20px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+          <div style="background:#EBF8FF;padding:8px 14px;font-weight:700;font-size:14px;color:#1F4E79;">
+            📅 ${fmtD(r.date)}
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:#F7FAFC;">
+                <th style="padding:6px 10px;text-align:left;width:50%;">作業内容</th>
+                <th style="padding:6px 10px;text-align:left;">作業者</th>
+                <th style="padding:6px 10px;text-align:right;">作業時間</th>
+              </tr>
+            </thead>
+            <tbody>${entryRows}</tbody>
+            <tfoot>
+              <tr style="background:#F7FAFC;font-weight:700;">
+                <td colspan="2" style="padding:6px 10px;text-align:right;color:#4A5568;">合計</td>
+                <td style="padding:6px 10px;text-align:right;color:#2E75B6;">${totalHours}h</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>`;
+      }).join('');
+
+  const now = new Date();
+  const nowStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+
+  // ── HTML生成 ──
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>アーカイブ：${s.name}</title>
+<style>
+  body{font-family:'Hiragino Sans','Yu Gothic','Segoe UI',sans-serif;color:#2d3748;font-size:14px;padding:32px;max-width:900px;margin:0 auto;}
+  h1{font-size:22px;color:#1F4E79;margin-bottom:4px;}
+  h2{font-size:16px;color:#1F4E79;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid #BEE3F8;}
+  .meta{color:#718096;font-size:12px;margin-bottom:24px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;}
+  th,td{padding:7px 10px;border:1px solid #e2e8f0;text-align:left;vertical-align:top;}
+  th{background:#F7FAFC;font-weight:700;color:#4A5568;}
+  .label{color:#718096;font-weight:700;width:120px;}
+  @media print{body{padding:16px;}}
+</style>
+</head>
+<body>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+  <div style="font-size:36px;">🏗️</div>
+  <div>
+    <h1>${s.name}</h1>
+    <div class="meta">現場ID：${s.id}　／　アーカイブ出力日：${nowStr}</div>
+  </div>
+</div>
+
+<h2>📋 現場情報</h2>
+<table>
+  <tr><td class="label">ステータス</td><td>${s.status||'—'}</td><td class="label">進捗率</td><td>${s.progress||0}%</td></tr>
+  <tr><td class="label">所在地</td><td>${s.addr||'—'}</td><td class="label">工種</td><td>${s.koushyu||'—'}</td></tr>
+  <tr><td class="label">構造・規模</td><td>${s.type||'—'}</td><td class="label">請負形態</td><td>${s.contract||'—'}</td></tr>
+  <tr><td class="label">担当者</td><td>${s.mgr||'—'}</td><td class="label">現況メモ</td><td>${s.note||'—'}</td></tr>
+  <tr><td class="label">着工日</td><td>${fmtD(s.start)}</td><td class="label">竣工予定日</td><td>${fmtD(s.end)}</td></tr>
+</table>
+
+<h2>📊 工程進捗</h2>
+<table>
+  <thead><tr><th style="width:120px;">工程</th><th>進捗</th><th style="width:60px;text-align:right;">達成率</th></tr></thead>
+  <tbody>${procRows}</tbody>
+</table>
+
+<h2>✅ タスク一覧（${siteTasks.length}件）</h2>
+<table>
+  <thead><tr><th>タスク内容</th><th>担当</th><th>期限</th><th>優先度</th><th>ステータス</th></tr></thead>
+  <tbody>${taskRows}</tbody>
+</table>
+
+<h2>📝 日報一覧（${siteReports.length}件）</h2>
+${reportBlocks}
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#A0AEC0;text-align:center;">
+  建築現場 進捗管理ダッシュボード　－　アーカイブ出力
+</div>
+</body>
+</html>`;
+
+  // ── ダウンロード ──
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `アーカイブ_${s.id}_${s.name}_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showToast('📦 アーカイブファイルを保存しました', 2000);
+
+  // ── ダウンロード後に削除確認 ──
+  setTimeout(()=>{
+    const taskCount = siteTasks.length;
+    const reportCount = siteReports.length;
+    const msg =
+      `「${s.name}」のアーカイブを保存しました。\n\n` +
+      `この現場をダッシュボードから削除しますか？\n` +
+      `（タスク ${taskCount}件・日報 ${reportCount}件も削除されます）\n\n` +
+      `※ HTMLファイルとして保存済みのため、後から確認できます。`;
+    if(confirm(msg)){
+      SITES   = SITES.filter(x=>x.id!==siteId);
+      TASKS   = TASKS.filter(t=>t.site!==siteId);
+      REPORTS = REPORTS.filter(r=>r.siteId!==siteId);
+      saveState();
+      renderAll();
+      renderReportList();
+      showToast('🗑️ 現場・タスク・日報を削除しました');
+    }
+  }, 600);
+}
+
+// =========================================================
 // TASKS
 // =========================================================
 function filterTasks(f,btn){
@@ -1371,6 +1543,9 @@ function openDetail(siteId){
     </div>
     <div style="margin-bottom:12px;">
       <button class="btn btn-amber btn-sm" style="width:100%;" onclick="goToReportWithSite('${s.id}');closeDetail()">📋 日報入力へ</button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSite('${s.id}');closeDetail()">📦 アーカイブ保存（完了現場の書き出し）</button>
     </div>
     <div>${taskHtml||'<div style="color:#718096;font-size:13px;padding:10px 0;">未完了のタスクはありません</div>'}</div>
     ${buildSiteReportHtml(siteId)}`;

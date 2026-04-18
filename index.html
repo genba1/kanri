@@ -1225,7 +1225,7 @@ function archiveSite(siteId){
 
 <h2>📋 現場情報</h2>
 <table>
-  <tr><td class="label">ステータス</td><td>${s.status||'—'}</td><td class="label">進捗率</td><td>${s.progress||0}%</td></tr>
+  <tr><td class="label">ステータス</td><td colspan="3">${s.status||'—'}</td></tr>
   <tr><td class="label">所在地</td><td>${s.addr||'—'}</td><td class="label">工種</td><td>${s.koushyu||'—'}</td></tr>
   <tr><td class="label">構造・規模</td><td>${s.type||'—'}</td><td class="label">請負形態</td><td>${s.contract||'—'}</td></tr>
   <tr><td class="label">担当者</td><td>${s.mgr||'—'}</td><td class="label">現況メモ</td><td>${s.note||'—'}</td></tr>

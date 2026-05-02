@@ -220,6 +220,9 @@ input,select,textarea,button{font-family:inherit}
 .mobile-menu-sheet .menu-btn{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;margin-bottom:8px;border-radius:10px;border:none;background:#F7FAFC;font-size:14px;font-weight:600;cursor:pointer;text-align:left}
 .mobile-menu-sheet .menu-btn:active{background:#EBF8FF}
 
+/* 日報展開ボタン：デフォルト非表示、スマホのみ表示 */
+.report-expand-btn{display:none}
+
 /* ── Responsive 900px ── */
 @media(max-width:900px){
   .kpi-row{grid-template-columns:repeat(3,1fr)}
@@ -316,9 +319,6 @@ input,select,textarea,button{font-family:inherit}
 
 /* Import hidden input */
 #json-import-input{display:none}
-
-/* ── 日報入力展開ボタン（スマホのみ表示） ── */
-.report-expand-btn{display:none}
 
 /* ── 日報 ── */
 .report-form-card{background:white;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px}

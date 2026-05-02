@@ -263,6 +263,9 @@ input,select,textarea,button{font-family:inherit}
   .task-cards-list{display:block}
   .bottom-nav{display:block}
 
+  /* 日報展開ボタン */
+  .report-expand-btn{display:inline-flex;align-items:center;justify-content:center;padding:6px 8px;background:#EBF8FF;border:1px solid #BEE3F8;border-radius:6px;font-size:16px;cursor:pointer;flex-shrink:0;min-width:36px;min-height:36px;}
+
   /* Filter buttons: horizontal scroll */
   .task-filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .task-filters::-webkit-scrollbar{display:none}
@@ -313,6 +316,9 @@ input,select,textarea,button{font-family:inherit}
 
 /* Import hidden input */
 #json-import-input{display:none}
+
+/* ── 日報入力展開ボタン（スマホのみ表示） ── */
+.report-expand-btn{display:none}
 
 /* ── 日報 ── */
 .report-form-card{background:white;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px}
@@ -534,6 +540,18 @@ input,select,textarea,button{font-family:inherit}
 <div id="detail-panel">
   <button class="close-btn" onclick="closeDetail()">✕</button>
   <div id="detail-content"></div>
+</div>
+
+<!-- ===== 日報入力展開モーダル ===== -->
+<div id="reportExpandModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:3000;align-items:flex-end;justify-content:center;">
+  <div style="background:white;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:640px;box-shadow:0 -4px 20px rgba(0,0,0,.2);">
+    <div style="font-size:14px;font-weight:700;color:#1F4E79;margin-bottom:10px;" id="reportExpandLabel">作業内容</div>
+    <textarea id="reportExpandTextarea" style="width:100%;height:140px;padding:10px 12px;font-size:16px;border:2px solid #BEE3F8;border-radius:10px;outline:none;resize:none;font-family:inherit;line-height:1.6;" placeholder="入力してください"></textarea>
+    <div style="display:flex;gap:10px;margin-top:12px;">
+      <button class="btn btn-white" style="flex:1;border:1.5px solid #CBD5E0;color:#4A5568;padding:11px;" onclick="closeReportExpand(false)">キャンセル</button>
+      <button class="btn btn-green" style="flex:2;padding:11px;font-size:15px;" onclick="closeReportExpand(true)">✅ 確定</button>
+    </div>
+  </div>
 </div>
 
 <!-- ===== SITE MODAL ===== -->
@@ -1707,6 +1725,25 @@ function buildSiteOptions(selectedId) {
   return blank + opts;
 }
 
+// ── 日報入力展開モーダル ──
+let _reportExpandTarget = null;
+function openReportExpand(inputEl, label) {
+  _reportExpandTarget = inputEl;
+  document.getElementById('reportExpandLabel').textContent = label;
+  const ta = document.getElementById('reportExpandTextarea');
+  ta.value = inputEl.value;
+  const modal = document.getElementById('reportExpandModal');
+  modal.style.display = 'flex';
+  setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 120);
+}
+function closeReportExpand(save) {
+  if (save && _reportExpandTarget) {
+    _reportExpandTarget.value = document.getElementById('reportExpandTextarea').value;
+  }
+  document.getElementById('reportExpandModal').style.display = 'none';
+  _reportExpandTarget = null;
+}
+
 function buildReportRows(entries) {
   const container = document.getElementById('report-entries-container');
   if (!container) return;
@@ -1717,8 +1754,18 @@ function buildReportRows(entries) {
     tr.style.cssText = 'border-bottom:1px solid #EDF2F7;';
     tr.innerHTML = `
       <td style="padding:4px 6px;color:#A0AEC0;font-size:12px;text-align:center;">${i+1}</td>
-      <td style="padding:4px 6px;"><input type="text" class="re-content form-input" placeholder="作業内容" value="${e.content||''}" style="padding:6px 8px;font-size:13px;"></td>
-      <td style="padding:4px 6px;"><input type="text" class="re-worker form-input" placeholder="氏名" value="${e.worker||''}" style="padding:6px 8px;font-size:13px;"></td>
+      <td style="padding:4px 6px;">
+        <div style="display:flex;gap:4px;align-items:center;">
+          <input type="text" class="re-content form-input" placeholder="作業内容" value="${e.content||''}" style="padding:6px 8px;font-size:13px;flex:1;min-width:0;">
+          <button class="report-expand-btn" type="button" onclick="openReportExpand(this.parentElement.querySelector('.re-content'),'作業内容')">📝</button>
+        </div>
+      </td>
+      <td style="padding:4px 6px;">
+        <div style="display:flex;gap:4px;align-items:center;">
+          <input type="text" class="re-worker form-input" placeholder="氏名" value="${e.worker||''}" style="padding:6px 8px;font-size:13px;flex:1;min-width:0;">
+          <button class="report-expand-btn" type="button" onclick="openReportExpand(this.parentElement.querySelector('.re-worker'),'作業者氏名')">📝</button>
+        </div>
+      </td>
       <td style="padding:4px 6px;"><input type="number" class="re-hours form-input" placeholder="時間" min="0.5" max="24" step="0.5" value="${e.hours||''}" style="padding:6px 8px;font-size:13px;width:70px;"></td>`;
     container.appendChild(tr);
   }

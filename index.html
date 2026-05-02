@@ -55,6 +55,16 @@ input,select,textarea,button{font-family:inherit}
 /* ── Layout ── */
 .main{max-width:1440px;margin:0 auto;padding:18px}
 
+/* ── PC タブナビ ── */
+.pc-tabs{display:flex;gap:4px;margin-bottom:16px;background:white;border-radius:10px;padding:6px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.pc-tab-btn{flex:1;padding:9px 12px;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;color:#718096;background:none;transition:background .15s,color .15s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.pc-tab-btn:hover{background:#EDF2F7;color:#2d3748;}
+.pc-tab-btn.active{background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;}
+
+/* section-page: グローバルで非表示（PC・スマホ共通） */
+.section-page{display:none;}
+.section-page.mob-active{display:block;}
+
 /* ── KPI cards ── */
 .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
 .kpi-card{background:white;border-radius:10px;padding:14px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:4px solid transparent;display:flex;align-items:center;gap:12px}
@@ -247,6 +257,7 @@ input,select,textarea,button{font-family:inherit}
   .top-bar-actions .btn-ghost,
   .top-bar-actions .date-badge{display:none}
   .mobile-menu-btn{display:block}
+  .pc-tabs{display:none}
 
   /* KPI 2x2 */
   .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
@@ -273,10 +284,6 @@ input,select,textarea,button{font-family:inherit}
   .task-filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .task-filters::-webkit-scrollbar{display:none}
   .filter-btn{white-space:nowrap;flex-shrink:0;padding:7px 14px;min-height:36px}
-
-  /* Section navigation pages */
-  .section-page{display:none}
-  .section-page.mob-active{display:block}
 
   /* Add buttons */
   .btn-sm{padding:8px 14px;font-size:13px}
@@ -449,6 +456,14 @@ input,select,textarea,button{font-family:inherit}
     <div class="kpi-card red"><div class="icon">🔴</div><div><div class="val" id="kpi-urgent">0</div><div class="lbl">高優先度</div></div></div>
   </div>
 
+  <!-- PC タブナビ -->
+  <div class="pc-tabs" id="pc-tabs">
+    <button class="pc-tab-btn active" id="pctab-sites" onclick="switchTab('sites')">🏢 現場一覧</button>
+    <button class="pc-tab-btn" id="pctab-tasks" onclick="switchTab('tasks')">✅ タスク</button>
+    <button class="pc-tab-btn" id="pctab-report" onclick="switchTab('report')">📋 日報</button>
+    <button class="pc-tab-btn" id="pctab-schedule" onclick="switchTab('schedule')">📅 工程</button>
+  </div>
+
   <!-- ===== PAGE: 現場 ===== -->
   <div class="section-page mob-active" id="page-sites">
     <div class="card">
@@ -557,9 +572,6 @@ input,select,textarea,button{font-family:inherit}
       </div>
       <div class="sch-legend">
         <div class="sch-legend-item"><div class="sch-dot sch-dot-report"></div>日報あり</div>
-        <div class="sch-legend-item"><div class="sch-dot sch-dot-high"></div>タスク（高）</div>
-        <div class="sch-legend-item"><div class="sch-dot sch-dot-mid"></div>タスク（中）</div>
-        <div class="sch-legend-item"><div class="sch-dot sch-dot-low"></div>タスク（低）</div>
       </div>
     </div>
   </div>
@@ -1715,7 +1727,6 @@ function renderSchedule(){
         const isSat = d.getDay() === 6;
         let cellCls = isToday ? 'sch-today' : isSun ? 'sch-sun' : isSat ? 'sch-weekend' : '';
 
-        const cellTasks   = TASKS.filter(t => t.site === site.id && t.due === ds);
         const cellReports = REPORTS.filter(r => r.siteId === site.id && r.date === ds);
 
         let dots = '';
@@ -1723,10 +1734,6 @@ function renderSchedule(){
           const titles = cellReports.map(r => `日報（${r.entries.length}件）`).join(' ');
           dots += `<div class="sch-dot sch-dot-report" title="${titles}"></div>`;
         }
-        cellTasks.forEach(t => {
-          const dc = t.priority==='高' ? 'sch-dot-high' : t.priority==='中' ? 'sch-dot-mid' : 'sch-dot-low';
-          dots += `<div class="sch-dot ${dc}" title="${t.task}（${t.priority}）"></div>`;
-        });
 
         html += `<td class="sch-cell ${cellCls}"><div class="sch-dots">${dots}</div></td>`;
       });
@@ -1755,11 +1762,14 @@ function goToReportWithSite(siteId){
 let currentTab = 'sites';
 function switchTab(tab){
   currentTab = tab;
-  // Update page visibility
   ['sites','tasks','report','schedule'].forEach(p=>{
     document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
-    const btn = document.getElementById('bnav-'+p);
-    if(btn) btn.classList.toggle('active', p===tab);
+    // スマホ下ナビ
+    const bnavBtn = document.getElementById('bnav-'+p);
+    if(bnavBtn) bnavBtn.classList.toggle('active', p===tab);
+    // PCタブ
+    const pcBtn = document.getElementById('pctab-'+p);
+    if(pcBtn) pcBtn.classList.toggle('active', p===tab);
   });
   if(tab==='report') { initReportForm(); renderReportList(); }
   else if(tab==='schedule') { renderSchedule(); }

@@ -320,6 +320,30 @@ input,select,textarea,button{font-family:inherit}
 /* Import hidden input */
 #json-import-input{display:none}
 
+/* ── 工程表 ── */
+.sch-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.sch-table{border-collapse:collapse;font-size:12px;table-layout:fixed;}
+.sch-site-head{background:#F0F4F8;font-weight:700;color:#4A5568;text-align:left;padding:8px 10px;position:sticky;left:0;z-index:3;border:1px solid #CBD5E0;min-width:130px;width:130px;}
+.sch-day-head{background:#F7FAFC;font-weight:700;color:#4A5568;text-align:center;padding:5px 2px;font-size:11px;min-width:32px;width:32px;border:1px solid #E2E8F0;white-space:nowrap;line-height:1.3;}
+.sch-day-head.sch-today{background:#EBF8FF;color:#2E75B6;}
+.sch-day-head.sch-weekend{color:#A0AEC0;}
+.sch-day-head.sch-sun{color:#E53E3E;}
+.sch-site-name{font-size:12px;font-weight:600;color:#2d3748;padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;width:130px;position:sticky;left:0;background:white;border:1px solid #E2E8F0;z-index:1;}
+.sch-cell{text-align:center;padding:2px;border:1px solid #F0F4F8;min-width:32px;width:32px;height:30px;vertical-align:middle;}
+.sch-cell.sch-today{background:#EBF8FF;}
+.sch-cell.sch-weekend{background:#FAFAFA;}
+.sch-cell.sch-sun{background:#FFF5F5;}
+.sch-dots{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:2px;}
+.sch-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.sch-dot-report{background:#38A169;}
+.sch-dot-high{background:#E53E3E;}
+.sch-dot-mid{background:#D69E2E;}
+.sch-dot-low{background:#2E75B6;}
+.sch-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.sch-nav-title{flex:1;text-align:center;font-size:15px;font-weight:700;color:#1F4E79;}
+.sch-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:#4A5568;margin-top:10px;padding-top:10px;border-top:1px solid #EDF2F7;}
+.sch-legend-item{display:flex;align-items:center;gap:5px;}
+
 /* ── 日報 ── */
 .report-form-card{background:white;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px}
 .report-date-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
@@ -519,6 +543,27 @@ input,select,textarea,button{font-family:inherit}
     </div>
   </div>
 
+  <!-- ===== PAGE: 工程 ===== -->
+  <div class="section-page" id="page-schedule">
+    <div class="card">
+      <div class="sch-nav">
+        <button class="btn btn-ghost" style="background:#EDF2F7;color:#2D3748;border:none;" onclick="scheduleNav(-1)">◀ 前</button>
+        <div class="sch-nav-title" id="schedule-title">—</div>
+        <button class="btn btn-ghost" style="background:#EDF2F7;color:#2D3748;border:none;" onclick="scheduleNav(1)">次 ▶</button>
+        <button class="btn btn-sm" style="background:#BEE3F8;color:#1F4E79;border:none;margin-left:4px;" onclick="scheduleToday()">今日</button>
+      </div>
+      <div class="sch-wrap">
+        <table class="sch-table" id="schedule-table"></table>
+      </div>
+      <div class="sch-legend">
+        <div class="sch-legend-item"><div class="sch-dot sch-dot-report"></div>日報あり</div>
+        <div class="sch-legend-item"><div class="sch-dot sch-dot-high"></div>タスク（高）</div>
+        <div class="sch-legend-item"><div class="sch-dot sch-dot-mid"></div>タスク（中）</div>
+        <div class="sch-legend-item"><div class="sch-dot sch-dot-low"></div>タスク（低）</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ===== BOTTOM NAV ===== -->
@@ -532,6 +577,9 @@ input,select,textarea,button{font-family:inherit}
     </button>
     <button class="bnav-btn" id="bnav-report" onclick="switchTab('report')">
       <span class="bnav-icon">📋</span>日報
+    </button>
+    <button class="bnav-btn" id="bnav-schedule" onclick="switchTab('schedule')">
+      <span class="bnav-icon">📅</span>工程
     </button>
   </div>
 </nav>
@@ -1581,6 +1629,114 @@ const _origSaveState = saveState;
 // =========================================================
 // BOTTOM NAV TAB SWITCHING
 // =========================================================
+// =========================================================
+// 工程表
+// =========================================================
+let currentScheduleDate = new Date();
+
+function scheduleIsMobile(){ return window.innerWidth <= 640; }
+
+function scheduleToday(){
+  currentScheduleDate = new Date();
+  renderSchedule();
+}
+
+function scheduleNav(dir){
+  if(scheduleIsMobile()){
+    currentScheduleDate.setDate(currentScheduleDate.getDate() + dir * 7);
+  } else {
+    currentScheduleDate.setMonth(currentScheduleDate.getMonth() + dir);
+  }
+  renderSchedule();
+}
+
+function renderSchedule(){
+  const table = document.getElementById('schedule-table');
+  const titleEl = document.getElementById('schedule-title');
+  if(!table || !titleEl) return;
+
+  const isMobile = scheduleIsMobile();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekNames = ['日','月','火','水','木','金','土'];
+
+  // ── 表示日付の配列を生成 ──
+  let days = [];
+  if(isMobile){
+    // 現在週（月〜日）
+    const base = new Date(currentScheduleDate); base.setHours(0,0,0,0);
+    const dow = base.getDay();
+    const mon = new Date(base);
+    mon.setDate(base.getDate() - (dow === 0 ? 6 : dow - 1));
+    for(let i = 0; i < 7; i++){
+      const d = new Date(mon); d.setDate(mon.getDate() + i);
+      days.push(d);
+    }
+    const d0 = days[0], d6 = days[6];
+    titleEl.textContent = `${d0.getMonth()+1}月${d0.getDate()}日（${weekNames[d0.getDay()]}）〜 ${d6.getMonth()+1}月${d6.getDate()}日（${weekNames[d6.getDay()]}）`;
+  } else {
+    // 当月全日
+    const y = currentScheduleDate.getFullYear();
+    const m = currentScheduleDate.getMonth();
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    for(let i = 1; i <= daysInMonth; i++) days.push(new Date(y, m, i));
+    titleEl.textContent = `${y}年${m+1}月`;
+  }
+
+  // ── 日付文字列に変換するヘルパー ──
+  const toStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  // ── ヘッダー行 ──
+  let html = '<thead><tr>';
+  html += '<th class="sch-site-head">現場名</th>';
+  days.forEach(d => {
+    const isToday = d.getTime() === today.getTime();
+    const isSun = d.getDay() === 0;
+    const isSat = d.getDay() === 6;
+    let cls = isToday ? 'sch-today' : isSun ? 'sch-sun' : isSat ? 'sch-weekend' : '';
+    if(isMobile){
+      html += `<th class="sch-day-head ${cls}">${weekNames[d.getDay()]}<br>${d.getDate()}</th>`;
+    } else {
+      html += `<th class="sch-day-head ${cls}">${d.getDate()}<br><span style="font-size:9px;opacity:.75;">${weekNames[d.getDay()]}</span></th>`;
+    }
+  });
+  html += '</tr></thead><tbody>';
+
+  // ── データ行 ──
+  if(SITES.length === 0){
+    html += `<tr><td colspan="${days.length+1}" style="text-align:center;color:#718096;padding:24px;">現場がありません</td></tr>`;
+  } else {
+    SITES.forEach(site => {
+      html += '<tr>';
+      html += `<td class="sch-site-name" title="${site.name}">${site.name}</td>`;
+      days.forEach(d => {
+        const ds = toStr(d);
+        const isToday = d.getTime() === today.getTime();
+        const isSun = d.getDay() === 0;
+        const isSat = d.getDay() === 6;
+        let cellCls = isToday ? 'sch-today' : isSun ? 'sch-sun' : isSat ? 'sch-weekend' : '';
+
+        const cellTasks   = TASKS.filter(t => t.site === site.id && t.due === ds);
+        const cellReports = REPORTS.filter(r => r.siteId === site.id && r.date === ds);
+
+        let dots = '';
+        if(cellReports.length > 0){
+          const titles = cellReports.map(r => `日報（${r.entries.length}件）`).join(' ');
+          dots += `<div class="sch-dot sch-dot-report" title="${titles}"></div>`;
+        }
+        cellTasks.forEach(t => {
+          const dc = t.priority==='高' ? 'sch-dot-high' : t.priority==='中' ? 'sch-dot-mid' : 'sch-dot-low';
+          dots += `<div class="sch-dot ${dc}" title="${t.task}（${t.priority}）"></div>`;
+        });
+
+        html += `<td class="sch-cell ${cellCls}"><div class="sch-dots">${dots}</div></td>`;
+      });
+      html += '</tr>';
+    });
+  }
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
 function goToReportWithSite(siteId){
   switchTab('report');
   // initReportForm()がswitchTab内で走るため、setTimeout後に現場をセット
@@ -1600,12 +1756,13 @@ let currentTab = 'sites';
 function switchTab(tab){
   currentTab = tab;
   // Update page visibility
-  ['sites','tasks','report'].forEach(p=>{
+  ['sites','tasks','report','schedule'].forEach(p=>{
     document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
     const btn = document.getElementById('bnav-'+p);
     if(btn) btn.classList.toggle('active', p===tab);
   });
   if(tab==='report') { initReportForm(); renderReportList(); }
+  else if(tab==='schedule') { renderSchedule(); }
   else { window.scrollTo({top:0,behavior:'smooth'}); }
 }
 
@@ -1944,6 +2101,7 @@ function renderAll(){
   try { renderTaskCards(); } catch(e){ console.error('renderTaskCards error',e); }
   // 日報フォームを初期化（PC/スマホ共通）- ドロップダウン更新＋行が空なら10行作成
   try { initReportForm(); } catch(e){ console.error('initReportForm error',e); }
+  try { renderSchedule(); } catch(e){ console.error('renderSchedule error',e); }
   // Sync date to mobile menu
   const d=TODAY;
   const dateStr=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;

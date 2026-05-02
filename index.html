@@ -597,11 +597,24 @@ input,select,textarea,button{font-family:inherit}
 
 <!-- ===== 工程表 作業内容ポップアップ ===== -->
 <div id="schPopup" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;padding:24px;">
-  <div style="background:white;border-radius:12px;padding:18px 20px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+  <div style="background:white;border-radius:12px;padding:18px 20px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);" onclick="event.stopPropagation()">
     <div style="font-size:12px;font-weight:700;color:#2E75B6;margin-bottom:8px;">作業内容</div>
     <div id="schPopupText" style="font-size:14px;color:#2d3748;line-height:1.7;word-break:break-all;"></div>
-    <div style="text-align:right;margin-top:14px;">
-      <button onclick="document.getElementById('schPopup').style.display='none'" style="padding:7px 18px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">閉じる</button>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button onclick="document.getElementById('schPopup').style.display='none'" style="flex:1;padding:9px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">閉じる</button>
+      <button id="schPopupEditBtn" onclick="schPopupEdit()" style="flex:2;padding:9px;background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✏️ 日報を編集</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 工程表 新規日報作成ポップアップ ===== -->
+<div id="schNewPopup" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;padding:24px;">
+  <div style="background:white;border-radius:12px;padding:18px 20px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);" onclick="event.stopPropagation()">
+    <div style="font-size:12px;font-weight:700;color:#2E75B6;margin-bottom:6px;">📋 日報を作成</div>
+    <div id="schNewPopupInfo" style="font-size:14px;color:#2d3748;line-height:1.7;margin-bottom:14px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="document.getElementById('schNewPopup').style.display='none'" style="flex:1;padding:9px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">閉じる</button>
+      <button onclick="schNewPopupCreate()" style="flex:2;padding:9px;background:linear-gradient(135deg,#38A169,#2F855A);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">＋ 日報を新規作成</button>
     </div>
   </div>
 </div>
@@ -1728,12 +1741,13 @@ function renderSchedule(){
           r.entries.forEach(e => {
             if(e.content){
               const full = (e.content + (e.worker ? ' ／ ' + e.worker : '')).replace(/'/g,"&#39;");
-              entries += `<span class="sch-entry" onclick="showSchPopup('${full}')">${e.content}</span>`;
+              entries += `<span class="sch-entry" onclick="event.stopPropagation();showSchPopup('${full}',${r.id})">${e.content}</span>`;
             }
           });
         });
 
-        html += `<td class="sch-cell ${cellCls}">${entries}</td>`;
+        const siteIdEsc = site.id.replace(/'/g,"&#39;");
+        html += `<td class="sch-cell ${cellCls}" onclick="showSchNewPopup('${siteIdEsc}','${ds}')">${entries}</td>`;
       });
       html += '</tr>';
     });
@@ -1742,9 +1756,47 @@ function renderSchedule(){
   table.innerHTML = html;
 }
 
-function showSchPopup(text){
+// 工程表：新規日報作成ポップアップ
+let _schNewSiteId = null, _schNewDate = null;
+function showSchNewPopup(siteId, date){
+  _schNewSiteId = siteId;
+  _schNewDate = date;
+  const site = SITES.find(s => s.id === siteId);
+  const siteName = site ? site.name : siteId;
+  const d = new Date(date + 'T00:00:00');
+  const wn = ['日','月','火','水','木','金','土'];
+  const dateLabel = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${wn[d.getDay()]}）`;
+  document.getElementById('schNewPopupInfo').textContent = `${siteName}\n${dateLabel}`;
+  document.getElementById('schNewPopup').style.display = 'flex';
+}
+function schNewPopupCreate(){
+  document.getElementById('schNewPopup').style.display = 'none';
+  switchTab('report');
+  setTimeout(()=>{
+    // 日付・現場をセット
+    const dateEl = document.getElementById('report-date-input');
+    if(dateEl){ dateEl.value = _schNewDate; updateReportWeekday(); }
+    const sel = document.getElementById('report-site-select');
+    if(sel){ sel.innerHTML = buildSiteOptions(_schNewSiteId); sel.value = _schNewSiteId; }
+    // 編集中IDをリセット（新規扱い）
+    document.getElementById('report-editing-id').value = '';
+    // 行を初期化
+    buildReportRows([]);
+    const reportPage = document.getElementById('page-report');
+    if(reportPage) reportPage.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 80);
+}
+
+// 工程表：既存日報ポップアップ
+let _schPopupReportId = null;
+function showSchPopup(text, reportId){
+  _schPopupReportId = reportId;
   document.getElementById('schPopupText').textContent = text;
   document.getElementById('schPopup').style.display = 'flex';
+}
+function schPopupEdit(){
+  document.getElementById('schPopup').style.display = 'none';
+  if(_schPopupReportId) editReport(_schPopupReportId);
 }
 
 function goToReportWithSite(siteId){

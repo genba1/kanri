@@ -335,11 +335,14 @@ input,select,textarea,button{font-family:inherit}
 .sch-day-head.sch-today{background:#EBF8FF;color:#2E75B6;}
 .sch-day-head.sch-weekend{color:#A0AEC0;}
 .sch-day-head.sch-sun{color:#E53E3E;}
+.sch-day-head.sch-holiday{color:#E53E3E;}
+.sch-holiday-name{display:block;font-size:9px;color:#E53E3E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:84px;font-weight:600;}
 .sch-site-name{font-size:12px;font-weight:600;color:#2d3748;padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;width:130px;position:sticky;left:0;background:white;border:1px solid #E2E8F0;z-index:1;}
 .sch-cell{text-align:left;padding:3px 4px;border:1px solid #F0F4F8;min-width:90px;width:90px;vertical-align:top;}
 .sch-cell.sch-today{background:#EBF8FF;}
 .sch-cell.sch-weekend{background:#FAFAFA;}
 .sch-cell.sch-sun{background:#FFF5F5;}
+.sch-cell.sch-holiday{background:#FFF5F5;}
 .sch-entry{display:block;font-size:10px;background:#C6F6D5;color:#276221;border-radius:3px;padding:2px 5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:82px;cursor:default;line-height:1.4;}
 .sch-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
 .sch-nav-title{flex:1;text-align:center;font-size:15px;font-weight:700;color:#1F4E79;}
@@ -426,7 +429,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="exportJSON();closeMobileMenu()">💾 データ保存（JSON）</button>
     <button class="menu-btn" onclick="document.getElementById('json-import-input').click();closeMobileMenu()">📂 データ読込（JSON）</button>
-    <button class="menu-btn" onclick="clearAllData();closeMobileMenu()" style="color:#E53E3E;font-size:12px;">🗑️ データを全削除（初期化）</button>
+
     <button class="menu-btn" onclick="switchTab('report');closeMobileMenu()">📋 日報入力</button>
     <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
     <button class="menu-btn" onclick="openTaskModal();closeMobileMenu()">✅ タスク追加</button>
@@ -562,9 +565,6 @@ input,select,textarea,button{font-family:inherit}
       </div>
       <div class="sch-wrap">
         <table class="sch-table" id="schedule-table"></table>
-      </div>
-      <div class="sch-legend">
-        <div class="sch-legend-item"><span class="sch-entry" style="max-width:none;">作業内容</span>日報の作業内容（ホバーで全文表示）</div>
       </div>
     </div>
   </div>
@@ -1651,6 +1651,34 @@ const _origSaveState = saveState;
 // =========================================================
 // 工程表
 // =========================================================
+
+// 日本の祝日（2024〜2026年）
+const JP_HOLIDAYS = {
+  // 2024年
+  '2024-01-01':'元日','2024-01-08':'成人の日','2024-02-11':'建国記念の日',
+  '2024-02-12':'振替休日','2024-02-23':'天皇誕生日','2024-03-20':'春分の日',
+  '2024-04-29':'昭和の日','2024-05-03':'憲法記念日','2024-05-04':'みどりの日',
+  '2024-05-05':'こどもの日','2024-05-06':'振替休日','2024-07-15':'海の日',
+  '2024-08-11':'山の日','2024-08-12':'振替休日','2024-09-16':'敬老の日',
+  '2024-09-22':'秋分の日','2024-09-23':'振替休日','2024-10-14':'スポーツの日',
+  '2024-11-03':'文化の日','2024-11-04':'振替休日','2024-11-23':'勤労感謝の日',
+  // 2025年
+  '2025-01-01':'元日','2025-01-13':'成人の日','2025-02-11':'建国記念の日',
+  '2025-02-23':'天皇誕生日','2025-02-24':'振替休日','2025-03-20':'春分の日',
+  '2025-04-29':'昭和の日','2025-05-03':'憲法記念日','2025-05-04':'みどりの日',
+  '2025-05-05':'こどもの日','2025-05-06':'振替休日','2025-07-21':'海の日',
+  '2025-08-11':'山の日','2025-09-15':'敬老の日','2025-09-23':'秋分の日',
+  '2025-10-13':'スポーツの日','2025-11-03':'文化の日','2025-11-23':'勤労感謝の日',
+  '2025-11-24':'振替休日',
+  // 2026年
+  '2026-01-01':'元日','2026-01-12':'成人の日','2026-02-11':'建国記念の日',
+  '2026-02-23':'天皇誕生日','2026-03-20':'春分の日','2026-04-29':'昭和の日',
+  '2026-05-03':'憲法記念日','2026-05-04':'みどりの日','2026-05-05':'こどもの日',
+  '2026-05-06':'振替休日','2026-07-20':'海の日','2026-08-11':'山の日',
+  '2026-09-21':'敬老の日','2026-09-23':'秋分の日','2026-10-12':'スポーツの日',
+  '2026-11-03':'文化の日','2026-11-23':'勤労感謝の日',
+};
+
 let currentScheduleDate = new Date();
 
 function scheduleIsMobile(){ return window.innerWidth <= 640; }
@@ -1708,14 +1736,17 @@ function renderSchedule(){
   let html = '<thead><tr>';
   html += '<th class="sch-site-head">現場名</th>';
   days.forEach(d => {
+    const ds = toStr(d);
     const isToday = d.getTime() === today.getTime();
     const isSun = d.getDay() === 0;
     const isSat = d.getDay() === 6;
-    let cls = isToday ? 'sch-today' : isSun ? 'sch-sun' : isSat ? 'sch-weekend' : '';
+    const holiday = JP_HOLIDAYS[ds] || '';
+    let cls = isToday ? 'sch-today' : (holiday || isSun) ? 'sch-sun' : isSat ? 'sch-weekend' : '';
+    const holidayHtml = holiday ? `<span class="sch-holiday-name">${holiday}</span>` : '';
     if(isMobile){
-      html += `<th class="sch-day-head ${cls}">${weekNames[d.getDay()]}<br>${d.getDate()}</th>`;
+      html += `<th class="sch-day-head ${cls}">${weekNames[d.getDay()]}<br>${d.getDate()}${holidayHtml}</th>`;
     } else {
-      html += `<th class="sch-day-head ${cls}">${d.getDate()}<br><span style="font-size:9px;opacity:.75;">${weekNames[d.getDay()]}</span></th>`;
+      html += `<th class="sch-day-head ${cls}">${d.getDate()}<br><span style="font-size:9px;opacity:.75;">${weekNames[d.getDay()]}</span>${holidayHtml}</th>`;
     }
   });
   html += '</tr></thead><tbody>';
@@ -1732,7 +1763,8 @@ function renderSchedule(){
         const isToday = d.getTime() === today.getTime();
         const isSun = d.getDay() === 0;
         const isSat = d.getDay() === 6;
-        let cellCls = isToday ? 'sch-today' : isSun ? 'sch-sun' : isSat ? 'sch-weekend' : '';
+        const isHoliday = !!JP_HOLIDAYS[ds];
+        let cellCls = isToday ? 'sch-today' : (isHoliday || isSun) ? 'sch-sun' : isSat ? 'sch-weekend' : '';
 
         const cellReports = REPORTS.filter(r => r.siteId === site.id && r.date === ds);
 

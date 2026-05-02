@@ -595,6 +595,17 @@ input,select,textarea,button{font-family:inherit}
   <div id="detail-content"></div>
 </div>
 
+<!-- ===== 工程表 作業内容ポップアップ ===== -->
+<div id="schPopup" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;padding:24px;">
+  <div style="background:white;border-radius:12px;padding:18px 20px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+    <div style="font-size:12px;font-weight:700;color:#2E75B6;margin-bottom:8px;">作業内容</div>
+    <div id="schPopupText" style="font-size:14px;color:#2d3748;line-height:1.7;word-break:break-all;"></div>
+    <div style="text-align:right;margin-top:14px;">
+      <button onclick="document.getElementById('schPopup').style.display='none'" style="padding:7px 18px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== 日報入力展開モーダル ===== -->
 <div id="reportExpandModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:3000;align-items:flex-end;justify-content:center;">
   <div style="background:white;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:640px;box-shadow:0 -4px 20px rgba(0,0,0,.2);">
@@ -1716,7 +1727,8 @@ function renderSchedule(){
         cellReports.forEach(r => {
           r.entries.forEach(e => {
             if(e.content){
-              entries += `<span class="sch-entry" title="${e.content}${e.worker?' ／ '+e.worker:''}">${e.content}</span>`;
+              const full = (e.content + (e.worker ? ' ／ ' + e.worker : '')).replace(/'/g,"&#39;");
+              entries += `<span class="sch-entry" onclick="showSchPopup('${full}')">${e.content}</span>`;
             }
           });
         });
@@ -1728,6 +1740,11 @@ function renderSchedule(){
   }
   html += '</tbody>';
   table.innerHTML = html;
+}
+
+function showSchPopup(text){
+  document.getElementById('schPopupText').textContent = text;
+  document.getElementById('schPopup').style.display = 'flex';
 }
 
 function goToReportWithSite(siteId){

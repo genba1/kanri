@@ -337,7 +337,8 @@ input,select,textarea,button{font-family:inherit}
 .sch-day-head.sch-sun{color:#E53E3E;}
 .sch-day-head.sch-holiday{color:#E53E3E;}
 .sch-holiday-name{display:block;font-size:9px;color:#E53E3E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:84px;font-weight:600;}
-.sch-site-name{font-size:12px;font-weight:600;color:#2d3748;padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;width:130px;position:sticky;left:0;background:white;border:1px solid #E2E8F0;z-index:1;}
+.sch-site-name{font-size:12px;font-weight:600;color:#2d3748;padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;width:130px;position:sticky;left:0;background:white;border:1px solid #E2E8F0;z-index:1;transition:background .15s,color .15s;}
+.sch-site-name:hover{background:#EBF8FF;color:#2E75B6;}
 .sch-cell{text-align:left;padding:3px 4px;border:1px solid #F0F4F8;min-width:90px;width:90px;vertical-align:top;}
 .sch-cell.sch-today{background:#EBF8FF;}
 .sch-cell.sch-weekend{background:#FAFAFA;}
@@ -1757,7 +1758,7 @@ function renderSchedule(){
   } else {
     SITES.forEach(site => {
       html += '<tr>';
-      html += `<td class="sch-site-name" title="${site.name}">${site.name}</td>`;
+      html += `<td class="sch-site-name" title="${site.name}" onclick="goToSiteCard('${site.id}')" style="cursor:pointer;">${site.name}</td>`;
       days.forEach(d => {
         const ds = toStr(d);
         const isToday = d.getTime() === today.getTime();
@@ -1790,6 +1791,11 @@ function renderSchedule(){
 
 // 工程表：新規日報作成ポップアップ
 let _schNewSiteId = null, _schNewDate = null;
+function goToSiteCard(siteId){
+  switchTab('sites');
+  setTimeout(()=>{ openDetail(siteId); }, 80);
+}
+
 function showSchNewPopup(siteId, date){
   _schNewSiteId = siteId;
   _schNewDate = date;

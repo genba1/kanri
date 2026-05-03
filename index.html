@@ -1609,7 +1609,7 @@ function closeDetail(){
 // JSON EXPORT / IMPORT
 // =========================================================
 function exportJSON(){
-  const data=JSON.stringify({sites:SITES,tasks:TASKS,nextTaskId,exportedAt:new Date().toISOString()},null,2);
+  const data=JSON.stringify({sites:SITES,tasks:TASKS,reports:REPORTS,nextTaskId,nextReportId,exportedAt:new Date().toISOString()},null,2);
   const blob=new Blob([data],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');

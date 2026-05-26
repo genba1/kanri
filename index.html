@@ -411,6 +411,7 @@ input,select,textarea,button{font-family:inherit}
     <input type="file" id="json-import-input" accept=".json" onchange="importJSON(event)">
     <button class="btn btn-ghost btn-sm" id="cloudSaveBtn" onclick="uploadToCloud()" title="クラウドに保存（PC↔スマホ同期）">☁️ クラウド保存</button>
     <button class="btn btn-ghost btn-sm" id="cloudLoadBtn" onclick="downloadFromCloud()" title="クラウドから最新データを読み込む">🔄 クラウド読込</button>
+    <button class="btn btn-ghost btn-sm" onclick="openCloudSettings()" title="クラウド同期の設定（GitHub Gist切替など）">⚙️ クラウド設定</button>
     <span id="autoBackupLabel" style="font-size:10px;color:#718096;white-space:nowrap;"></span>
     <div class="date-badge" id="currentDate"></div>
     <!-- Mobile menu button -->
@@ -426,6 +427,7 @@ input,select,textarea,button{font-family:inherit}
     <div class="save-indicator" id="saveIndicatorMobile" style="margin-bottom:14px;color:#4A5568;font-size:12px;">保存済み</div>
     <button class="menu-btn" id="cloudSaveBtnM" onclick="uploadToCloud()" style="background:#EBF8FF;color:#1F4E79;font-weight:700;">☁️ クラウド保存</button>
     <button class="menu-btn" id="cloudLoadBtnM" onclick="downloadFromCloud()" style="background:#EBF8FF;color:#1F4E79;">🔄 クラウド読込</button>
+    <button class="menu-btn" onclick="openCloudSettings();closeMobileMenu()" style="background:#F0FFF4;color:#276221;">⚙️ クラウド設定</button>
     <div id="autoBackupLabelM" style="font-size:11px;color:#718096;text-align:center;padding:2px 0;"></div>
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="exportJSON();closeMobileMenu()">💾 データ保存（JSON）</button>
@@ -604,6 +606,40 @@ input,select,textarea,button{font-family:inherit}
     <div style="display:flex;gap:8px;margin-top:14px;">
       <button onclick="document.getElementById('schPopup').style.display='none'" style="flex:1;padding:9px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">閉じる</button>
       <button id="schPopupEditBtn" onclick="schPopupEdit()" style="flex:2;padding:9px;background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✏️ 日報を編集</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== クラウド設定モーダル ===== -->
+<div id="cloudSettingsModal" onclick="closeCloudSettings()" style="display:none;position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:14px;padding:22px 20px;max-width:400px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.25);" onclick="event.stopPropagation()">
+    <div style="font-size:16px;font-weight:700;color:#1F4E79;margin-bottom:4px;">⚙️ クラウド設定</div>
+    <div id="dataSizeInfo" style="font-size:12px;color:#718096;margin-bottom:14px;"></div>
+
+    <div style="background:#FFF5F5;border:1px solid #FEB2B2;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#9B2C2C;line-height:1.6;">
+      <strong>⚠️ JSONBin.ioが不安定な場合</strong><br>
+      GitHub Gistに切り替えると安定します。<br>
+      GitHubのPersonal Access Token（gistスコープ）が必要です。
+    </div>
+
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px;font-weight:600;color:#4A5568;display:block;margin-bottom:4px;">GitHub Personal Access Token</label>
+      <input id="gistTokenInput" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="width:100%;padding:9px 12px;border:1px solid #CBD5E0;border-radius:8px;font-size:13px;outline:none;">
+      <div style="font-size:11px;color:#718096;margin-top:3px;">※ <a href="https://github.com/settings/tokens" target="_blank" style="color:#2E75B6;">github.com/settings/tokens</a> で「gist」スコープで作成</div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:12px;font-weight:600;color:#4A5568;display:block;margin-bottom:4px;">Gist ID（空欄の場合は初回保存時に自動作成）</label>
+      <input id="gistIdInput" type="text" placeholder="例: a1b2c3d4e5f6..." style="width:100%;padding:9px 12px;border:1px solid #CBD5E0;border-radius:8px;font-size:13px;outline:none;">
+    </div>
+
+    <div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:#276221;line-height:1.6;">
+      <strong>現在の同期方法:</strong><br>
+      <span id="currentSyncMethod"></span>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeCloudSettings()" style="flex:1;padding:10px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">キャンセル</button>
+      <button onclick="saveCloudSettings()" style="flex:2;padding:10px;background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">保存</button>
     </div>
   </div>
 </div>
@@ -806,11 +842,86 @@ const PASSWORD_HASH = 'ed43834746d6984a4b56d0d96d4bfe4b9db138e32860686c5773697b7
 const AUTH_KEY = 'kenba_auth';
 
 // =========================================================
-// JSONBin.io クラウド同期設定
+// クラウド同期設定
 // =========================================================
 const JSONBIN_BIN_ID = '69cb54ca36566621a8648c60';
 const JSONBIN_KEY = '$2a$10$74w1.yCNnZnxHCry4HKdg.53wJazGo8QgflY1e.zLIUudpjGstXTm';
 const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
+
+// GitHub Gist設定（別の同期手段）
+function getGistSettings(){
+  return {
+    token: localStorage.getItem('gist_token') || '',
+    gistId: localStorage.getItem('gist_id') || ''
+  };
+}
+
+function getDataSizeKB(){
+  const payload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId};
+  return Math.round(JSON.stringify(payload).length / 1024);
+}
+
+// クラウド設定ダイアログを開く
+function openCloudSettings(){
+  const g = getGistSettings();
+  document.getElementById('gistTokenInput').value = g.token;
+  document.getElementById('gistIdInput').value = g.gistId;
+  const kb = getDataSizeKB();
+  document.getElementById('dataSizeInfo').textContent = `現在のデータサイズ: 約${kb} KB`;
+  const methodEl = document.getElementById('currentSyncMethod');
+  if (methodEl) {
+    if (g.token) {
+      methodEl.textContent = '✅ GitHub Gist（' + (g.gistId ? 'Gist ID: ' + g.gistId.slice(0,8) + '...' : '初回保存時に自動作成') + '）';
+    } else {
+      methodEl.textContent = '⚠️ JSONBin.io（不安定な場合はGitHub Gistに切り替えてください）';
+    }
+  }
+  document.getElementById('cloudSettingsModal').style.display='flex';
+}
+function closeCloudSettings(){
+  document.getElementById('cloudSettingsModal').style.display='none';
+}
+function saveCloudSettings(){
+  const token = document.getElementById('gistTokenInput').value.trim();
+  const gistId = document.getElementById('gistIdInput').value.trim();
+  localStorage.setItem('gist_token', token);
+  localStorage.setItem('gist_id', gistId);
+  closeCloudSettings();
+  showToast('⚙️ クラウド設定を保存しました', 2000);
+}
+
+// GitHub Gist アップロード
+async function uploadToGist(payload, token, gistId){
+  const body = {
+    description: '現場進捗データ',
+    files: { 'kenba_data.json': { content: JSON.stringify(payload) } }
+  };
+  const method = gistId ? 'PATCH' : 'POST';
+  const url = gistId ? `https://api.github.com/gists/${gistId}` : 'https://api.github.com/gists';
+  const res = await fetch(url, {
+    method,
+    headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error('Gist保存失敗: HTTP ' + res.status);
+  const json = await res.json();
+  if (!gistId) {
+    localStorage.setItem('gist_id', json.id);
+    alert('✅ GitHub Gistを新規作成しました\nGist ID: ' + json.id + '\n\nこのIDはクラウド設定に自動保存されました。');
+  }
+}
+
+// GitHub Gist ダウンロード
+async function downloadFromGist(token, gistId){
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+    headers: { 'Authorization': `token ${token}` }
+  });
+  if (!res.ok) throw new Error('Gist読込失敗: HTTP ' + res.status);
+  const json = await res.json();
+  const content = json.files['kenba_data.json']?.content;
+  if (!content) throw new Error('kenba_data.jsonが見つかりません');
+  return JSON.parse(content);
+}
 
 async function uploadToCloud(silent=false) {
   const btn = document.getElementById('cloudSaveBtn');
@@ -821,31 +932,38 @@ async function uploadToCloud(silent=false) {
     const payload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId};
     const payloadStr = JSON.stringify(payload);
     const payloadKB = Math.round(payloadStr.length / 1024);
-    if (payloadKB > 900) {
-      if (!confirm(`データサイズが大きくなっています（約${payloadKB}KB）。\nJSONBin.io無料プランの上限は1MBです。\n\n保存を続けますか？`)) return;
-    }
-    const controller2 = new AbortController();
-    const timeoutId2 = setTimeout(() => controller2.abort(), 20000);
-    let res;
-    try {
-      res = await fetch(JSONBIN_URL, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': JSONBIN_KEY
-        },
-        body: payloadStr,
-        signal: controller2.signal
-      });
-    } catch(fetchErr2) {
+
+    // GitHub Gist が設定されていれば優先使用
+    const g = getGistSettings();
+    if (g.token) {
+      await uploadToGist(payload, g.token, g.gistId);
+    } else {
+      // JSONBin.io
+      if (payloadKB > 900 && !silent) {
+        if (!confirm(`データサイズが大きくなっています（約${payloadKB}KB）。\nJSONBin.io無料プランの上限は1MBです。\n\n保存を続けますか？`)) return;
+      }
+      const controller2 = new AbortController();
+      const timeoutId2 = setTimeout(() => controller2.abort(), 30000);
+      let res;
+      try {
+        res = await fetch(JSONBIN_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
+          body: payloadStr,
+          signal: controller2.signal
+        });
+      } catch(fetchErr2) {
+        clearTimeout(timeoutId2);
+        if (fetchErr2.name === 'AbortError') throw new Error('タイムアウト（30秒）\nJSONBin.ioが応答しません');
+        throw fetchErr2;
+      }
       clearTimeout(timeoutId2);
-      throw fetchErr2;
+      if (!res.ok) {
+        const body2 = await res.text().catch(()=>'');
+        throw new Error('HTTP ' + res.status + ' ' + body2.slice(0,200));
+      }
     }
-    clearTimeout(timeoutId2);
-    if (!res.ok) {
-      const body2 = await res.text().catch(()=>'');
-      throw new Error('HTTP ' + res.status + ' ' + body2.slice(0,200));
-    }
+
     const now = new Date();
     const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     if(silent){
@@ -856,6 +974,7 @@ async function uploadToCloud(silent=false) {
     updateAutoBackupLabel(hhmm);
   } catch(e) {
     if(!silent) showToast('❌ クラウド保存失敗: ' + e.message, 3500);
+    else console.error('自動バックアップ失敗:', e.message);
   } finally {
     [btn,btnM].forEach(b=>{if(b){b.disabled=false;b.textContent='☁️ クラウド保存';}});
   }
@@ -886,40 +1005,58 @@ async function downloadFromCloud() {
     [btn,btnM].forEach(b=>{if(b){b.disabled=true;b.textContent='🔄 読込中...';}});
     showToast('🔄 クラウドから読み込み中...');
 
-    // タイムアウト付きfetch（20秒）
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    let d;
+    const g = getGistSettings();
 
-    let res;
-    try {
-      res = await fetch(JSONBIN_URL + '/latest', {
-        headers: { 'X-Master-Key': JSONBIN_KEY },
-        mode: 'cors',
-        signal: controller.signal
-      });
-    } catch(fetchErr) {
-      clearTimeout(timeoutId);
-      if (fetchErr.name === 'AbortError') {
-        throw new Error('タイムアウト（20秒）\n\nJSONBin.ioへの接続が遅すぎます。\nネットワーク環境を確認してください。');
+    if (g.token && g.gistId) {
+      // GitHub Gist から読み込み
+      d = await downloadFromGist(g.token, g.gistId);
+    } else {
+      // JSONBin.io から読み込み（リトライ最大2回）
+      let lastErr = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        if (attempt > 1) {
+          showToast(`🔄 再試行中... (${attempt}/2)`);
+          await new Promise(r => setTimeout(r, 3000));
+        }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        try {
+          const res = await fetch(JSONBIN_URL + '/latest', {
+            headers: { 'X-Master-Key': JSONBIN_KEY },
+            mode: 'cors',
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (!res.ok) {
+            const body = await res.text().catch(()=>'');
+            let hint = '';
+            if (res.status === 401) hint = '\n→ APIキーが無効の可能性があります。クラウド設定を確認してください。';
+            if (res.status === 404) hint = '\n→ BinIDが存在しません。';
+            if (res.status === 429) hint = '\n→ アクセス制限中です。しばらく待ってから再試行してください。';
+            throw new Error('HTTP ' + res.status + hint + '\n' + body.slice(0,150));
+          }
+          const json = await res.json();
+          d = json.record;
+          lastErr = null;
+          break;
+        } catch(e2) {
+          clearTimeout(timeoutId);
+          if (e2.name === 'AbortError') {
+            lastErr = new Error(`タイムアウト（${attempt}回目）\n\nJSONBin.ioが応答しません。\n\n【解決方法】\n① しばらく待ってから再試行\n② ⚙️クラウド設定でGitHub Gistに切り替える\n③ データサイズ: 約${getDataSizeKB()}KB`);
+          } else {
+            lastErr = e2;
+          }
+          if (attempt < 2) continue;
+          throw lastErr;
+        }
       }
-      throw new Error('ネットワーク接続エラー\n\n原因: ' + fetchErr.message + '\n\n確認事項:\n・インターネット接続はありますか？\n・ https://jsonbin.io にアクセスできますか？');
+      if (!d || !d.sites) {
+        throw new Error('現場データが見つかりません\n\n' + JSON.stringify(d).slice(0,150));
+      }
     }
-    clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      const body = await res.text().catch(()=>'');
-      let hint = '';
-      if (res.status === 401) hint = '\n\n→ APIキーが無効または期限切れの可能性があります';
-      if (res.status === 404) hint = '\n\n→ BinIDが存在しない可能性があります';
-      if (res.status === 429) hint = '\n\n→ アクセス制限中です。しばらく待ってから再試行してください';
-      throw new Error('サーバーエラー: HTTP ' + res.status + hint + '\n\n' + body.slice(0,200));
-    }
-    const json = await res.json();
-    const d = json.record;
-    if (!d || !d.sites) {
-      throw new Error('現場データが見つかりません\n\nBinの内容:\n' + JSON.stringify(d).slice(0,150));
-    }
-    SITES = d.sites;
+    SITES = d.sites || [];
     TASKS = d.tasks || [];
     REPORTS = d.reports || [];
     nextTaskId = d.nextTaskId || 100;

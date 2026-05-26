@@ -819,15 +819,33 @@ async function uploadToCloud(silent=false) {
     [btn,btnM].forEach(b=>{if(b){b.disabled=true;b.textContent='☁️ 保存中...';}});
     if(!silent) showToast('☁️ クラウドに保存中...');
     const payload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId};
-    const res = await fetch(JSONBIN_URL, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': JSONBIN_KEY
-      },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const payloadStr = JSON.stringify(payload);
+    const payloadKB = Math.round(payloadStr.length / 1024);
+    if (payloadKB > 900) {
+      if (!confirm(`データサイズが大きくなっています（約${payloadKB}KB）。\nJSONBin.io無料プランの上限は1MBです。\n\n保存を続けますか？`)) return;
+    }
+    const controller2 = new AbortController();
+    const timeoutId2 = setTimeout(() => controller2.abort(), 20000);
+    let res;
+    try {
+      res = await fetch(JSONBIN_URL, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': JSONBIN_KEY
+        },
+        body: payloadStr,
+        signal: controller2.signal
+      });
+    } catch(fetchErr2) {
+      clearTimeout(timeoutId2);
+      throw fetchErr2;
+    }
+    clearTimeout(timeoutId2);
+    if (!res.ok) {
+      const body2 = await res.text().catch(()=>'');
+      throw new Error('HTTP ' + res.status + ' ' + body2.slice(0,200));
+    }
     const now = new Date();
     const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     if(silent){
@@ -867,12 +885,34 @@ async function downloadFromCloud() {
   try {
     [btn,btnM].forEach(b=>{if(b){b.disabled=true;b.textContent='🔄 読込中...';}});
     showToast('🔄 クラウドから読み込み中...');
-    const res = await fetch(JSONBIN_URL + '/latest', {
-      headers: { 'X-Master-Key': JSONBIN_KEY }
-    });
+
+    // タイムアウト付きfetch（20秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+    let res;
+    try {
+      res = await fetch(JSONBIN_URL + '/latest', {
+        headers: { 'X-Master-Key': JSONBIN_KEY },
+        mode: 'cors',
+        signal: controller.signal
+      });
+    } catch(fetchErr) {
+      clearTimeout(timeoutId);
+      if (fetchErr.name === 'AbortError') {
+        throw new Error('タイムアウト（20秒）\n\nJSONBin.ioへの接続が遅すぎます。\nネットワーク環境を確認してください。');
+      }
+      throw new Error('ネットワーク接続エラー\n\n原因: ' + fetchErr.message + '\n\n確認事項:\n・インターネット接続はありますか？\n・ https://jsonbin.io にアクセスできますか？');
+    }
+    clearTimeout(timeoutId);
+
     if (!res.ok) {
       const body = await res.text().catch(()=>'');
-      throw new Error('HTTP ' + res.status + '\n\n' + body.slice(0,200));
+      let hint = '';
+      if (res.status === 401) hint = '\n\n→ APIキーが無効または期限切れの可能性があります';
+      if (res.status === 404) hint = '\n\n→ BinIDが存在しない可能性があります';
+      if (res.status === 429) hint = '\n\n→ アクセス制限中です。しばらく待ってから再試行してください';
+      throw new Error('サーバーエラー: HTTP ' + res.status + hint + '\n\n' + body.slice(0,200));
     }
     const json = await res.json();
     const d = json.record;

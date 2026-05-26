@@ -637,9 +637,10 @@ input,select,textarea,button{font-family:inherit}
       <span id="currentSyncMethod"></span>
     </div>
 
-    <div style="display:flex;gap:8px;">
-      <button onclick="closeCloudSettings()" style="flex:1;padding:10px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">キャンセル</button>
-      <button onclick="saveCloudSettings()" style="flex:2;padding:10px;background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">保存</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="closeCloudSettings()" style="flex:1;min-width:80px;padding:10px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">キャンセル</button>
+      <button onclick="testGistConnection()" style="flex:1;min-width:80px;padding:10px;background:#FEFCBF;color:#744210;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔍 接続テスト</button>
+      <button onclick="saveCloudSettings()" style="flex:2;min-width:100px;padding:10px;background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">保存</button>
     </div>
   </div>
 </div>
@@ -894,33 +895,80 @@ function saveCloudSettings(){
 async function uploadToGist(payload, token, gistId){
   const body = {
     description: '現場進捗データ',
+    public: false,
     files: { 'kenba_data.json': { content: JSON.stringify(payload) } }
   };
   const method = gistId ? 'PATCH' : 'POST';
   const url = gistId ? `https://api.github.com/gists/${gistId}` : 'https://api.github.com/gists';
   const res = await fetch(url, {
     method,
-    headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error('Gist保存失敗: HTTP ' + res.status);
+  if (!res.ok) {
+    const errBody = await res.text().catch(()=>'');
+    let hint = '';
+    if (res.status === 401) hint = '\n\n→ トークンが無効です。再発行してください。';
+    if (res.status === 403) hint = '\n\n→ トークンに「gist」スコープがありません。\n  再発行時に「gist」にチェックを入れてください。';
+    if (res.status === 422) hint = '\n\n→ データ形式が正しくありません。';
+    alert('❌ Gist保存失敗: HTTP ' + res.status + hint + '\n\n' + errBody.slice(0, 200));
+    throw new Error('Gist保存失敗: HTTP ' + res.status);
+  }
   const json = await res.json();
   if (!gistId) {
     localStorage.setItem('gist_id', json.id);
-    alert('✅ GitHub Gistを新規作成しました\nGist ID: ' + json.id + '\n\nこのIDはクラウド設定に自動保存されました。');
+    alert('✅ GitHub Gistを新規作成しました！\n\nGist ID:\n' + json.id + '\n\n※このIDを他の2名に共有してください。\n　クラウド設定にも自動保存されました。');
   }
 }
 
 // GitHub Gist ダウンロード
 async function downloadFromGist(token, gistId){
   const res = await fetch(`https://api.github.com/gists/${gistId}`, {
-    headers: { 'Authorization': `token ${token}` }
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
   });
-  if (!res.ok) throw new Error('Gist読込失敗: HTTP ' + res.status);
+  if (!res.ok) {
+    const errBody = await res.text().catch(()=>'');
+    let hint = '';
+    if (res.status === 401) hint = '\n\n→ トークンが無効です。';
+    if (res.status === 404) hint = '\n\n→ Gist IDが正しくありません。';
+    throw new Error('Gist読込失敗: HTTP ' + res.status + hint);
+  }
   const json = await res.json();
   const content = json.files['kenba_data.json']?.content;
   if (!content) throw new Error('kenba_data.jsonが見つかりません');
   return JSON.parse(content);
+}
+
+// Gist接続テスト
+async function testGistConnection(){
+  const token = document.getElementById('gistTokenInput').value.trim();
+  if (!token) { alert('トークンを入力してください'); return; }
+  try {
+    showToast('🔍 接続テスト中...');
+    const res = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+    const json = await res.json();
+    if (res.ok) {
+      alert('✅ 接続成功！\n\nGitHubユーザー: ' + json.login + '\n\nトークンは正常です。\n「保存」してクラウド保存を実行してください。');
+    } else {
+      alert('❌ 接続失敗: HTTP ' + res.status + '\n\n→ トークンが無効です。再発行してください。');
+    }
+  } catch(e) {
+    alert('❌ 接続エラー\n\n' + e.message);
+  }
 }
 
 async function uploadToCloud(silent=false) {

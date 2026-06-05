@@ -1806,8 +1806,9 @@ function switchTab(tab){
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','taskModal','confirmModal'].forEach(id=>{
-  document.getElementById(id).addEventListener('click',function(e){
+['siteModal','confirmModal'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');
   });
 });
@@ -1817,7 +1818,10 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     closeDetail();
     closeMobileMenu();
-    ['siteModal','taskModal','confirmModal'].forEach(id=>document.getElementById(id).classList.remove('show'));
+    ['siteModal','confirmModal'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.classList.remove('show');
+    });
   }
 });
 

@@ -2086,16 +2086,6 @@ function renderAll(){
   if(el)el.textContent='📅 '+dateStr;
 }
 
-// Also call renderTaskCards inside filterTasks
-const _origFilterTasks=filterTasks;
-filterTasks=function(f,btn){
-  currentFilter=f;
-  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  renderTasks();
-  renderTaskCards();
-};
-
 // =========================================================
 // INIT
 // =========================================================

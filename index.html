@@ -435,7 +435,6 @@ input,select,textarea,button{font-family:inherit}
 
     <button class="menu-btn" onclick="switchTab('report');closeMobileMenu()">📋 日報入力</button>
     <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
-    <button class="menu-btn" onclick="openTaskModal();closeMobileMenu()">✅ タスク追加</button>
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
@@ -459,7 +458,6 @@ input,select,textarea,button{font-family:inherit}
   <!-- PC タブナビ -->
   <div class="pc-tabs" id="pc-tabs">
     <button class="pc-tab-btn active" id="pctab-sites" onclick="switchTab('sites')">🏢 現場一覧</button>
-    <button class="pc-tab-btn" id="pctab-tasks" onclick="switchTab('tasks')">✅ タスク</button>
     <button class="pc-tab-btn" id="pctab-report" onclick="switchTab('report')">📋 日報</button>
     <button class="pc-tab-btn" id="pctab-schedule" onclick="switchTab('schedule')">📅 工程</button>
   </div>
@@ -472,48 +470,6 @@ input,select,textarea,button{font-family:inherit}
         <button class="btn btn-green btn-sm" onclick="openSiteModal()">＋ 現場追加</button>
       </div>
       <div class="sites-grid" id="sitesGrid"></div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: タスク ===== -->
-  <div class="section-page" id="page-tasks">
-    <div class="card">
-      <div class="tasks-header">
-        <div class="section-head" style="margin-bottom:0;border:none;">✅ タスク管理</div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-red btn-sm" onclick="deleteCompletedTasks()" title="完了ステータスのタスクを一括削除">🗑️ 完了済み削除</button>
-          <button class="btn btn-green btn-sm" onclick="openTaskModal()">＋ タスク追加</button>
-        </div>
-      </div>
-      <div class="task-filters" style="margin-bottom:12px;">
-        <button class="filter-btn active" onclick="filterTasks('all',this)">すべて</button>
-        <button class="filter-btn" onclick="filterTasks('today',this)">📅 本日</button>
-        <button class="filter-btn" onclick="filterTasks('week',this)">📆 今週</button>
-
-        <button class="filter-btn" onclick="filterTasks('doing',this)">⚡ 進行中</button>
-        <button class="filter-btn" onclick="filterTasks('overdue',this)">⚠️ 期限超過</button>
-      </div>
-      <!-- Desktop: table -->
-      <div class="task-table-wrap" style="overflow-x:auto;">
-        <table class="task-table" id="taskTable">
-          <thead>
-            <tr>
-              <th style="width:30px;"></th>
-              <th>現場</th>
-              <th>タスク内容</th>
-              <th>担当</th>
-              <th>期限</th>
-              <th>ステータス</th>
-
-              <th style="width:50px;">時間</th>
-              <th style="width:70px;">操作</th>
-            </tr>
-          </thead>
-          <tbody id="taskBody"></tbody>
-        </table>
-      </div>
-      <!-- Mobile: cards -->
-      <div class="task-cards-list" id="taskCards"></div>
     </div>
   </div>
 
@@ -546,7 +502,7 @@ input,select,textarea,button{font-family:inherit}
         </table>
       </div>
       <div class="report-actions" style="margin-top:14px;">
-        <button class="btn btn-green btn-sm" onclick="saveReport()">💾 日報を保存</button>
+        <button class="btn btn-green btn-sm" onclick="saveReport()">☁️ 保存してクラウド同期</button>
         <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#718096;" onclick="cancelEditReport()">✕ キャンセル</button>
       </div>
     </div>
@@ -579,9 +535,6 @@ input,select,textarea,button{font-family:inherit}
   <div class="bottom-nav-inner">
     <button class="bnav-btn active" id="bnav-sites" onclick="switchTab('sites')">
       <span class="bnav-icon">🏢</span>現場
-    </button>
-    <button class="bnav-btn" id="bnav-tasks" onclick="switchTab('tasks')">
-      <span class="bnav-icon">✅</span>タスク
     </button>
     <button class="bnav-btn" id="bnav-report" onclick="switchTab('report')">
       <span class="bnav-icon">📋</span>日報
@@ -759,60 +712,7 @@ input,select,textarea,button{font-family:inherit}
     </div>
     <div class="modal-foot">
       <button class="btn btn-white" style="color:#4A5568;border:1.5px solid #CBD5E0;" onclick="closeSiteModal()">キャンセル</button>
-      <button class="btn btn-green" onclick="saveSite()">💾 保存</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== TASK MODAL ===== -->
-<div class="modal-overlay" id="taskModal">
-  <div class="modal">
-    <div class="modal-head">
-      <h2 id="taskModalTitle">タスク追加</h2>
-      <button class="modal-close" onclick="closeTaskModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="taskEditId">
-      <div class="form-group">
-        <label class="form-label">タスク内容 *</label>
-        <input class="form-input" id="t-task" placeholder="例: 躯体4F 型枠検査の立会い準備">
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">現場 *</label>
-          <select class="form-select" id="t-site"></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">担当者</label>
-          <input class="form-input" id="t-mgr" placeholder="例: 田中 健司">
-        </div>
-      </div>
-      <div class="form-row-3">
-        <div class="form-group">
-          <label class="form-label">期限日 *</label>
-          <input class="form-input" id="t-due" type="date">
-        </div>
-        <div class="form-group">
-          <label class="form-label">ステータス</label>
-          <select class="form-select" id="t-status">
-            <option>未着手</option><option>進行中</option><option>完了</option><option>保留</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">所要時間 (h)</label>
-          <input class="form-input" id="t-hrs" type="number" min="0.5" max="24" step="0.5" placeholder="例: 2">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">備考</label>
-        <textarea class="form-textarea" id="t-note" placeholder="補足情報があれば入力"></textarea>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-white" style="color:#4A5568;border:1.5px solid #CBD5E0;" onclick="closeTaskModal()">キャンセル</button>
-      <button class="btn btn-green" onclick="saveTask()">💾 保存</button>
+      <button class="btn btn-green" onclick="saveSite()">☁️ 保存してクラウド同期</button>
     </div>
   </div>
 </div>
@@ -1197,31 +1097,14 @@ const DEFAULT_SITES = [
    procs:[40,0,0,0,0,0,0,0,0]},
 ];
 
-const DEFAULT_TASKS = [
-  {id:1, site:'S-001',task:'躯体4F 型枠検査の立会い準備',mgr:'田中 健司',due:'2026-03-30',priority:'高',status:'未着手',cat:'品質管理',hrs:2,note:'第三者機関との調整'},
-  {id:2, site:'S-001',task:'4Fスラブ コンクリート打設',mgr:'田中 健司',due:'2026-03-30',priority:'高',status:'進行中',cat:'躯体工事',hrs:8,note:'天候確認済み'},
-  {id:3, site:'S-001',task:'工程表更新・発注者報告',mgr:'田中 健司',due:'2026-04-01',priority:'中',status:'未着手',cat:'書類作成',hrs:1,note:'月次報告'},
-  {id:4, site:'S-002',task:'クロス貼り工事 最終確認',mgr:'佐藤 美咲',due:'2026-03-30',priority:'高',status:'進行中',cat:'内装工事',hrs:4,note:'居室2部屋残り'},
-  {id:5, site:'S-002',task:'キッチン設備取付立会い',mgr:'佐藤 美咲',due:'2026-04-02',priority:'中',status:'未着手',cat:'設備工事',hrs:3,note:'メーカー施工'},
-  {id:6, site:'S-003',task:'竣工検査書類の最終確認',mgr:'鈴木 大輔',due:'2026-03-31',priority:'高',status:'未着手',cat:'書類作成',hrs:4,note:'発注者提出期限'},
-  {id:7, site:'S-003',task:'外構工事 残工事確認',mgr:'鈴木 大輔',due:'2026-04-03',priority:'中',status:'未着手',cat:'外構工事',hrs:2,note:''},
-  {id:8, site:'S-004',task:'基礎配筋検査の手配',mgr:'山本 花子',due:'2026-03-30',priority:'高',status:'未着手',cat:'品質管理',hrs:1,note:'社内検査→第三者機関'},
-  {id:9, site:'S-004',task:'コンクリート発注 数量確認',mgr:'山本 花子',due:'2026-04-01',priority:'高',status:'未着手',cat:'資材調達',hrs:2,note:'4/5打設予定'},
-  {id:10,site:'S-004',task:'安全パトロール実施',mgr:'山本 花子',due:'2026-03-31',priority:'中',status:'未着手',cat:'安全管理',hrs:1,note:'月末パトロール'},
-  {id:11,site:'S-004',task:'施工図 基礎伏図チェック',mgr:'山本 花子',due:'2026-04-04',priority:'中',status:'未着手',cat:'図面管理',hrs:3,note:''},
-  {id:12,site:'S-005',task:'仮設足場組立完了確認',mgr:'高橋 翔太',due:'2026-03-31',priority:'高',status:'進行中',cat:'仮設工事',hrs:2,note:''},
-  {id:13,site:'S-005',task:'近隣挨拶（北側住民）',mgr:'高橋 翔太',due:'2026-04-01',priority:'中',status:'未着手',cat:'近隣対応',hrs:1,note:'工事騒音説明'},
-];
-
 // =========================================================
 // STATE
 // =========================================================
 let SITES = [];
-let TASKS = [];
+let TASKS = []; // データ互換性のため保持
 let REPORTS = [];
 let nextTaskId = 100;
 let nextReportId = 1;
-let currentFilter = 'all';
 let unsaved = false;
 
 function loadState() {
@@ -1230,18 +1113,18 @@ function loadState() {
     if (raw) {
       const d = JSON.parse(raw);
       SITES = d.sites || JSON.parse(JSON.stringify(DEFAULT_SITES));
-      TASKS = d.tasks || JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      TASKS = d.tasks || [];
       REPORTS = d.reports || [];
       nextTaskId = d.nextTaskId || 100;
       nextReportId = d.nextReportId || 1;
     } else {
       SITES = JSON.parse(JSON.stringify(DEFAULT_SITES));
-      TASKS = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      TASKS = [];
       REPORTS = [];
     }
   } catch(e) {
     SITES = JSON.parse(JSON.stringify(DEFAULT_SITES));
-    TASKS = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+    TASKS = [];
     REPORTS = [];
   }
 }
@@ -1435,10 +1318,11 @@ function saveSite(){
   if(isEdit){ const idx=SITES.findIndex(s=>s.id===id); if(idx>=0)SITES[idx]=obj; }
   else { SITES.push(obj); }
 
-  saveState();      // ← 先にデータを保存してからUIを更新
+  saveState();
   closeSiteModal();
   renderAll();
-  showToast(isEdit?'✅ 現場を更新しました':'✅ 現場を追加しました');
+  showToast(isEdit?'☁️ 現場を更新してクラウド同期中...':'☁️ 現場を追加してクラウド同期中...', 2000);
+  uploadToCloud(false);
 }
 
 function confirmDeleteSite(siteId){
@@ -1587,179 +1471,6 @@ ${reportBlocks}
       showToast('🗑️ 現場・タスク・日報を削除しました');
     }
   }, 600);
-}
-
-// =========================================================
-// TASKS
-// =========================================================
-function filterTasks(f,btn){
-  currentFilter=f;
-  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  renderTasks();
-}
-
-function renderTasks(){
-  let filtered=TASKS.filter(t=>{
-    if(currentFilter==='today') return isToday(t.due)&&t.status!=='完了';
-    if(currentFilter==='week')  return isThisWeek(t.due)&&t.status!=='完了';
-    if(currentFilter==='high')  return t.priority==='高'&&t.status!=='完了';
-    if(currentFilter==='doing') return t.status==='進行中';
-    if(currentFilter==='overdue') return isOverdue(t.due)&&t.status!=='完了';
-    return true;
-  });
-
-  const tbody=document.getElementById('taskBody');
-  if(!filtered.length){
-    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:#718096;padding:20px;">該当するタスクはありません</td></tr>';
-    return;
-  }
-
-  // Sort: overdue first, then today, then by date
-  filtered.sort((a,b)=>{
-    const aOver=isOverdue(a.due)&&a.status!=='完了';
-    const bOver=isOverdue(b.due)&&b.status!=='完了';
-    if(aOver!==bOver)return aOver?-1:1;
-    return new Date(a.due)-new Date(b.due);
-  });
-
-  tbody.innerHTML=filtered.map(t=>{
-    const isT=isToday(t.due)&&t.status!=='完了';
-    const isO=isOverdue(t.due)&&t.status!=='完了'&&!isToday(t.due);
-    const rowCls=isO?'overdue-row':isT?'today-row':'';
-    const sname=siteName(t.site);
-    const shortName=sname.length>10?sname.substring(0,10)+'…':sname;
-    return`<tr class="${rowCls}" id="task-row-${t.id}">
-      <td><input type="checkbox" class="task-check" ${t.status==='完了'?'checked':''} onchange="toggleTaskDone(${t.id},this)"></td>
-      <td>
-        <span style="font-size:11px;font-weight:600;color:#2E75B6;">${t.site}</span><br>
-        <span style="font-size:11px;color:#718096;">${shortName}</span>
-      </td>
-      <td>
-        <span ${t.status==='完了'?'style="text-decoration:line-through;color:#A0AEC0;"':''}>${t.task}</span>
-        ${isT?'<span class="today-tag">本日</span>':''}
-        ${isO?'<span class="overdue-tag">期限超過</span>':''}
-        ${t.note?`<br><span style="font-size:11px;color:#718096;">💬 ${t.note}</span>`:''}
-      </td>
-      <td style="white-space:nowrap;">${t.mgr||'—'}</td>
-      <td style="white-space:nowrap;">${fmtDate(t.due)}<br>${daysLeft(t.due)}</td>
-      <td>
-        <select class="form-select" style="padding:3px 6px;font-size:12px;min-width:80px;" onchange="updateTaskStatus(${t.id},this.value)">
-          ${['未着手','進行中','完了','保留'].map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}
-        </select>
-      </td>
-
-      <td style="text-align:center;">${t.hrs}h</td>
-      <td>
-        <div class="task-row-actions">
-          <button class="btn-icon btn-sm" onclick="openTaskModal(${t.id})" title="編集">✏️</button>
-          <button class="btn-icon del btn-sm" onclick="confirmDeleteTask(${t.id})" title="削除">🗑️</button>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function toggleTaskDone(id,cb){
-  const t=TASKS.find(x=>x.id===id);
-  if(t){ t.status=cb.checked?'完了':'未着手'; renderTasks(); renderKPI(); renderSites(); saveState(); }
-}
-
-function updateTaskStatus(id,val){
-  const t=TASKS.find(x=>x.id===id);
-  if(t){ t.status=val; renderKPI(); renderSites(); saveState(); showToast('✅ ステータスを更新しました'); }
-}
-
-// =========================================================
-// TASK MODAL
-// =========================================================
-function openTaskModal(taskId){
-  const isEdit=taskId!==undefined;
-  document.getElementById('taskModalTitle').textContent=isEdit?'タスク編集':'タスク追加';
-  document.getElementById('taskEditId').value=isEdit?taskId:'';
-
-  // Populate site dropdown
-  const sel=document.getElementById('t-site');
-  sel.innerHTML=SITES.map(s=>`<option value="${s.id}">${s.id} - ${s.name}</option>`).join('');
-
-  if(isEdit){
-    const t=TASKS.find(x=>x.id===taskId);
-    if(!t)return;
-    document.getElementById('t-task').value=t.task;
-    sel.value=t.site;
-    document.getElementById('t-mgr').value=t.mgr||'';
-    document.getElementById('t-due').value=t.due;
-    document.getElementById('t-status').value=t.status;
-    document.getElementById('t-hrs').value=t.hrs||1;
-    document.getElementById('t-note').value=t.note||'';
-  } else {
-    document.getElementById('t-task').value='';
-    document.getElementById('t-mgr').value=SITES.length?SITES[0].mgr:'';
-    document.getElementById('t-due').value=fmtDateFull(TODAY.toISOString());
-    document.getElementById('t-status').value='未着手';
-    document.getElementById('t-hrs').value=1;
-    document.getElementById('t-note').value='';
-    // Auto-fill manager when site changes
-    sel.onchange=()=>{
-      const s=SITES.find(x=>x.id===sel.value);
-      if(s)document.getElementById('t-mgr').value=s.mgr||'';
-    };
-  }
-  document.getElementById('taskModal').classList.add('show');
-}
-
-function closeTaskModal(){ document.getElementById('taskModal').classList.remove('show'); }
-
-function saveTask(){
-  const isEdit=!!document.getElementById('taskEditId').value;
-  const taskText=document.getElementById('t-task').value.trim();
-  const due=document.getElementById('t-due').value;
-  if(!taskText){showToast('⚠️ タスク内容を入力してください');return;}
-  if(!due){showToast('⚠️ 期限日を入力してください');return;}
-
-  const obj={
-    id:isEdit?parseInt(document.getElementById('taskEditId').value):nextTaskId++,
-    site:document.getElementById('t-site').value,
-    task:taskText,
-    mgr:document.getElementById('t-mgr').value.trim(),
-    due,
-    status:document.getElementById('t-status').value,
-    hrs:parseFloat(document.getElementById('t-hrs').value)||1,
-    note:document.getElementById('t-note').value.trim(),
-  };
-
-  if(isEdit){ const idx=TASKS.findIndex(t=>t.id===obj.id); if(idx>=0)TASKS[idx]=obj; }
-  else { TASKS.push(obj); }
-
-  closeTaskModal();
-  renderAll();
-  saveState();
-  showToast(isEdit?'✅ タスクを更新しました':'✅ タスクを追加しました');
-}
-
-function deleteCompletedTasks(){
-  const count = TASKS.filter(t => t.status === '完了').length;
-  if (count === 0) { showToast('完了済みのタスクはありません', 2000); return; }
-  document.getElementById('confirmMsg').innerHTML =
-    `完了ステータスのタスクが <strong>${count}件</strong> あります。<br>まとめて削除しますか？<br><br>この操作は元に戻せません。`;
-  document.getElementById('confirmOkBtn').onclick = () => {
-    TASKS = TASKS.filter(t => t.status !== '完了');
-    closeConfirm(); renderAll(); saveState();
-    showToast(`🗑️ 完了済みタスクを${count}件削除しました`);
-  };
-  document.getElementById('confirmModal').classList.add('show');
-}
-
-function confirmDeleteTask(taskId){
-  const t=TASKS.find(x=>x.id===taskId);
-  document.getElementById('confirmMsg').innerHTML=
-    `タスク <strong>「${t.task}」</strong> を削除しますか？<br><br>この操作は元に戻せません。`;
-  document.getElementById('confirmOkBtn').onclick=()=>{
-    TASKS=TASKS.filter(x=>x.id!==taskId);
-    closeConfirm(); renderAll(); saveState();
-    showToast('🗑️ タスクを削除しました');
-  };
-  document.getElementById('confirmModal').classList.add('show');
 }
 
 // =========================================================
@@ -2080,76 +1791,16 @@ function goToReportWithSite(siteId){
 let currentTab = 'sites';
 function switchTab(tab){
   currentTab = tab;
-  ['sites','tasks','report','schedule'].forEach(p=>{
+  ['sites','report','schedule'].forEach(p=>{
     document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
-    // スマホ下ナビ
     const bnavBtn = document.getElementById('bnav-'+p);
     if(bnavBtn) bnavBtn.classList.toggle('active', p===tab);
-    // PCタブ
     const pcBtn = document.getElementById('pctab-'+p);
     if(pcBtn) pcBtn.classList.toggle('active', p===tab);
   });
   if(tab==='report') { initReportForm(); renderReportList(); }
   else if(tab==='schedule') { renderSchedule(); }
   else { window.scrollTo({top:0,behavior:'smooth'}); }
-}
-
-// =========================================================
-// TASK CARDS (mobile)
-// =========================================================
-function renderTaskCards(){
-  let filtered=TASKS.filter(t=>{
-    if(currentFilter==='today') return isToday(t.due)&&t.status!=='完了';
-    if(currentFilter==='week')  return isThisWeek(t.due)&&t.status!=='完了';
-    if(currentFilter==='high')  return t.priority==='高'&&t.status!=='完了';
-    if(currentFilter==='doing') return t.status==='進行中';
-    if(currentFilter==='overdue') return isOverdue(t.due)&&t.status!=='完了';
-    return true;
-  });
-  filtered.sort((a,b)=>{
-    const aO=isOverdue(a.due)&&a.status!=='完了';
-    const bO=isOverdue(b.due)&&b.status!=='完了';
-    if(aO!==bO)return aO?-1:1;
-    return new Date(a.due)-new Date(b.due);
-  });
-
-  const el=document.getElementById('taskCards');
-  if(!filtered.length){
-    el.innerHTML='<div style="color:#718096;text-align:center;padding:20px;">該当するタスクはありません</div>';
-    return;
-  }
-  const prioCls={高:'prio-high',中:'prio-mid',低:'prio-low'};
-  el.innerHTML=filtered.map(t=>{
-    const isT=isToday(t.due)&&t.status!=='完了';
-    const isO=isOverdue(t.due)&&t.status!=='完了'&&!isToday(t.due);
-    const done=t.status==='完了';
-    return`<div class="task-card ${prioCls[t.priority]||''} ${isT?'is-today':''}">
-      <div class="task-card-head">
-        <div class="task-card-title" style="${done?'text-decoration:line-through;color:#A0AEC0;':''}">${t.task}${isT?'<span class="today-tag">本日</span>':''}${isO?'<span class="overdue-tag">超過</span>':''}</div>
-        <input type="checkbox" class="task-check" style="width:20px;height:20px;flex-shrink:0;" ${done?'checked':''} onchange="toggleTaskDone(${t.id},this)">
-      </div>
-      <div class="task-card-body">
-        <div class="task-card-badges">
-          <span class="status-badge-sm ${statusClass(t.status)}">${t.status}</span>
-
-        </div>
-        <div class="task-card-meta">
-          <span>📍 ${siteName(t.site).substring(0,12)}</span>
-          <span>👷 ${t.mgr||'—'}</span>
-          <span>📅 ${fmtDate(t.due)}（${daysLeft(t.due).replace(/<[^>]*>/g,'')}）</span>
-          <span>⏱ ${t.hrs}h</span>
-        </div>
-        ${t.note?`<div style="margin-top:6px;font-size:12px;color:#718096;">💬 ${t.note}</div>`:''}
-      </div>
-      <div class="task-card-actions">
-        <select class="task-card-status-sel" onchange="updateTaskStatus(${t.id},this.value)">
-          ${['未着手','進行中','完了','保留'].map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}
-        </select>
-        <button class="btn-icon" onclick="openTaskModal(${t.id})" title="編集" style="min-width:40px;min-height:40px;">✏️</button>
-        <button class="btn-icon del" onclick="confirmDeleteTask(${t.id})" title="削除" style="min-width:40px;min-height:40px;">🗑️</button>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 // =========================================================
@@ -2205,7 +1856,7 @@ function updateReportWeekday() {
 
 function buildSiteOptions(selectedId) {
   const blank = `<option value="">現場を選択</option>`;
-  const opts = SITES.map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${s.name}</option>`).join('');
+  const opts = SITES.map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>[${s.id}] ${s.name}</option>`).join('');
   return blank + opts;
 }
 
@@ -2284,7 +1935,8 @@ function saveReport() {
   // フォームリセット
   buildReportRows([]);
   document.getElementById('report-site-select').value = '';
-  showToast('📋 日報を保存しました', 2500);
+  showToast('☁️ 日報を保存してクラウド同期中...', 2000);
+  uploadToCloud(false);
 }
 
 function deleteReport(id) {
@@ -2424,8 +2076,6 @@ function renderAll(){
     const grid=document.getElementById('sitesGrid');
     if(grid) grid.innerHTML='<div style="color:#E53E3E;padding:20px;text-align:center;">⚠️ 現場一覧の表示でエラーが発生しました。ページを再読み込みしてください。</div>';
   }
-  try { renderTasks(); } catch(e){ console.error('renderTasks error',e); }
-  try { renderTaskCards(); } catch(e){ console.error('renderTaskCards error',e); }
   // 日報フォームを初期化（PC/スマホ共通）- ドロップダウン更新＋行が空なら10行作成
   try { initReportForm(); } catch(e){ console.error('initReportForm error',e); }
   try { renderSchedule(); } catch(e){ console.error('renderSchedule error',e); }

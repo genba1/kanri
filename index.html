@@ -444,15 +444,14 @@ input,select,textarea,button{font-family:inherit}
 <div class="main">
 
   <!-- Notice -->
-  <div style="background:#FFF3CD;border:1px solid #FBBF24;border-radius:8px;padding:10px 16px;margin-bottom:14px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#92400E;">
-    <span style="font-size:18px;">⚠️</span>
-    始めにクラウド読込、終わりにクラウド保存を必ずして下さい
+  <div style="background:#FFF5F5;border:2px solid #E53E3E;border-radius:8px;padding:12px 18px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;color:#C53030;letter-spacing:0.5px;">
+    <span style="font-size:22px;">🔴</span>
+    始めにクラウド読込を必ずしてください
   </div>
 
   <!-- KPI (always visible) -->
   <div class="kpi-row">
     <div class="kpi-card blue"><div class="icon">🏗️</div><div><div class="val" id="kpi-sites">0</div><div class="lbl">管理現場数</div></div></div>
-    <div class="kpi-card amber"><div class="icon">📋</div><div><div class="val" id="kpi-today">0</div><div class="lbl">本日のタスク</div></div></div>
   </div>
 
   <!-- PC タブナビ -->
@@ -1327,13 +1326,10 @@ function saveSite(){
 
 function confirmDeleteSite(siteId){
   const s=SITES.find(x=>x.id===siteId);
-  const taskCount=TASKS.filter(t=>t.site===siteId).length;
   document.getElementById('confirmMsg').innerHTML=
-    `<strong>「${s.name}」</strong> を削除しますか？<br><br>`+
-    (taskCount?`この現場には <strong>${taskCount}件</strong> のタスクが紐付いています。<br>現場を削除するとタスクも削除されます。<br><br>`:'')+'この操作は元に戻せません。';
+    `<strong>「${s.name}」</strong> を削除しますか？<br><br>この操作は元に戻せません。`;
   document.getElementById('confirmOkBtn').onclick=()=>{
     SITES=SITES.filter(x=>x.id!==siteId);
-    TASKS=TASKS.filter(t=>t.site!==siteId);
     closeConfirm(); renderAll(); saveState();
     showToast('🗑️ 現場を削除しました');
   };
@@ -1468,7 +1464,7 @@ ${reportBlocks}
       saveState();
       renderAll();
       renderReportList();
-      showToast('🗑️ 現場・タスク・日報を削除しました');
+      showToast('🗑️ 現場・日報を削除しました');
     }
   }, 600);
 }
@@ -1487,25 +1483,7 @@ function openDetail(siteId){
   document.querySelectorAll('.site-card').forEach(c=>c.classList.remove('selected'));
   document.getElementById('card-'+siteId)?.classList.add('selected');
 
-  const siteTasks=TASKS.filter(t=>t.site===siteId&&t.status!=='完了');
-  const todayT=siteTasks.filter(t=>isToday(t.due));
-  const weekT=siteTasks.filter(t=>isThisWeek(t.due)&&!isToday(t.due));
-  const otherT=siteTasks.filter(t=>!isThisWeek(t.due));
   const procs=s.procs||Array(9).fill(0);
-
-  let taskHtml='';
-  if(todayT.length){
-    taskHtml+=`<div style="font-weight:700;font-size:12px;color:#E53E3E;margin:10px 0 4px;">📌 本日のタスク</div>`;
-    todayT.forEach(t=>{taskHtml+=`<div class="detail-task-item urgent"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${t.hrs}h</div>${t.note?`<div style="font-size:11px;color:#718096;">💬 ${t.note}</div>`:''}</div>`;});
-  }
-  if(weekT.length){
-    taskHtml+=`<div style="font-weight:700;font-size:12px;color:#ED8936;margin:10px 0 4px;">📆 今週のタスク</div>`;
-    weekT.forEach(t=>{taskHtml+=`<div class="detail-task-item"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${fmtDate(t.due)} ｜ ${t.hrs}h</div></div>`;});
-  }
-  if(otherT.length){
-    taskHtml+=`<div style="font-weight:700;font-size:12px;color:#718096;margin:10px 0 4px;">🗓 その他タスク</div>`;
-    otherT.forEach(t=>{taskHtml+=`<div class="detail-task-item" style="border-left-color:#CBD5E0;"><div style="font-weight:600;">${t.task}</div><div style="font-size:11px;color:#718096;margin-top:2px;">${fmtDate(t.due)}</div></div>`;});
-  }
 
   document.getElementById('detail-content').innerHTML=`
     <div style="font-size:11px;font-weight:600;color:#2E75B6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${s.id}</div>
@@ -1522,7 +1500,6 @@ function openDetail(siteId){
     </div>
     <div style="display:flex;gap:8px;margin-bottom:8px;">
       <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#4A5568;flex:1;" onclick="openSiteModal('${s.id}');closeDetail()">✏️ 現場を編集</button>
-      <button class="btn btn-green btn-sm" style="flex:1;" onclick="openTaskModal();document.getElementById('t-site').value='${s.id}';closeDetail()">＋ タスク追加</button>
     </div>
     <div style="margin-bottom:12px;">
       <button class="btn btn-amber btn-sm" style="width:100%;" onclick="goToReportWithSite('${s.id}');closeDetail()">📋 日報入力へ</button>
@@ -1530,7 +1507,6 @@ function openDetail(siteId){
     <div style="margin-bottom:12px;">
       <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSite('${s.id}');closeDetail()">📦 アーカイブ保存（完了現場の書き出し）</button>
     </div>
-    <div>${taskHtml||'<div style="color:#718096;font-size:13px;padding:10px 0;">未完了のタスクはありません</div>'}</div>
     ${buildSiteReportHtml(siteId)}`;
 
   document.getElementById('detail-panel').classList.add('open');

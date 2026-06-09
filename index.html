@@ -1006,8 +1006,14 @@ async function downloadFromCloud() {
     });
     TASKS = d.tasks || [];
     REPORTS = (d.reports || []).map(r => {
-      if(r.siteId && idMigrationMap[r.siteId]) return {...r, siteId: idMigrationMap[r.siteId]};
-      return r;
+      const newSiteId = idMigrationMap[r.siteId] || r.siteId;
+      const newEntries = (r.entries || []).map(e => {
+        const newEsiteId = idMigrationMap[e.siteId] || e.siteId;
+        return newEsiteId !== e.siteId ? {...e, siteId: newEsiteId} : e;
+      });
+      return (newSiteId !== r.siteId || newEntries !== r.entries)
+        ? {...r, siteId: newSiteId, entries: newEntries}
+        : r;
     });
     nextTaskId = d.nextTaskId || 100;
     nextReportId = d.nextReportId || 1;
@@ -1964,7 +1970,8 @@ function buildSiteReportHtml(siteId) {
   const items = [];
   REPORTS.forEach(r => {
     r.entries.forEach(e => {
-      if (e.siteId === siteId) items.push({ date: r.date, ...e });
+      // r.siteId または e.siteId のどちらかで一致すれば表示
+      if (e.siteId === siteId || r.siteId === siteId) items.push({ date: r.date, ...e });
     });
   });
   items.sort((a,b) => b.date.localeCompare(a.date));
@@ -1991,10 +1998,11 @@ function renderReportList() {
     return;
   }
   el.innerHTML = REPORTS.map(r => {
+    const reportSite = SITES.find(s=>s.id===r.siteId);
     const rows = r.entries.map(e => {
-      const sn = SITES.find(s=>s.id===e.siteId);
+      const sn = reportSite || SITES.find(s=>s.id===e.siteId);
       return `<tr>
-        <td>${sn ? sn.name : (e.siteId||'—')}</td>
+        <td>${sn ? sn.name : '—'}</td>
         <td>${e.content||'—'}</td>
         <td style="text-align:center;">${e.hours||0}h</td>
         <td>${e.worker||'—'}</td>

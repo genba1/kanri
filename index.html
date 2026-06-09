@@ -1334,7 +1334,8 @@ function confirmDeleteSite(siteId){
   document.getElementById('confirmOkBtn').onclick=()=>{
     SITES=SITES.filter(x=>x.id!==siteId);
     closeConfirm(); renderAll(); saveState();
-    showToast('🗑️ 現場を削除しました');
+    showToast('☁️ 現場を削除してクラウド同期中...', 2000);
+    uploadToCloud(false);
   };
   document.getElementById('confirmModal').classList.add('show');
 }
@@ -1474,7 +1475,8 @@ ${reportBlocks}
       saveState();
       renderAll();
       renderReportList();
-      showToast('🗑️ 現場・日報を削除しました');
+      showToast('☁️ アーカイブ後削除、クラウド同期中...', 2000);
+      uploadToCloud(false);
     }
   }, 600);
 }
@@ -1933,7 +1935,9 @@ function deleteReport(id) {
   if (!r) return;
   if (!confirm(`${fmtDateJP(r.date)}の日報を削除しますか？`)) return;
   REPORTS = REPORTS.filter(r => r.id !== id);
-  saveState(); renderReportList(); showToast('🗑️ 日報を削除しました');
+  saveState(); renderReportList();
+  showToast('☁️ 日報を削除してクラウド同期中...', 2000);
+  uploadToCloud(false);
 }
 
 function cancelEditReport() {

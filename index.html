@@ -630,17 +630,11 @@ input,select,textarea,button{font-family:inherit}
     </div>
     <div class="modal-body">
       <input type="hidden" id="siteEditId">
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">現場ID *</label>
-          <input class="form-input" id="s-id" placeholder="例: 26041（2026年4月1番目）">
-        </div>
-        <div class="form-group">
-          <label class="form-label">ステータス</label>
-          <select class="form-select" id="s-status">
-            <option>計画見積</option><option>準備中</option><option>工事中</option><option>完了請求</option>
-          </select>
-        </div>
+      <div class="form-group">
+        <label class="form-label">ステータス</label>
+        <select class="form-select" id="s-status">
+          <option>計画見積</option><option>準備中</option><option>工事中</option><option>完了請求</option>
+        </select>
       </div>
       <div class="form-group">
         <label class="form-label">現場名 *</label>
@@ -669,10 +663,6 @@ input,select,textarea,button{font-family:inherit}
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">構造</label>
-          <input class="form-input" id="s-type" placeholder="例: 木造2階建">
-        </div>
         <div class="form-group">
           <label class="form-label">担当者</label>
           <select class="form-select" id="s-mgr">
@@ -1003,9 +993,22 @@ async function downloadFromCloud() {
       }
     }
 
-    SITES = d.sites || [];
+    // 旧形式ID（S-001など）を新形式に移行するマップを作成
+    const idMigrationMap = {};
+    (d.sites || []).forEach(s => {
+      if(s.id && !s.id.startsWith('_') && !s.id.startsWith('A')) {
+        idMigrationMap[s.id] = '_legacy_' + s.id;
+      }
+    });
+    SITES = (d.sites || []).map(s => {
+      if(idMigrationMap[s.id]) return {...s, id: idMigrationMap[s.id]};
+      return s;
+    });
     TASKS = d.tasks || [];
-    REPORTS = d.reports || [];
+    REPORTS = (d.reports || []).map(r => {
+      if(r.siteId && idMigrationMap[r.siteId]) return {...r, siteId: idMigrationMap[r.siteId]};
+      return r;
+    });
     nextTaskId = d.nextTaskId || 100;
     nextReportId = d.nextReportId || 1;
     saveState();
@@ -1084,15 +1087,15 @@ const PROCESSES = [
 
 // Default data
 const DEFAULT_SITES = [
-  {id:'S-001',name:'桜ヶ丘マンション新築工事',addr:'東京都世田谷区',type:'RC造 10階建',mgr:'田中 健司',start:'2025-10-01',end:'2026-09-30',progress:42,status:'工事中',note:'躯体4F施工中',
+  {id:'_demo1',name:'桜ヶ丘マンション新築工事',addr:'東京都世田谷区',mgr:'田中 健司',start:'2025-10-01',end:'2026-09-30',progress:42,status:'工事中',note:'躯体4F施工中',
    procs:[100,100,100,55,0,0,0,10,0]},
-  {id:'S-002',name:'青葉台戸建住宅',addr:'神奈川県横浜市',type:'木造2階建',mgr:'佐藤 美咲',start:'2026-01-15',end:'2026-08-31',progress:65,status:'工事中',note:'内装工事中',
+  {id:'_demo2',name:'青葉台戸建住宅',addr:'神奈川県横浜市',mgr:'佐藤 美咲',start:'2026-01-15',end:'2026-08-31',progress:65,status:'工事中',note:'内装工事中',
    procs:[100,100,100,100,100,80,50,60,0]},
-  {id:'S-003',name:'港区オフィスビル改修',addr:'東京都港区',type:'鉄骨造8階建',mgr:'鈴木 大輔',start:'2025-11-01',end:'2026-06-30',progress:78,status:'工事中',note:'仕上げ工事最終段階',
+  {id:'_demo3',name:'港区オフィスビル改修',addr:'東京都港区',mgr:'鈴木 大輔',start:'2025-11-01',end:'2026-06-30',progress:78,status:'工事中',note:'仕上げ工事最終段階',
    procs:[100,100,100,100,100,100,90,80,50]},
-  {id:'S-004',name:'川崎工場増築工事',addr:'神奈川県川崎市',type:'鉄骨造平屋',mgr:'山本 花子',start:'2026-02-01',end:'2026-12-20',progress:18,status:'工事中',note:'基礎工事中',
+  {id:'_demo4',name:'川崎工場増築工事',addr:'神奈川県川崎市',mgr:'山本 花子',start:'2026-02-01',end:'2026-12-20',progress:18,status:'工事中',note:'基礎工事中',
    procs:[100,60,20,0,0,0,0,0,0]},
-  {id:'S-005',name:'府中市立小学校改修',addr:'東京都府中市',type:'RC造4階建',mgr:'高橋 翔太',start:'2026-03-01',end:'2026-09-15',progress:8,status:'準備中',note:'仮設工事中',
+  {id:'_demo5',name:'府中市立小学校改修',addr:'東京都府中市',mgr:'高橋 翔太',start:'2026-03-01',end:'2026-09-15',progress:8,status:'準備中',note:'仮設工事中',
    procs:[40,0,0,0,0,0,0,0,0]},
 ];
 
@@ -1199,7 +1202,7 @@ function renderSites(){
     const weekT=TASKS.filter(t=>t.site===s.id&&isThisWeek(t.due)&&t.status!=='完了').length;
     return`<div class="site-card" id="card-${s.id}" onclick="openDetail('${s.id}')" style="cursor:pointer;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <div class="site-id">${s.id}</div>
+        <div class="site-id">${s.id.startsWith('_') ? '' : s.id}</div>
         <div class="site-card-actions" onclick="event.stopPropagation()" style="position:static;opacity:inherit;display:flex;gap:4px;">
           <button class="btn-icon" onclick="openSiteModal('${s.id}')" title="編集">✏️</button>
           <button class="btn-icon del" onclick="confirmDeleteSite('${s.id}')" title="削除">🗑️</button>
@@ -1232,12 +1235,10 @@ function openSiteModal(siteId){
   if(isEdit){
     const s=SITES.find(x=>x.id===siteId);
     if(!s)return;
-    document.getElementById('s-id').value=s.id;
-    document.getElementById('s-id').disabled=true;
     document.getElementById('s-name').value=s.name;
     document.getElementById('s-addr').value=s.addr||'';
     setKoushyuField(s.koushyu||'');
-    document.getElementById('s-type').value=s.type||'';
+
     document.getElementById('s-mgr').value=s.mgr||'';
     document.getElementById('s-start').value=s.start||'';
     document.getElementById('s-end').value=s.end||'';
@@ -1245,10 +1246,9 @@ function openSiteModal(siteId){
     document.getElementById('s-status').value=s.status||'工事中';
     document.getElementById('s-contract').value=s.contract||'';
   } else {
-    ['s-id','s-name','s-addr','s-type','s-mgr','s-note'].forEach(id=>document.getElementById(id).value='');
+    ['s-name','s-addr','s-mgr','s-note'].forEach(id=>document.getElementById(id).value='');
     setKoushyuField('');
     document.getElementById('s-contract').value='';
-    document.getElementById('s-id').disabled=false;
     document.getElementById('s-start').value='';
     document.getElementById('s-end').value='';
     document.getElementById('s-status').value='工事中';
@@ -1292,18 +1292,15 @@ function getKoushyuValue(){
 
 function saveSite(){
   const isEdit=!!document.getElementById('siteEditId').value;
-  const id=isEdit?document.getElementById('siteEditId').value:document.getElementById('s-id').value.trim();
+  const id=isEdit?document.getElementById('siteEditId').value:'_'+Date.now();
   const name=document.getElementById('s-name').value.trim();
-  if(!id){showToast('⚠️ 現場IDを入力してください');return;}
   if(!name){showToast('⚠️ 現場名を入力してください');return;}
-  if(!isEdit&&SITES.find(s=>s.id===id)){showToast('⚠️ このIDは既に使用されています');return;}
 
   const existing=SITES.find(s=>s.id===id);
   const obj={
     id,name,
     addr:document.getElementById('s-addr').value.trim(),
     koushyu:getKoushyuValue(),
-    type:document.getElementById('s-type').value.trim(),
     mgr:document.getElementById('s-mgr').value.trim(),
     progress:existing?existing.progress:0,
     start:document.getElementById('s-start').value,
@@ -1342,6 +1339,13 @@ function confirmDeleteSite(siteId){
 function archiveSite(siteId){
   const s = SITES.find(x=>x.id===siteId);
   if(!s){ showToast('⚠️ 現場が見つかりません'); return; }
+
+  // アーカイブID生成: A + YY + MM + DD (例: A260109)
+  const archiveDate = new Date();
+  const yy = String(archiveDate.getFullYear()).slice(2);
+  const mm = String(archiveDate.getMonth()+1).padStart(2,'0');
+  const dd = String(archiveDate.getDate()).padStart(2,'0');
+  const archiveId = 'A' + yy + mm + dd;
 
   const siteTasks = TASKS.filter(t=>t.site===siteId);
   const siteReports = REPORTS.filter(r=>r.siteId===siteId)
@@ -1414,7 +1418,7 @@ function archiveSite(siteId){
   <div style="font-size:36px;">🏗️</div>
   <div>
     <h1>${s.name}</h1>
-    <div class="meta">現場ID：${s.id}　／　アーカイブ出力日：${nowStr}</div>
+    <div class="meta">アーカイブID：${archiveId}　／　アーカイブ出力日：${nowStr}</div>
   </div>
 </div>
 
@@ -1422,7 +1426,7 @@ function archiveSite(siteId){
 <table>
   <tr><td class="label">ステータス</td><td colspan="3">${s.status||'—'}</td></tr>
   <tr><td class="label">所在地</td><td>${s.addr||'—'}</td><td class="label">工種</td><td>${s.koushyu||'—'}</td></tr>
-  <tr><td class="label">構造・規模</td><td>${s.type||'—'}</td><td class="label">請負形態</td><td>${s.contract||'—'}</td></tr>
+
   <tr><td class="label">担当者</td><td>${s.mgr||'—'}</td><td class="label">現況メモ</td><td>${s.note||'—'}</td></tr>
   <tr><td class="label">着工日</td><td>${fmtD(s.start)}</td><td class="label">竣工予定日</td><td>${fmtD(s.end)}</td></tr>
 </table>
@@ -1441,7 +1445,7 @@ ${reportBlocks}
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `アーカイブ_${s.id}_${s.name}.html`;
+  a.download = `${archiveId}_${s.name}.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1486,12 +1490,11 @@ function openDetail(siteId){
   const procs=s.procs||Array(9).fill(0);
 
   document.getElementById('detail-content').innerHTML=`
-    <div style="font-size:11px;font-weight:600;color:#2E75B6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${s.id}</div>
+    ${s.id.startsWith('_') ? '' : `<div style="font-size:11px;font-weight:600;color:#2E75B6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${s.id}</div>`}
     <div style="font-size:16px;font-weight:700;color:#1F4E79;margin-bottom:4px;padding-right:36px;">${s.name}</div>
     <div style="margin:10px 0;padding:12px;background:#F7FAFC;border-radius:8px;">
       <div class="detail-row"><div class="dl">所在地</div><div>📍 ${s.addr||'—'}</div></div>
       <div class="detail-row"><div class="dl">工種</div><div>${s.koushyu||'—'}</div></div>
-      <div class="detail-row"><div class="dl">構造</div><div>${s.type||'—'}</div></div>
       <div class="detail-row"><div class="dl">担当者</div><div>👷 ${s.mgr||'—'}</div></div>
       <div class="detail-row"><div class="dl">請負形態</div><div>${s.contract||'—'}</div></div>
       <div class="detail-row"><div class="dl">着工</div><div>${s.start?fmtDate(s.start):'—'}</div></div>
@@ -1836,7 +1839,7 @@ function updateReportWeekday() {
 
 function buildSiteOptions(selectedId) {
   const blank = `<option value="">現場を選択</option>`;
-  const opts = SITES.map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>[${s.id}] ${s.name}</option>`).join('');
+  const opts = SITES.map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${s.id.startsWith('_') ? '' : '['+s.id+'] '}${s.name}</option>`).join('');
   return blank + opts;
 }
 

@@ -317,6 +317,7 @@ input,select,textarea,button{font-family:inherit}
 .save-indicator.saved::before{content:'✓';color:#68D391}
 .save-indicator.unsaved::before{content:'●';color:#F6AD55;animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* Checkbox */
 .task-check{width:16px;height:16px;cursor:pointer;accent-color:#38A169}
@@ -394,6 +395,21 @@ input,select,textarea,button{font-family:inherit}
     <button class="login-btn" onclick="doLogin()">ログイン</button>
     <div class="login-error" id="loginError"></div>
     <div class="login-hint">※ パスワードを忘れた場合は管理者にお問い合わせください</div>
+  </div>
+</div>
+
+<!-- ===== CLOUD LOAD SCREEN ===== -->
+<div id="cloudLoadScreen" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#002060 0%,#1F4E79 60%,#2E75B6 100%);z-index:9998;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.35);text-align:center;">
+    <div style="font-size:48px;margin-bottom:12px;" id="cloudLoadIcon">☁️</div>
+    <div style="font-size:18px;font-weight:700;color:#1F4E79;margin-bottom:8px;" id="cloudLoadTitle">クラウド読込中...</div>
+    <div style="font-size:13px;color:#718096;margin-bottom:20px;" id="cloudLoadMsg">最新データを取得しています。しばらくお待ちください。</div>
+    <div id="cloudLoadSpinner" style="margin:0 auto 16px;width:36px;height:36px;border:4px solid #BEE3F8;border-top-color:#2E75B6;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+    <div id="cloudLoadErrorBox" style="display:none;">
+      <div style="background:#FFF5F5;border:1.5px solid #FC8181;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:#C53030;text-align:left;" id="cloudLoadErrorMsg"></div>
+      <button onclick="retryStartupCloudLoad()" style="width:100%;padding:12px;background:#2E75B6;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔄 再試行</button>
+      <button onclick="skipStartupCloudLoad()" style="width:100%;padding:10px;background:white;color:#718096;border:1.5px solid #CBD5E0;border-radius:8px;font-size:13px;cursor:pointer;">スキップ（ローカルデータで続ける）</button>
+    </div>
   </div>
 </div>
 
@@ -934,6 +950,79 @@ function startAutoBackup(){
   }, AUTO_BACKUP_INTERVAL_MS);
 }
 
+// ── 起動時クラウド強制読込 ──────────────────────────────
+async function startupCloudLoad() {
+  const g = getGistSettings();
+  if (!g.token || !g.gistId) return; // Gist未設定ならスキップ
+
+  const screen = document.getElementById('cloudLoadScreen');
+  screen.style.display = 'flex';
+  document.getElementById('cloudLoadIcon').textContent = '☁️';
+  document.getElementById('cloudLoadTitle').textContent = 'クラウド読込中...';
+  document.getElementById('cloudLoadMsg').textContent = '最新データを取得しています。しばらくお待ちください。';
+  document.getElementById('cloudLoadSpinner').style.display = 'block';
+  document.getElementById('cloudLoadErrorBox').style.display = 'none';
+  await performStartupCloudLoad();
+}
+
+async function performStartupCloudLoad() {
+  const g = getGistSettings();
+  try {
+    const d = await downloadFromGist(g.token, g.gistId);
+    // ID移行処理
+    const idMigrationMap = {};
+    (d.sites || []).forEach(s => {
+      if(s.id && !s.id.startsWith('_') && !s.id.startsWith('A')) {
+        idMigrationMap[s.id] = '_legacy_' + s.id;
+      }
+    });
+    SITES = (d.sites || []).map(s => idMigrationMap[s.id] ? {...s, id: idMigrationMap[s.id]} : s);
+    TASKS = d.tasks || [];
+    REPORTS = (d.reports || []).map(r => {
+      const newSiteId = idMigrationMap[r.siteId] || r.siteId;
+      const newEntries = (r.entries || []).map(e => {
+        const ns = idMigrationMap[e.siteId] || e.siteId;
+        return ns !== e.siteId ? {...e, siteId: ns} : e;
+      });
+      return {...r, siteId: newSiteId, entries: newEntries};
+    });
+    nextTaskId = d.nextTaskId || 100;
+    nextReportId = d.nextReportId || 1;
+    saveState(); renderAll(); renderReportList();
+
+    // 成功 → 画面を閉じる
+    const screen = document.getElementById('cloudLoadScreen');
+    document.getElementById('cloudLoadIcon').textContent = '✅';
+    document.getElementById('cloudLoadTitle').textContent = '読込完了';
+    document.getElementById('cloudLoadMsg').textContent = `現場 ${SITES.length}件を読み込みました`;
+    document.getElementById('cloudLoadSpinner').style.display = 'none';
+    setTimeout(() => { screen.style.display = 'none'; }, 1200);
+  } catch(e) {
+    document.getElementById('cloudLoadSpinner').style.display = 'none';
+    document.getElementById('cloudLoadIcon').textContent = '❌';
+    document.getElementById('cloudLoadTitle').textContent = '読込に失敗しました';
+    document.getElementById('cloudLoadMsg').textContent = '';
+    document.getElementById('cloudLoadErrorMsg').textContent = e.message;
+    document.getElementById('cloudLoadErrorBox').style.display = 'block';
+  }
+}
+
+function retryStartupCloudLoad() {
+  document.getElementById('cloudLoadIcon').textContent = '☁️';
+  document.getElementById('cloudLoadTitle').textContent = 'クラウド読込中...';
+  document.getElementById('cloudLoadMsg').textContent = '最新データを取得しています。しばらくお待ちください。';
+  document.getElementById('cloudLoadSpinner').style.display = 'block';
+  document.getElementById('cloudLoadErrorBox').style.display = 'none';
+  performStartupCloudLoad();
+}
+
+function skipStartupCloudLoad() {
+  if (confirm('スキップすると、他の端末の最新データが反映されない場合があります。\nローカルデータで続けますか？')) {
+    document.getElementById('cloudLoadScreen').style.display = 'none';
+  }
+}
+// ────────────────────────────────────────────────────────
+
 async function downloadFromCloud() {
   if (!confirm('クラウドからデータを読み込みます。\n現在の端末のデータは上書きされます。\nよろしいですか？')) return;
   const btn = document.getElementById('cloudLoadBtn');
@@ -1041,7 +1130,8 @@ async function doLogin() {
     localStorage.setItem(AUTH_KEY, '1');
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('loginError').textContent = '';
-    loadState(); renderAll(); saveState();
+    loadState(); renderAll(); saveState(); renderReportList();
+    startupCloudLoad();
   } else {
     document.getElementById('loginError').textContent = '❌ パスワードが正しくありません';
     document.getElementById('loginInput').value = '';
@@ -2089,7 +2179,8 @@ if (checkAuth()) {
   renderAll();
   saveState();
   renderReportList();
-  startAutoBackup(); // 30分ごとの自動クラウドバックアップ開始
+  startAutoBackup();
+  startupCloudLoad();
 }
 </script>
 </body>

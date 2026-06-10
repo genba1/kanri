@@ -531,7 +531,10 @@ input,select,textarea,button{font-family:inherit}
         <button class="btn btn-ghost" style="background:#EDF2F7;color:#2D3748;border:none;" onclick="scheduleNav(1)">次 ▶</button>
         <button class="btn btn-sm" style="background:#BEE3F8;color:#1F4E79;border:none;margin-left:4px;" onclick="scheduleToday()">今日</button>
       </div>
-      <div class="sch-wrap">
+      <div id="sch-scroll-top" style="overflow-x:auto;overflow-y:hidden;height:14px;margin-bottom:2px;">
+        <div id="sch-scroll-top-inner" style="height:1px;"></div>
+      </div>
+      <div class="sch-wrap" id="sch-wrap">
         <table class="sch-table" id="schedule-table"></table>
       </div>
     </div>
@@ -1814,6 +1817,27 @@ function renderSchedule(){
   }
   html += '</tbody>';
   table.innerHTML = html;
+  // 上部スクロールバーを同期
+  syncSchScrollbar();
+}
+
+function syncSchScrollbar() {
+  const wrap    = document.getElementById('sch-wrap');
+  const topBar  = document.getElementById('sch-scroll-top');
+  const topInner= document.getElementById('sch-scroll-top-inner');
+  if (!wrap || !topBar || !topInner) return;
+  // スマホでは非表示
+  if (window.innerWidth <= 640) { topBar.style.display = 'none'; return; }
+  topBar.style.display = 'block';
+  // 内側の幅をテーブルの横幅に合わせる
+  topInner.style.width = wrap.scrollWidth + 'px';
+  // 重複登録を避けるためイベントを付け直す
+  const newTop = topBar.cloneNode(true);
+  newTop.querySelector('#sch-scroll-top-inner').style.width = wrap.scrollWidth + 'px';
+  topBar.parentNode.replaceChild(newTop, topBar);
+  const newWrap = wrap; // wrapはそのまま
+  newTop.addEventListener('scroll', () => { newWrap.scrollLeft = newTop.scrollLeft; });
+  newWrap.addEventListener('scroll', () => { newTop.scrollLeft = newWrap.scrollLeft; });
 }
 
 // 工程表：新規日報作成ポップアップ

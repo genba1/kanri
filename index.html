@@ -886,26 +886,40 @@ async function uploadToCloud(silent=false) {
       if (g.gistId) {
         try {
           const cloudData = await downloadFromGist(g.token, g.gistId);
-          // クラウドにあってローカルにないIDのデータだけを追加（削除はローカルを優先）
+
+          // 削除済みリストをローカル・クラウド双方でマージ
+          const cloudDeletedSites = cloudData.deletedSites || [];
+          const cloudDeletedReports = cloudData.deletedReports || [];
+          DELETED_SITE_IDS = Array.from(new Set([...DELETED_SITE_IDS, ...cloudDeletedSites]));
+          DELETED_REPORT_IDS = Array.from(new Set([...DELETED_REPORT_IDS, ...cloudDeletedReports]));
+
+          // クラウドにあってローカルにない（かつ削除済みでない）データだけを追加
           const localSiteIds = new Set(SITES.map(s => s.id));
-          const cloudOnlySites = (cloudData.sites || []).filter(s => !localSiteIds.has(s.id));
+          const cloudOnlySites = (cloudData.sites || [])
+            .filter(s => !localSiteIds.has(s.id) && !DELETED_SITE_IDS.includes(s.id));
           const localReportIds = new Set(REPORTS.map(r => r.id));
-          const cloudOnlyReports = (cloudData.reports || []).filter(r => !localReportIds.has(r.id));
+          const cloudOnlyReports = (cloudData.reports || [])
+            .filter(r => !localReportIds.has(r.id) && !DELETED_REPORT_IDS.includes(r.id));
+
+          // ローカルにまだ残っている削除済みIDのデータを除去（他端末での削除を反映）
+          SITES = SITES.filter(s => !DELETED_SITE_IDS.includes(s.id));
+          REPORTS = REPORTS.filter(r => !DELETED_REPORT_IDS.includes(r.id));
+
           if (cloudOnlySites.length > 0 || cloudOnlyReports.length > 0) {
             SITES = [...SITES, ...cloudOnlySites];
             REPORTS = [...REPORTS, ...cloudOnlyReports];
             REPORTS.sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
-            nextReportId = Math.max(nextReportId, cloudData.nextReportId || 1);
-            nextTaskId   = Math.max(nextTaskId,   cloudData.nextTaskId   || 100);
-            saveState(); renderAll(); renderReportList();
           }
+          nextReportId = Math.max(nextReportId, cloudData.nextReportId || 1);
+          nextTaskId   = Math.max(nextTaskId,   cloudData.nextTaskId   || 100);
+          saveState(); renderAll(); renderReportList();
         } catch(mergeErr) {
           // マージ取得失敗時はそのままローカルデータで上書き保存
           console.warn('マージ取得失敗、上書き保存します:', mergeErr.message);
         }
       }
       // マージ後のデータでアップロード
-      const mergedPayload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId};
+      const mergedPayload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId, deletedSites:DELETED_SITE_IDS, deletedReports:DELETED_REPORT_IDS};
       await uploadToGist(mergedPayload, g.token, g.gistId);
     } else {
       // JSONBin.io
@@ -1005,6 +1019,15 @@ async function performStartupCloudLoad() {
     });
     nextTaskId = d.nextTaskId || 100;
     nextReportId = d.nextReportId || 1;
+
+    // 削除済みリストをローカルとクラウドでマージし、削除済みのものを除外
+    const cloudDeletedSites = d.deletedSites || [];
+    const cloudDeletedReports = d.deletedReports || [];
+    DELETED_SITE_IDS = Array.from(new Set([...DELETED_SITE_IDS, ...cloudDeletedSites]));
+    DELETED_REPORT_IDS = Array.from(new Set([...DELETED_REPORT_IDS, ...cloudDeletedReports]));
+    SITES = SITES.filter(s => !DELETED_SITE_IDS.includes(s.id));
+    REPORTS = REPORTS.filter(r => !DELETED_REPORT_IDS.includes(r.id));
+
     saveState(); renderAll(); renderReportList();
 
     // 成功 → 画面を閉じる
@@ -1123,6 +1146,15 @@ async function downloadFromCloud() {
     });
     nextTaskId = d.nextTaskId || 100;
     nextReportId = d.nextReportId || 1;
+
+    // 削除済みリストをマージし、復活してしまった削除済みデータを除去
+    const cloudDeletedSites = d.deletedSites || [];
+    const cloudDeletedReports = d.deletedReports || [];
+    DELETED_SITE_IDS = Array.from(new Set([...DELETED_SITE_IDS, ...cloudDeletedSites]));
+    DELETED_REPORT_IDS = Array.from(new Set([...DELETED_REPORT_IDS, ...cloudDeletedReports]));
+    SITES = SITES.filter(s => !DELETED_SITE_IDS.includes(s.id));
+    REPORTS = REPORTS.filter(r => !DELETED_REPORT_IDS.includes(r.id));
+
     saveState();
     renderAll();
     renderReportList();
@@ -1221,6 +1253,9 @@ let REPORTS = [];
 let nextTaskId = 100;
 let nextReportId = 1;
 let unsaved = false;
+// 削除済みID（マージ時に他端末から復活させないための記録）
+let DELETED_SITE_IDS = [];
+let DELETED_REPORT_IDS = [];
 
 function loadState() {
   try {
@@ -1232,10 +1267,14 @@ function loadState() {
       REPORTS = d.reports || [];
       nextTaskId = d.nextTaskId || 100;
       nextReportId = d.nextReportId || 1;
+      DELETED_SITE_IDS = d.deletedSites || [];
+      DELETED_REPORT_IDS = d.deletedReports || [];
     } else {
       SITES = JSON.parse(JSON.stringify(DEFAULT_SITES));
       TASKS = [];
       REPORTS = [];
+      DELETED_SITE_IDS = [];
+      DELETED_REPORT_IDS = [];
     }
   } catch(e) {
     SITES = JSON.parse(JSON.stringify(DEFAULT_SITES));
@@ -1440,7 +1479,12 @@ function confirmDeleteSite(siteId){
     `<strong>「${s.name}」</strong> を削除しますか？<br><br>この操作は元に戻せません。`;
   document.getElementById('confirmOkBtn').onclick=()=>{
     SITES=SITES.filter(x=>x.id!==siteId);
-    closeConfirm(); renderAll(); saveState();
+    // 関連する日報も削除し、削除済みIDを記録（マージ時の復活防止）
+    const relatedReportIds = REPORTS.filter(r=>r.siteId===siteId).map(r=>r.id);
+    REPORTS = REPORTS.filter(r=>r.siteId!==siteId);
+    DELETED_SITE_IDS.push(siteId);
+    DELETED_REPORT_IDS.push(...relatedReportIds);
+    closeConfirm(); renderAll(); saveState(); renderReportList();
     showToast('☁️ 現場を削除してクラウド同期中...', 2000);
     uploadToCloud(false);
   };
@@ -1576,9 +1620,12 @@ ${reportBlocks}
       `（日報 ${reportCount}件も削除されます）\n\n` +
       `※ HTMLファイルとして保存済みのため、後から確認できます。`;
     if(confirm(msg)){
+      const relatedReportIds = REPORTS.filter(r=>r.siteId===siteId).map(r=>r.id);
       SITES   = SITES.filter(x=>x.id!==siteId);
       TASKS   = TASKS.filter(t=>t.site!==siteId);
       REPORTS = REPORTS.filter(r=>r.siteId!==siteId);
+      DELETED_SITE_IDS.push(siteId);
+      DELETED_REPORT_IDS.push(...relatedReportIds);
       saveState();
       renderAll();
       renderReportList();
@@ -2063,6 +2110,7 @@ function deleteReport(id) {
   if (!r) return;
   if (!confirm(`${fmtDateJP(r.date)}の日報を削除しますか？`)) return;
   REPORTS = REPORTS.filter(r => r.id !== id);
+  DELETED_REPORT_IDS.push(id);
   saveState(); renderReportList();
   showToast('☁️ 日報を削除してクラウド同期中...', 2000);
   uploadToCloud(false);
@@ -2178,7 +2226,7 @@ function clearAllData(){
 // =========================================================
 function saveState(){
   try {
-    localStorage.setItem('kenba_data', JSON.stringify({sites:SITES,tasks:TASKS,reports:REPORTS,nextTaskId,nextReportId}));
+    localStorage.setItem('kenba_data', JSON.stringify({sites:SITES,tasks:TASKS,reports:REPORTS,nextTaskId,nextReportId,deletedSites:DELETED_SITE_IDS,deletedReports:DELETED_REPORT_IDS}));
   } catch(e){}
   unsaved=false;
   ['saveIndicator','saveIndicatorMobile'].forEach(id=>{

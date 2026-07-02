@@ -1810,9 +1810,8 @@ function renderSchedule(){
   // ── 日付文字列に変換するヘルパー ──
   const toStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
-  // ── ヘッダー行 ──
-  let html = '<thead><tr>';
-  html += '<th class="sch-site-head">現場名</th>';
+  // ── ヘッダー行（上下共通） ──
+  let headerCells = '<th class="sch-site-head">現場名</th>';
   days.forEach(d => {
     const ds = toStr(d);
     const isToday = d.getTime() === today.getTime();
@@ -1822,12 +1821,12 @@ function renderSchedule(){
     let cls = isToday ? 'sch-today' : (holiday || isSun) ? 'sch-sun' : isSat ? 'sch-weekend' : '';
     const holidayHtml = holiday ? `<span class="sch-holiday-name">${holiday}</span>` : '';
     if(isMobile){
-      html += `<th class="sch-day-head ${cls}">${weekNames[d.getDay()]}<br>${d.getDate()}${holidayHtml}</th>`;
+      headerCells += `<th class="sch-day-head ${cls}">${weekNames[d.getDay()]}<br>${d.getDate()}${holidayHtml}</th>`;
     } else {
-      html += `<th class="sch-day-head ${cls}">${d.getDate()}<br><span style="font-size:9px;opacity:.75;">${weekNames[d.getDay()]}</span>${holidayHtml}</th>`;
+      headerCells += `<th class="sch-day-head ${cls}">${d.getDate()}<br><span style="font-size:9px;opacity:.75;">${weekNames[d.getDay()]}</span>${holidayHtml}</th>`;
     }
   });
-  html += '</tr></thead><tbody>';
+  let html = `<thead><tr>${headerCells}</tr></thead><tbody>`;
 
   // ── データ行 ──
   if(SITES.length === 0){
@@ -1862,7 +1861,7 @@ function renderSchedule(){
       html += '</tr>';
     });
   }
-  html += '</tbody>';
+  html += `</tbody><tfoot><tr>${headerCells}</tr></tfoot>`;
   table.innerHTML = html;
   // 上部スクロールバーを同期
   syncSchScrollbar();

@@ -1,4 +1,3 @@
-<!-- rebuild -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -654,22 +653,6 @@ input,select,textarea,button{font-family:inherit}
         <div class="form-group">
           <label class="form-label">所在地</label>
           <input class="form-input" id="s-addr" placeholder="例: 明石市">
-        </div>
-        <div class="form-group">
-          <label class="form-label">工種</label>
-          <select class="form-select" id="s-koushyu-sel" onchange="onKoushyuChange(this)">
-            <option value="">選択してください</option>
-            <option value="改修工事">改修工事</option>
-            <option value="外装塗装工事">外装塗装工事</option>
-            <option value="風呂入替工事">風呂入替工事</option>
-            <option value="洗面台入替工事">洗面台入替工事</option>
-            <option value="トイレ入替工事">トイレ入替工事</option>
-            <option value="改装工事">改装工事</option>
-            <option value="新装工事">新装工事</option>
-            <option value="新築工事">新築工事</option>
-            <option value="__other__">その他（直接入力）</option>
-          </select>
-          <input class="form-input" id="s-koushyu" placeholder="工種を入力" style="display:none;margin-top:6px;">
         </div>
       </div>
       <div class="form-row">
@@ -1390,7 +1373,6 @@ function openSiteModal(siteId){
     if(!s)return;
     document.getElementById('s-name').value=s.name;
     document.getElementById('s-addr').value=s.addr||'';
-    setKoushyuField(s.koushyu||'');
 
     document.getElementById('s-mgr').value=s.mgr||'';
     document.getElementById('s-start').value=s.start||'';
@@ -1400,7 +1382,6 @@ function openSiteModal(siteId){
     document.getElementById('s-contract').value=s.contract||'';
   } else {
     ['s-name','s-addr','s-mgr','s-note'].forEach(id=>document.getElementById(id).value='');
-    setKoushyuField('');
     document.getElementById('s-contract').value='';
     document.getElementById('s-start').value='';
     document.getElementById('s-end').value='';
@@ -1411,37 +1392,6 @@ function openSiteModal(siteId){
 
 function closeSiteModal(){ document.getElementById('siteModal').classList.remove('show'); }
 
-// 工種フィールドのヘルパー
-function onKoushyuChange(sel){
-  const txt = document.getElementById('s-koushyu');
-  if(sel.value === '__other__'){
-    txt.style.display = 'block';
-    txt.value = '';
-    txt.focus();
-  } else {
-    txt.style.display = 'none';
-    txt.value = sel.value;
-  }
-}
-function setKoushyuField(val){
-  const sel = document.getElementById('s-koushyu-sel');
-  const txt = document.getElementById('s-koushyu');
-  const known = ['改修工事','外装塗装工事','風呂入替工事','洗面台入替工事','トイレ入替工事','改装工事','新装工事','新築工事'];
-  if(!val){
-    sel.value=''; txt.value=''; txt.style.display='none';
-  } else if(known.includes(val)){
-    sel.value=val; txt.value=val; txt.style.display='none';
-  } else {
-    sel.value='__other__'; txt.value=val; txt.style.display='block';
-  }
-}
-function getKoushyuValue(){
-  const sel = document.getElementById('s-koushyu-sel');
-  if(sel.value === '__other__' || sel.value === ''){
-    return document.getElementById('s-koushyu').value.trim();
-  }
-  return sel.value;
-}
 
 function saveSite(){
   const isEdit=!!document.getElementById('siteEditId').value;
@@ -1453,7 +1403,6 @@ function saveSite(){
   const obj={
     id,name,
     addr:document.getElementById('s-addr').value.trim(),
-    koushyu:getKoushyuValue(),
     mgr:document.getElementById('s-mgr').value.trim(),
     progress:existing?existing.progress:0,
     start:document.getElementById('s-start').value,
@@ -1584,7 +1533,7 @@ function archiveSite(siteId){
 <h2>📋 現場情報</h2>
 <table>
   <tr><td class="label">ステータス</td><td colspan="3">${s.status||'—'}</td></tr>
-  <tr><td class="label">所在地</td><td>${s.addr||'—'}</td><td class="label">工種</td><td>${s.koushyu||'—'}</td></tr>
+  <tr><td class="label">所在地</td><td colspan="3">${s.addr||'—'}</td></tr>
 
   <tr><td class="label">担当者</td><td>${s.mgr||'—'}</td><td class="label">現況メモ</td><td>${s.note||'—'}</td></tr>
   <tr><td class="label">着工日</td><td>${fmtD(s.start)}</td><td class="label">竣工予定日</td><td>${fmtD(s.end)}</td></tr>
@@ -1657,7 +1606,6 @@ function openDetail(siteId){
     <div style="font-size:16px;font-weight:700;color:#1F4E79;margin-bottom:4px;padding-right:36px;">${s.name}</div>
     <div style="margin:10px 0;padding:12px;background:#F7FAFC;border-radius:8px;">
       <div class="detail-row"><div class="dl">所在地</div><div>📍 ${s.addr||'—'}</div></div>
-      <div class="detail-row"><div class="dl">工種</div><div>${s.koushyu||'—'}</div></div>
       <div class="detail-row"><div class="dl">担当者</div><div>👷 ${s.mgr||'—'}</div></div>
       <div class="detail-row"><div class="dl">請負形態</div><div>${s.contract||'—'}</div></div>
       <div class="detail-row"><div class="dl">着工</div><div>${s.start?fmtDate(s.start):'—'}</div></div>

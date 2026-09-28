@@ -725,13 +725,9 @@ const PASSWORD_HASH = 'ed43834746d6984a4b56d0d96d4bfe4b9db138e32860686c5773697b7
 const AUTH_KEY = 'kenba_auth';
 
 // =========================================================
-// クラウド同期設定
+// クラウド同期設定（GitHub Gistのみ）
 // =========================================================
-const JSONBIN_BIN_ID = '69cb54ca36566621a8648c60';
-const JSONBIN_KEY = '$2a$10$74w1.yCNnZnxHCry4HKdg.53wJazGo8QgflY1e.zLIUudpjGstXTm';
-const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
-
-// GitHub Gist設定（別の同期手段）
+// GitHub Gist設定
 function getGistSettings(){
   return {
     token: localStorage.getItem('gist_token') || '',
@@ -756,7 +752,7 @@ function openCloudSettings(){
     if (g.token) {
       methodEl.textContent = '✅ GitHub Gist（' + (g.gistId ? 'Gist ID: ' + g.gistId.slice(0,8) + '...' : '初回保存時に自動作成') + '）';
     } else {
-      methodEl.textContent = '⚠️ JSONBin.io（不安定な場合はGitHub Gistに切り替えてください）';
+      methodEl.textContent = '⚠️ GitHub Gistが未設定です。トークンを設定してください。';
     }
   }
   document.getElementById('cloudSettingsModal').style.display='flex';
@@ -860,16 +856,15 @@ async function uploadToCloud(silent=false) {
     [btn,btnM].forEach(b=>{if(b){b.disabled=true;b.textContent='☁️ 保存中...';}});
     if(!silent) showToast('☁️ クラウドに保存中...');
     const payload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId};
-    const payloadStr = JSON.stringify(payload);
-    const payloadKB = Math.round(payloadStr.length / 1024);
-
-    // GitHub Gist が設定されていれば優先使用
     const g = getGistSettings();
-    if (g.token) {
-      // ── マージ処理: 保存前にクラウドの最新データを取得して合成 ──
-      if (g.gistId) {
-        try {
-          const cloudData = await downloadFromGist(g.token, g.gistId);
+    if (!g.token) {
+      throw new Error('GitHub Gistのトークンが未設定です。⚙️ クラウド設定で設定してください。');
+    }
+
+    // ── マージ処理: 保存前にクラウドの最新データを取得して合成 ──
+    if (g.gistId) {
+      try {
+        const cloudData = await downloadFromGist(g.token, g.gistId);
 
           // 削除済みリストをローカル・クラウド双方でマージ
           const cloudDeletedSites = cloudData.deletedSites || [];
@@ -896,41 +891,15 @@ async function uploadToCloud(silent=false) {
           }
           nextReportId = Math.max(nextReportId, cloudData.nextReportId || 1);
           nextTaskId   = Math.max(nextTaskId,   cloudData.nextTaskId   || 100);
-          saveState(); renderAll(); renderReportList();
-        } catch(mergeErr) {
-          // マージ取得失敗時はそのままローカルデータで上書き保存
-          console.warn('マージ取得失敗、上書き保存します:', mergeErr.message);
-        }
-      }
-      // マージ後のデータでアップロード
-      const mergedPayload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId, deletedSites:DELETED_SITE_IDS, deletedReports:DELETED_REPORT_IDS};
-      await uploadToGist(mergedPayload, g.token, g.gistId);
-    } else {
-      // JSONBin.io
-      if (payloadKB > 900 && !silent) {
-        if (!confirm(`データサイズが大きくなっています（約${payloadKB}KB）。\nJSONBin.io無料プランの上限は1MBです。\n\n保存を続けますか？`)) return;
-      }
-      const controller2 = new AbortController();
-      const timeoutId2 = setTimeout(() => controller2.abort(), 30000);
-      let res;
-      try {
-        res = await fetch(JSONBIN_URL, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
-          body: payloadStr,
-          signal: controller2.signal
-        });
-      } catch(fetchErr2) {
-        clearTimeout(timeoutId2);
-        if (fetchErr2.name === 'AbortError') throw new Error('タイムアウト（30秒）\nJSONBin.ioが応答しません');
-        throw fetchErr2;
-      }
-      clearTimeout(timeoutId2);
-      if (!res.ok) {
-        const body2 = await res.text().catch(()=>'');
-        throw new Error('HTTP ' + res.status + ' ' + body2.slice(0,200));
+        saveState(); renderAll(); renderReportList();
+      } catch(mergeErr) {
+        // マージ取得失敗時はそのままローカルデータで上書き保存
+        console.warn('マージ取得失敗、上書き保存します:', mergeErr.message);
       }
     }
+    // マージ後のデータでアップロード
+    const mergedPayload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId, deletedSites:DELETED_SITE_IDS, deletedReports:DELETED_REPORT_IDS};
+    await uploadToGist(mergedPayload, g.token, g.gistId);
 
     const now = new Date();
     const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -1058,53 +1027,10 @@ async function downloadFromCloud() {
     let d;
     const g = getGistSettings();
 
-    if (g.token && g.gistId) {
-      // GitHub Gist から読み込み
-      d = await downloadFromGist(g.token, g.gistId);
-    } else {
-      // JSONBin.io から読み込み（リトライ最大2回）
-      let lastErr = null;
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        if (attempt > 1) {
-          showToast(`🔄 再試行中... (${attempt}/2)`);
-          await new Promise(r => setTimeout(r, 3000));
-        }
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
-        try {
-          const res = await fetch(JSONBIN_URL + '/latest', {
-            headers: { 'X-Master-Key': JSONBIN_KEY },
-            mode: 'cors',
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-          if (!res.ok) {
-            const body = await res.text().catch(()=>'');
-            let hint = '';
-            if (res.status === 401) hint = '\n→ APIキーが無効の可能性があります。クラウド設定を確認してください。';
-            if (res.status === 404) hint = '\n→ BinIDが存在しません。';
-            if (res.status === 429) hint = '\n→ アクセス制限中です。しばらく待ってから再試行してください。';
-            throw new Error('HTTP ' + res.status + hint + '\n' + body.slice(0,150));
-          }
-          const json = await res.json();
-          d = json.record;
-          lastErr = null;
-          break;
-        } catch(e2) {
-          clearTimeout(timeoutId);
-          if (e2.name === 'AbortError') {
-            lastErr = new Error(`タイムアウト（${attempt}回目）\n\nJSONBin.ioが応答しません。\n\n【解決方法】\n① しばらく待ってから再試行\n② ⚙️クラウド設定でGitHub Gistに切り替える\n③ データサイズ: 約${getDataSizeKB()}KB`);
-          } else {
-            lastErr = e2;
-          }
-          if (attempt < 2) continue;
-          throw lastErr;
-        }
-      }
-      if (!d || !d.sites) {
-        throw new Error('現場データが見つかりません\n\n' + JSON.stringify(d).slice(0,150));
-      }
+    if (!g.token || !g.gistId) {
+      throw new Error('GitHub Gistが未設定です。⚙️ クラウド設定を確認してください。');
     }
+    d = await downloadFromGist(g.token, g.gistId);
 
     // 旧形式ID（S-001など）を新形式に移行するマップを作成
     const idMigrationMap = {};

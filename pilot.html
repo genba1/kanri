@@ -305,8 +305,8 @@ input,select,textarea,button{font-family:inherit}
   /* Process sliders */
   .proc-slider{height:20px}/* larger touch target */
 
-  /* Toast above nav */
-  .toast{bottom:76px}
+  /* Toast above nav: iPhoneのブラウザ下部バーも考慮して、固定ナビと重ねない */
+  .toast{bottom:calc(118px + env(safe-area-inset-bottom))}
 
   /* Gantt scrollable hint */
   .gantt-wrap::before{content:'← 横にスクロールできます';display:block;font-size:11px;color:#718096;margin-bottom:6px}

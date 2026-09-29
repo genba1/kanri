@@ -700,6 +700,31 @@ input,select,textarea,button{font-family:inherit}
   </div>
 </div>
 
+<!-- ===== PROJECT CARD MODAL ===== -->
+<div class="modal-overlay" id="projectCardModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head"><h2>🧭 案件カードを整理</h2><button class="modal-close" onclick="closeProjectCard()">✕</button></div>
+    <div class="modal-body">
+      <div style="background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#4A5568;">
+        報告を入力して「AIで下書き」を押すと、6項目だけに整理します。事実と違う内容は保存しないでください。
+      </div>
+      <label style="font-size:12px;font-weight:700;color:#1F4E79;">AIに整理させる報告（社長のみ）</label>
+      <textarea id="card-source" class="form-input" style="width:100%;min-height:76px;box-sizing:border-box;margin:4px 0 8px;resize:vertical;" placeholder="例：横山氏から、確認検査機関の回答待ち。壁量の修正図面は提出済み。"></textarea>
+      <button type="button" class="btn btn-white btn-sm" style="border:1.5px solid #90CDF4;color:#2B6CB0;margin-bottom:15px;" onclick="draftProjectCard()">✨ AIで下書き</button>
+      <label>要約<textarea id="card-summary" class="form-input" style="width:100%;box-sizing:border-box;min-height:56px;resize:vertical;"></textarea></label>
+      <label>ボールを持つ人<input id="card-holder" class="form-input"></label>
+      <label>次の一手<textarea id="card-next" class="form-input" style="width:100%;box-sizing:border-box;min-height:48px;resize:vertical;"></textarea></label>
+      <label>待ち事項<textarea id="card-waiting" class="form-input" style="width:100%;box-sizing:border-box;min-height:48px;resize:vertical;"></textarea></label>
+      <label>次の確認日<input id="card-check" type="date" class="form-input"></label>
+      <label>注意点<textarea id="card-caution" class="form-input" style="width:100%;box-sizing:border-box;min-height:48px;resize:vertical;"></textarea></label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeProjectCard()">キャンセル</button>
+      <button class="btn btn-green" onclick="saveProjectCard()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== DELETE CONFIRM MODAL ===== -->
 <div class="modal-overlay" id="confirmModal">
   <div class="modal" style="max-width:380px;">
@@ -1531,6 +1556,7 @@ function openDetail(siteId){
     <div style="margin-bottom:12px;">
       <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSite('${s.id}');closeDetail()">📦 アーカイブ保存（完了現場の書き出し）</button>
     </div>
+    ${projectCardHtml(s)}
     ${buildSiteReportHtml(siteId)}`;
 
   document.getElementById('detail-panel').classList.add('open');
@@ -1539,6 +1565,81 @@ function openDetail(siteId){
 function closeDetail(){
   document.getElementById('detail-panel').classList.remove('open');
   document.querySelectorAll('.site-card').forEach(c=>c.classList.remove('selected'));
+}
+
+// =========================================================
+// PROJECT CARD（タスク一覧を増やさない案件の現在地）
+// =========================================================
+function cardEscape(value) {
+  return String(value || '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function projectCardHtml(site) {
+  const c = site.card || {};
+  const editable = CURRENT_USER && CURRENT_USER.role === 'admin';
+  const rows = [
+    ['要約', c.summary], ['ボールを持つ人', c.ballHolder], ['次の一手', c.nextAction],
+    ['待ち事項', c.waitingFor], ['次の確認', c.nextCheckAt], ['注意点', c.caution],
+  ];
+  return `<div style="margin:14px 0;padding:13px;background:#F0F7FF;border:1px solid #BEE3F8;border-radius:9px;">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px;">
+      <strong style="color:#1F4E79;font-size:13px;">🧭 案件カード（現在地）</strong>
+      ${editable ? `<button class="btn btn-sm" style="background:#2E75B6;color:white;border:none;" onclick="openProjectCard('${site.id}')">整理する</button>` : ''}
+    </div>
+    ${rows.map(([label,value]) => `<div style="display:grid;grid-template-columns:88px 1fr;gap:7px;padding:4px 0;font-size:12px;border-top:1px solid #DCEBFA;"><span style="font-weight:700;color:#4A5568;">${label}</span><span style="white-space:pre-wrap;">${cardEscape(value)}</span></div>`).join('')}
+  </div>`;
+}
+let projectCardSiteId = null;
+function openProjectCard(siteId) {
+  const s = SITES.find(x => x.id === siteId);
+  if (!s || !CURRENT_USER || CURRENT_USER.role !== 'admin') return;
+  const c = s.card || {};
+  projectCardSiteId = siteId;
+  document.getElementById('card-source').value = '';
+  document.getElementById('card-summary').value = c.summary || '';
+  document.getElementById('card-holder').value = c.ballHolder || '';
+  document.getElementById('card-next').value = c.nextAction || '';
+  document.getElementById('card-waiting').value = c.waitingFor || '';
+  document.getElementById('card-check').value = c.nextCheckAt || '';
+  document.getElementById('card-caution').value = c.caution || '';
+  document.getElementById('projectCardModal').classList.add('show');
+}
+function closeProjectCard() { document.getElementById('projectCardModal').classList.remove('show'); projectCardSiteId = null; }
+function cardInput() {
+  return {
+    summary:document.getElementById('card-summary').value.trim(),
+    ballHolder:document.getElementById('card-holder').value.trim(),
+    nextAction:document.getElementById('card-next').value.trim(),
+    waitingFor:document.getElementById('card-waiting').value.trim(),
+    nextCheckAt:document.getElementById('card-check').value,
+    caution:document.getElementById('card-caution').value.trim(),
+  };
+}
+async function draftProjectCard() {
+  const source = document.getElementById('card-source').value.trim();
+  if (!source) { showToast('⚠️ 報告内容を入力してください'); return; }
+  try {
+    const result = await PILOT.createCardDraft(projectCardSiteId, source);
+    const c = result.draft;
+    document.getElementById('card-summary').value = c.summary || '';
+    document.getElementById('card-holder').value = c.ballHolder || '';
+    document.getElementById('card-next').value = c.nextAction || '';
+    document.getElementById('card-waiting').value = c.waitingFor || '';
+    document.getElementById('card-check').value = c.nextCheckAt || '';
+    document.getElementById('card-caution').value = c.caution || '';
+    showToast('✨ AIが下書きを作成しました。内容を確認して保存してください。', 3000);
+  } catch(e) { showToast('❌ AI整理できません: ' + e.message, 3500); }
+}
+async function saveProjectCard() {
+  const site = SITES.find(x => x.id === projectCardSiteId);
+  if (!site) return;
+  try {
+    const result = await PILOT.updateCard(site.id, cardInput(), site.version, document.getElementById('card-source').value.trim());
+    site.card = result.card;
+    site.version += 1;
+    closeProjectCard();
+    openDetail(site.id);
+    showToast('✅ 案件カードを保存しました', 2200);
+  } catch(e) { showToast('❌ 保存できません: ' + e.message, 3500); }
 }
 
 // =========================================================
@@ -1826,7 +1927,7 @@ function switchTab(tab){
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','confirmModal'].forEach(id=>{
+['siteModal','confirmModal','projectCardModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');
@@ -1838,7 +1939,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     closeDetail();
     closeMobileMenu();
-    ['siteModal','confirmModal'].forEach(id=>{
+    ['siteModal','confirmModal','projectCardModal'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.classList.remove('show');
     });

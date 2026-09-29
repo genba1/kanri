@@ -452,6 +452,7 @@ input,select,textarea,button{font-family:inherit}
     <button class="menu-btn" onclick="document.getElementById('json-import-input').click();closeMobileMenu()">📂 データ読込（JSON）</button>
 
     <button class="menu-btn" onclick="switchTab('report');closeMobileMenu()">📋 日報入力</button>
+    <button class="menu-btn" data-admin-only style="display:none;background:#F0F7FF;color:#1F4E79;" onclick="switchTab('tasks');closeMobileMenu()">🧭 社長タスク</button>
     <button class="menu-btn" data-admin-only style="display:none;background:#FFF5F5;color:#C53030;" onclick="openAiReportModal();closeMobileMenu()">🎙️ AIに報告（社長のみ）</button>
     <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
@@ -472,6 +473,7 @@ input,select,textarea,button{font-family:inherit}
     <button class="pc-tab-btn active" id="pctab-sites" onclick="switchTab('sites')">🏢 現場一覧</button>
     <button class="pc-tab-btn" id="pctab-report" onclick="switchTab('report')">📋 日報</button>
     <button class="pc-tab-btn" id="pctab-schedule" onclick="switchTab('schedule')">📅 工程</button>
+    <button class="pc-tab-btn" id="pctab-tasks" data-admin-only style="display:none;" onclick="switchTab('tasks')">🧭 社長タスク</button>
   </div>
 
   <!-- ===== PAGE: 現場 ===== -->
@@ -549,6 +551,18 @@ input,select,textarea,button{font-family:inherit}
       <div class="sch-wrap" id="sch-wrap">
         <table class="sch-table" id="schedule-table"></table>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: 社長タスク（管理者のみ） ===== -->
+  <div class="section-page" id="page-tasks">
+    <div class="report-form-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;">
+        <div class="section-head" style="margin:0;">🧭 社長タスク</div>
+        <button class="btn btn-sm" style="background:#2E75B6;color:white;border:none;white-space:nowrap;" onclick="openAiTaskModal()">🎙️ AIで候補作成</button>
+      </div>
+      <div style="font-size:12px;line-height:1.6;color:#718096;margin-bottom:13px;">話した報告から、次に動くことと相手待ちだけを候補にします。保存するまでは登録されません。</div>
+      <div id="admin-task-list"></div>
     </div>
   </div>
 
@@ -759,6 +773,19 @@ input,select,textarea,button{font-family:inherit}
       <div id="ai-daily-report-result" style="display:none;margin-top:12px;"></div>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiDailyReportModal()">閉じる</button><button class="btn btn-green" id="ai-daily-report-run" onclick="draftAiDailyReport()">日報の下書きを作る</button></div>
+  </div>
+</div>
+
+<!-- ===== AI TASK DRAFT MODAL ===== -->
+<div class="modal-overlay" id="aiTaskModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head"><h2>🎙️ AIでタスク候補</h2><button class="modal-close" onclick="closeAiTaskModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:#4A5568;line-height:1.6;margin:0 0 10px;">現場の状況や連絡内容を話してください。AIが、社長が動くことと相手待ちを必要な分だけ候補にします。</p>
+      <textarea id="ai-task-source" class="form-input" rows="7" style="resize:vertical;line-height:1.65;" placeholder="例：朝霧堂は文化財の書類を朝霧堂様へ渡す必要がある。横山氏から検査機関の返答も待ち。10月3日に確認したい。"></textarea>
+      <div id="ai-task-result" style="display:none;margin-top:12px;"></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiTaskModal()">閉じる</button><button class="btn btn-green" id="ai-task-run" onclick="draftAiTasks()">タスク候補を作る</button></div>
   </div>
 </div>
 
@@ -1237,7 +1264,7 @@ async function loadServerState() {
   const [siteResult, reportResult] = await Promise.all([PILOT.sites(), PILOT.reports()]);
   SITES = siteResult.sites || [];
   REPORTS = reportResult.reports || [];
-  TASKS = [];
+  TASKS = CURRENT_USER && CURRENT_USER.role === 'admin' ? ((await PILOT.tasks()).tasks || []) : [];
   nextReportId = Math.max(1, ...REPORTS.map(r => Number(r.id) + 1));
   DELETED_SITE_IDS = [];
   DELETED_REPORT_IDS = [];
@@ -1261,6 +1288,7 @@ function isToday(dateStr) {
   const d = new Date(dateStr);
   return d.getFullYear()===TODAY.getFullYear()&&d.getMonth()===TODAY.getMonth()&&d.getDate()===TODAY.getDate();
 }
+function taskIsOpen(task){ return task.status === 'open'; }
 function isThisWeek(dateStr){ const d=new Date(dateStr); return d>=TODAY&&d<=THIS_WEEK_END; }
 function isOverdue(dateStr){ const d=new Date(dateStr); return d<TODAY; }
 function fmtDate(dateStr){ if(!dateStr)return'—'; const d=new Date(dateStr); return `${d.getMonth()+1}/${d.getDate()}`; }
@@ -1338,8 +1366,8 @@ function clearReportPhotos(){
 // KPI
 // =========================================================
 function renderKPI(){
-  const todayCount=TASKS.filter(t=>isToday(t.due)&&t.status!=='完了').length;
-  const urgentCount=TASKS.filter(t=>t.priority==='高'&&t.status!=='完了').length;
+  const todayCount=TASKS.filter(t=>taskIsOpen(t)&&isToday(t.dueDate)).length;
+  const urgentCount=TASKS.filter(t=>taskIsOpen(t)&&t.dueDate&&isOverdue(t.dueDate)).length;
   document.getElementById('kpi-sites').textContent=SITES.length;
   document.getElementById('kpi-today').textContent=todayCount;
   document.getElementById('kpi-urgent').textContent=urgentCount;
@@ -1363,8 +1391,8 @@ function renderSites(){
   const sorted=[...SITES].sort((a,b)=>(statusOrder[a.status]??99)-(statusOrder[b.status]??99));
   grid.innerHTML=sorted.map(s=>{
     const badgeCls=badgeMap[s.status]||'badge-active';
-    const todayT=TASKS.filter(t=>t.site===s.id&&isToday(t.due)&&t.status!=='完了').length;
-    const weekT=TASKS.filter(t=>t.site===s.id&&isThisWeek(t.due)&&t.status!=='完了').length;
+    const todayT=TASKS.filter(t=>taskIsOpen(t)&&t.siteId===s.id&&isToday(t.dueDate)).length;
+    const weekT=TASKS.filter(t=>taskIsOpen(t)&&t.siteId===s.id&&isThisWeek(t.dueDate)).length;
     return`<div class="site-card" id="card-${s.id}" onclick="openDetail('${s.id}')" style="cursor:pointer;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <div class="site-id">${s.id.startsWith('_') ? '' : s.id}</div>
@@ -1785,6 +1813,74 @@ function applyAiDailyReportDraft(siteId){
   closeAiDailyReportModal();
   showToast('✨ AIの日報下書きを入れました。内容を確認して保存してください。',3500);
 }
+let aiTaskSourceText='';
+let aiTaskDrafts=[];
+function openAiTaskModal(){
+  if(!CURRENT_USER || CURRENT_USER.role!=='admin')return;
+  aiTaskSourceText='';aiTaskDrafts=[];
+  document.getElementById('ai-task-source').value='';
+  document.getElementById('ai-task-result').style.display='none';
+  document.getElementById('aiTaskModal').classList.add('show');
+  setTimeout(()=>document.getElementById('ai-task-source').focus(),80);
+}
+function closeAiTaskModal(){document.getElementById('aiTaskModal').classList.remove('show');aiTaskSourceText='';aiTaskDrafts=[];}
+function taskKindLabel(kind){return kind==='waiting'?'⏳ 相手待ち':'▶️ 次に動く';}
+function aiTaskDraftHtml(draft,index){
+  const site=draft.siteId?siteName(draft.siteId):'案件未特定';
+  const date=draft.dueDate?`確認日：${draft.dueDate}`:'確認日：未設定';
+  return `<div style="border:1px solid ${draft.kind==='waiting'?'#F6D365':'#90CDF4'};background:${draft.kind==='waiting'?'#FFF9E6':'#F0F7FF'};border-radius:9px;padding:11px;margin-top:8px;font-size:13px;">
+    <div style="font-weight:700;color:#1F4E79;">${taskKindLabel(draft.kind)}　${cardEscape(draft.title)}</div>
+    <div style="font-size:12px;color:#4A5568;margin-top:5px;">🏗️ ${cardEscape(site)}　｜　📅 ${cardEscape(date)}</div>
+    ${draft.note?`<div style="font-size:12px;color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(draft.note)}</div>`:''}
+    <button class="btn btn-sm" ${draft.saved?'disabled':''} style="margin-top:8px;background:${draft.saved?'#A0AEC0':'#38A169'};color:white;border:none;" onclick="saveAiTaskDraft(${index})">${draft.saved?'追加済み':'このタスクを追加'}</button>
+  </div>`;
+}
+function renderAiTaskDrafts(){
+  const result=document.getElementById('ai-task-result');result.style.display='block';
+  if(!aiTaskDrafts.length){result.innerHTML='<div style="background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:11px;font-size:13px;color:#4A5568;">今すぐ追加すべきタスク候補はありませんでした。</div>';return;}
+  result.innerHTML=`<div style="font-size:13px;color:#4A5568;margin-bottom:6px;">必要なものだけ追加してください。</div>${aiTaskDrafts.map(aiTaskDraftHtml).join('')}`;
+}
+async function draftAiTasks(){
+  const source=document.getElementById('ai-task-source').value.trim();if(!source){showToast('⚠️ 報告内容を入力してください');return;}
+  const button=document.getElementById('ai-task-run');const result=document.getElementById('ai-task-result');button.disabled=true;button.textContent='AIが候補を整理中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">次に動くこと・相手待ちを整理しています…</div>';
+  try{aiTaskSourceText=source;const data=await PILOT.createTaskDraft(source);aiTaskDrafts=(data.drafts||[]).map(x=>({...x,saved:false}));renderAiTaskDrafts();}
+  catch(e){result.innerHTML=`<div style="color:#C53030;font-size:13px;">AIによるタスク候補の作成に失敗しました: ${cardEscape(e.message)}</div>`;}
+  finally{button.disabled=false;button.textContent='タスク候補を作る';}
+}
+async function saveAiTaskDraft(index){
+  const draft=aiTaskDrafts[index];if(!draft||draft.saved)return;
+  try{
+    const saved=await PILOT.createTask({...draft,sourceText:aiTaskSourceText});
+    draft.saved=true;TASKS.unshift(saved.task);renderAiTaskDrafts();renderAdminTasks();renderAll();
+    showToast('✅ 社長タスクに追加しました');
+  }catch(e){showToast('❌ タスクを追加できません: '+e.message,3500);}
+}
+function taskDueText(task){
+  if(!task.dueDate)return '確認日：未設定';
+  if(isToday(task.dueDate))return '確認日：今日';
+  if(isOverdue(task.dueDate))return `確認日：${task.dueDate}（期限超過）`;
+  return `確認日：${task.dueDate}`;
+}
+function renderAdminTasks(){
+  const el=document.getElementById('admin-task-list');if(!el)return;
+  if(!CURRENT_USER || CURRENT_USER.role!=='admin'){el.innerHTML='';return;}
+  const tasks=[...TASKS].sort((a,b)=>Number(!taskIsOpen(a))-Number(!taskIsOpen(b)) || (a.dueDate||'9999-12-31').localeCompare(b.dueDate||'9999-12-31') || b.id-a.id);
+  if(!tasks.length){el.innerHTML='<div style="text-align:center;padding:25px 8px;color:#718096;font-size:13px;">タスクはまだありません。報告を話して、必要なものだけ追加してください。</div>';return;}
+  el.innerHTML=tasks.map(task=>{
+    const done=!taskIsOpen(task);const wait=task.kind==='waiting';const border=done?'#CBD5E0':wait?'#ED8936':'#2E75B6';
+    return `<div style="border-left:4px solid ${border};border-radius:8px;background:${done?'#F7FAFC':wait?'#FFF9E6':'#F7FBFF'};padding:11px 12px;margin-bottom:9px;opacity:${done?'.62':'1'};">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;"><div style="font-weight:700;font-size:14px;line-height:1.45;text-decoration:${done?'line-through':'none'};">${taskKindLabel(task.kind)}　${cardEscape(task.title)}</div>${done?'<span style="font-size:11px;color:#718096;white-space:nowrap;">完了</span>':'<span style="font-size:11px;color:#2E75B6;white-space:nowrap;">未完了</span>'}</div>
+      <div style="font-size:12px;color:#4A5568;margin-top:6px;">🏗️ ${cardEscape(task.siteId?siteName(task.siteId):'案件未特定')}　｜　📅 ${cardEscape(taskDueText(task))}</div>
+      ${task.note?`<div style="font-size:12px;color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(task.note)}</div>`:''}
+      ${done?'':`<button class="btn btn-sm" style="margin-top:8px;background:white;border:1px solid #9AE6B4;color:#276749;" onclick="completeAdminTask(${task.id})">✅ 完了にする</button>`}
+    </div>`;
+  }).join('');
+}
+async function completeAdminTask(id){
+  const task=TASKS.find(x=>x.id===id);if(!task)return;
+  try{const saved=await PILOT.updateTask(id,{siteId:task.siteId,title:task.title,kind:task.kind,dueDate:task.dueDate,status:'done',note:task.note,version:task.version});Object.assign(task,saved.task);renderAdminTasks();renderAll();showToast('✅ タスクを完了にしました');}
+  catch(e){showToast('❌ タスクを更新できません: '+e.message,3500);}
+}
 function cardInput() {
   return {
     summary:document.getElementById('card-summary').value.trim(),
@@ -2093,7 +2189,7 @@ function goToReportWithSite(siteId){
 let currentTab = 'sites';
 function switchTab(tab){
   currentTab = tab;
-  ['sites','report','schedule'].forEach(p=>{
+  ['sites','report','schedule','tasks'].forEach(p=>{
     document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
     const bnavBtn = document.getElementById('bnav-'+p);
     if(bnavBtn) bnavBtn.classList.toggle('active', p===tab);
@@ -2102,13 +2198,14 @@ function switchTab(tab){
   });
   if(tab==='report') { initReportForm(); renderReportList(); }
   else if(tab==='schedule') { renderSchedule(); }
+  else if(tab==='tasks') { renderAdminTasks(); }
   else { window.scrollTo({top:0,behavior:'smooth'}); }
 }
 
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal'].forEach(id=>{
+['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');
@@ -2120,7 +2217,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     closeDetail();
     closeMobileMenu();
-    ['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal'].forEach(id=>{
+    ['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.classList.remove('show');
     });
@@ -2442,6 +2539,7 @@ function saveState(){
 // =========================================================
 function renderAll(){
   try { renderKPI(); } catch(e){ console.error('renderKPI error',e); }
+  try { renderAdminTasks(); } catch(e){ console.error('renderAdminTasks error',e); }
   try {
     renderSites();
   } catch(e){

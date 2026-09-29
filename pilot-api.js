@@ -62,6 +62,9 @@
     site(id) { return this.request(`/sites/${encodeURIComponent(id)}`); }
     archives(query = '') { return this.request(`/archives${query ? `?q=${encodeURIComponent(query)}` : ''}`); }
     reports(siteId = '') { return this.request(`/reports${siteId ? `?site_id=${encodeURIComponent(siteId)}` : ''}`); }
+    tasks() { return this.request('/tasks'); }
+    createTask(task) { return this.request('/tasks', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(task) }); }
+    updateTask(id, task) { return this.request(`/tasks/${encodeURIComponent(id)}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(task) }); }
     createSite(site) { return this.request('/sites', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(site) }); }
     updateSite(id, site) { return this.request(`/sites/${encodeURIComponent(id)}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(site) }); }
     deleteSite(id, version) { return this.request(`/sites/${encodeURIComponent(id)}`, { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({version}) }); }
@@ -80,6 +83,7 @@
     createCardDraft(siteId, sourceText) { return this.request(`/sites/${encodeURIComponent(siteId)}/ai/draft`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sourceText}) }); }
     routeReport(sourceText) { return this.request('/ai/route-report', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sourceText}) }); }
     createDailyReportDraft(sourceText) { return this.request('/ai/daily-report-draft', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sourceText}) }); }
+    createTaskDraft(sourceText) { return this.request('/ai/task-draft', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sourceText}) }); }
     card(id) { return this.request(`/sites/${encodeURIComponent(id)}/card`); }
     updateCard(id, card, version, sourceText = '') {
       return this.request(`/sites/${encodeURIComponent(id)}/card`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({card, version, sourceText}) });

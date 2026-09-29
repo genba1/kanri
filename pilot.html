@@ -514,7 +514,7 @@ input,select,textarea,button{font-family:inherit}
       <div style="margin-top:14px;">
         <label style="font-size:13px;font-weight:600;color:#4A5568;display:block;margin-bottom:5px;">📷 現場写真（任意・複数可）</label>
         <input type="file" id="report-photo-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onchange="prepareReportPhotos(this.files)" style="font-size:13px;max-width:100%;">
-        <div style="font-size:11px;color:#718096;margin-top:4px;">JPEG・PNG・WebPは端末内で自動圧縮し、1枚3MB以下で保存します。HEIFは3MB以下なら元の形式で保存します。</div>
+        <div style="font-size:11px;color:#718096;margin-top:4px;">HEIFは端末内でJPEGへ変換します。JPEG・PNG・WebPも含め、1枚3MB以下で保存します。</div>
         <div id="report-photo-status" style="font-size:12px;color:#4A5568;margin-top:6px;"></div>
       </div>
       <div class="report-actions" style="margin-top:14px;">
@@ -754,6 +754,7 @@ input,select,textarea,button{font-family:inherit}
 <!-- ===== TOAST ===== -->
 <div class="toast" id="toast"></div>
 
+<script src="heic2any.min.js"></script>
 <script src="pilot-api.js"></script>
 <script>
 // =========================================================
@@ -1260,8 +1261,14 @@ async function compressReportPhoto(file){
   const maxBytes=3*1024*1024;
   const heif=/image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
   if(heif){
-    if(file.size>maxBytes) throw new Error(`${file.name} はHEIFのまま3MBを超えています。iPhoneで「互換性優先」にして撮影するか、3MB以下の写真を選んでください。`);
-    return file;
+    if(typeof heic2any!=='function') throw new Error('HEIF変換部品を読み込めませんでした。画面を更新してからもう一度お試しください。');
+    try{
+      const converted=await heic2any({blob:file,toType:'image/jpeg',quality:.86});
+      const jpeg=Array.isArray(converted)?converted[0]:converted;
+      if(!(jpeg instanceof Blob)) throw new Error('JPEG変換結果を確認できませんでした。');
+      const base=file.name.replace(/\.[^.]+$/,'');
+      file=new File([jpeg],base+'.jpg',{type:'image/jpeg',lastModified:file.lastModified});
+    }catch(e){ throw new Error(`${file.name} をJPEGへ変換できませんでした。`); }
   }
   if(file.size<=maxBytes && file.type==='image/png') return file;
   const url=URL.createObjectURL(file);

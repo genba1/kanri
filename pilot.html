@@ -1,0 +1,2160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>建築現場 進捗管理ダッシュボード</title>
+<style>
+/* ── Login Screen ── */
+#loginScreen{position:fixed;inset:0;background:linear-gradient(135deg,#002060 0%,#1F4E79 60%,#2E75B6 100%);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-box{background:white;border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.35);text-align:center}
+.login-logo{font-size:48px;margin-bottom:12px}
+.login-title{font-size:20px;font-weight:700;color:#1F4E79;margin-bottom:4px}
+.login-sub{font-size:13px;color:#718096;margin-bottom:28px}
+.login-input{width:100%;padding:12px 16px;font-size:16px;border:2px solid #CBD5E0;border-radius:10px;outline:none;text-align:center;letter-spacing:.2em;transition:border .15s;font-family:inherit}
+.login-input:focus{border-color:#2E75B6;box-shadow:0 0 0 3px rgba(46,117,182,.15)}
+.login-btn{width:100%;margin-top:14px;padding:13px;background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.login-btn:hover{opacity:.9}
+.login-btn:active{opacity:.8}
+.login-error{margin-top:12px;color:#E53E3E;font-size:13px;font-weight:600;min-height:20px}
+.login-hint{margin-top:16px;font-size:11px;color:#A0AEC0;line-height:1.6}
+@media(max-width:640px){.login-box{padding:28px 20px}}
+
+/* ── Reset & Base ── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI','Hiragino Sans','Yu Gothic',sans-serif;background:#f0f4f8;color:#2d3748;font-size:14px}
+input,select,textarea,button{font-family:inherit}
+
+/* ── Top Bar ── */
+.top-bar{background:linear-gradient(135deg,#002060 0%,#1F4E79 60%,#2E75B6 100%);color:white;padding:14px 20px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:wrap}
+.top-bar h1{font-size:19px;font-weight:700;letter-spacing:.5px}
+.top-bar .subtitle{font-size:11px;opacity:.8;margin-top:2px}
+.top-bar-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.top-bar .date-badge{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);padding:5px 12px;border-radius:20px;font-size:12px;white-space:nowrap}
+
+/* ── Top Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:background .15s,transform .1s;white-space:nowrap}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn-white{background:white;color:#1F4E79}
+.btn-white:hover{background:#EBF8FF}
+.btn-green{background:#38A169;color:white}
+.btn-green:hover{background:#2F855A}
+.btn-amber{background:#D69E2E;color:white}
+.btn-amber:hover{background:#B7791F}
+.btn-red{background:#E53E3E;color:white}
+.btn-red:hover{background:#C53030}
+.btn-ghost{background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.4)}
+.btn-ghost:hover{background:rgba(255,255,255,.25)}
+.btn-sm{padding:4px 10px;font-size:12px;border-radius:6px}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:5px}
+.btn-icon{padding:5px 8px;border-radius:6px;background:#EDF2F7;border:none;cursor:pointer;font-size:14px;transition:background .15s}
+.btn-icon:hover{background:#BEE3F8}
+.btn-icon.del:hover{background:#FED7D7}
+
+/* ── Layout ── */
+.main{max-width:1440px;margin:0 auto;padding:18px}
+
+/* ── PC タブナビ ── */
+.pc-tabs{display:flex;gap:4px;margin-bottom:16px;background:white;border-radius:10px;padding:6px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.pc-tab-btn{flex:1;padding:9px 12px;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;color:#718096;background:none;transition:background .15s,color .15s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.pc-tab-btn:hover{background:#EDF2F7;color:#2d3748;}
+.pc-tab-btn.active{background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;}
+
+/* section-page: グローバルで非表示（PC・スマホ共通） */
+.section-page{display:none;}
+.section-page.mob-active{display:block;}
+
+/* ── KPI cards ── */
+.kpi-row{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:18px}
+.kpi-card{background:white;border-radius:10px;padding:14px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:4px solid transparent;display:flex;align-items:center;gap:12px}
+.kpi-card .icon{font-size:26px}
+.kpi-card .val{font-size:28px;font-weight:700;line-height:1}
+.kpi-card .lbl{font-size:11px;color:#718096;margin-top:2px}
+.kpi-card.blue{border-color:#2E75B6}
+.kpi-card.green{border-color:#38a169}
+.kpi-card.amber{border-color:#d69e2e}
+.kpi-card.red{border-color:#e53e3e}
+
+/* ── Section ── */
+.section-head{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#1F4E79;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #BEE3F8}
+.card{background:white;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px}
+
+/* ── Site Cards ── */
+.sites-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sites-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.site-card{background:white;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:4px solid #2E75B6;transition:transform .15s,box-shadow .15s;position:relative}
+.site-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.site-card.selected{border-top-color:#d69e2e;box-shadow:0 0 0 2px #d69e2e}
+.site-card-actions{display:flex;gap:4px;opacity:0.3;transition:opacity .2s}
+.site-card:hover .site-card-actions{opacity:1}
+.site-card .site-id{font-size:11px;color:#718096;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.site-card .site-name{font-size:15px;font-weight:700;margin:4px 0 2px;padding-right:60px}
+.site-card .site-meta{font-size:12px;color:#718096;margin-bottom:4px}
+.status-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-bottom:8px}
+.badge-active{background:#C6F6D5;color:#276221}
+.badge-prep{background:#FEFCBF;color:#744210}
+.badge-complete{background:#BEE3F8;color:#1a365d}
+.badge-pause{background:#FED7D7;color:#9B2C2C}
+
+/* Progress bar */
+.prog-bar-wrap{margin:6px 0 4px}
+.prog-bar-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.prog-bar-bg{background:#EDF2F7;border-radius:6px;height:10px;overflow:hidden}
+.prog-bar-fill{height:100%;border-radius:6px;transition:width .6s ease}
+.prog-low{background:linear-gradient(90deg,#FC8181,#F56565)}
+.prog-mid{background:linear-gradient(90deg,#F6AD55,#ED8936)}
+.prog-high{background:linear-gradient(90deg,#68D391,#38A169)}
+
+/* Proc steps */
+.process-steps{display:flex;gap:3px;flex-wrap:wrap;margin-top:6px}
+.proc-step{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.proc-step:hover{opacity:.75}
+.proc-done{background:#C6F6D5;color:#276221}
+.proc-partial{background:#FEFCBF;color:#744210}
+.proc-none{background:#EDF2F7;color:#A0AEC0}
+
+.site-footer{display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#718096}
+
+/* ── Task list ── */
+.tasks-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.task-filters{display:flex;gap:6px;flex-wrap:wrap}
+.filter-btn{padding:5px 12px;border-radius:20px;border:1px solid #CBD5E0;background:white;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s,color .15s}
+.filter-btn.active{background:#2E75B6;color:white;border-color:#2E75B6}
+.filter-btn:hover:not(.active){background:#EBF8FF}
+
+.task-table{width:100%;border-collapse:collapse}
+.task-table th{background:#1F4E79;color:white;padding:8px 10px;text-align:left;font-size:12px;font-weight:600}
+.task-table td{padding:8px 10px;border-bottom:1px solid #E2E8F0;font-size:13px;vertical-align:middle}
+.task-table tr:last-child td{border-bottom:none}
+.task-table tr:hover td{background:#EBF8FF}
+.task-table .today-row td{background:#FFF5F5!important}
+.task-table .today-row:hover td{background:#FED7D7!important}
+.task-table .overdue-row td{background:#FFF5F5!important}
+
+.priority-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.p-high{background:#FED7D7;color:#C53030}
+.p-mid{background:#FEEBC8;color:#C05621}
+.p-low{background:#C6F6D5;color:#276221}
+
+.status-badge-sm{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.s-todo{background:#EDF2F7;color:#4A5568}
+.s-doing{background:#FEFCBF;color:#744210}
+.s-done{background:#C6F6D5;color:#276221}
+.s-hold{background:#FED7D7;color:#9B2C2C}
+
+.today-tag{display:inline-block;background:#E53E3E;color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px}
+.overdue-tag{display:inline-block;background:#9B2C2C;color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px}
+
+/* ── Gantt ── */
+.gantt-wrap{overflow-x:auto}
+.gantt-table{width:100%;border-collapse:collapse;min-width:600px}
+.gantt-table th{background:#1F4E79;color:white;padding:6px 10px;font-size:11px;text-align:center}
+.gantt-table td{padding:6px 8px;border-bottom:1px solid #E2E8F0;font-size:12px}
+
+/* ── Process Detail ── */
+.proc-detail-site{margin-bottom:16px;padding:12px;background:#F7FAFC;border-radius:8px}
+.proc-slider-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.proc-slider-label{width:70px;font-size:11px;font-weight:600;color:#4A5568;flex-shrink:0}
+.proc-slider{flex:1;height:6px;accent-color:#2E75B6;cursor:pointer}
+.proc-slider-val{width:38px;text-align:right;font-size:12px;font-weight:700;color:#2E75B6}
+
+/* ── Detail Panel ── */
+#detail-panel{position:fixed;right:-440px;top:0;width:440px;height:100vh;background:white;box-shadow:-4px 0 20px rgba(0,0,0,.15);transition:right .3s ease;z-index:100;overflow-y:auto;padding:20px}
+#detail-panel.open{right:0}
+#detail-panel .close-btn{position:absolute;top:12px;right:12px;background:#EDF2F7;border:none;border-radius:50%;width:28px;height:28px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.detail-row{display:flex;padding:6px 0;border-bottom:1px solid #EDF2F7;font-size:13px}
+.detail-row .dl{color:#718096;font-weight:600;width:80px;flex-shrink:0}
+.detail-task-item{padding:8px 12px;margin-bottom:6px;border-radius:8px;background:#F7FAFC;border-left:3px solid #2E75B6;font-size:13px}
+.detail-task-item.urgent{border-left-color:#E53E3E;background:#FFF5F5}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.show{opacity:1;pointer-events:all}
+.modal{background:white;border-radius:14px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);transform:scale(.95);transition:transform .2s}
+.modal-overlay.show .modal{transform:scale(1)}
+.modal-head{padding:18px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:white;z-index:1}
+.modal-head h2{font-size:16px;color:#1F4E79;font-weight:700}
+.modal-close{background:#EDF2F7;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.modal-body{padding:18px 20px}
+.modal-foot{padding:14px 20px;border-top:1px solid #E2E8F0;display:flex;justify-content:flex-end;gap:10px;position:sticky;bottom:0;background:white}
+
+/* Form elements */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:12px;font-weight:700;color:#4A5568;margin-bottom:5px}
+.form-input,.form-select,.form-textarea{width:100%;padding:8px 12px;border:1.5px solid #CBD5E0;border-radius:8px;font-size:13px;color:#2d3748;background:white;transition:border .15s}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:#2E75B6;box-shadow:0 0 0 3px rgba(46,117,182,.15)}
+.form-textarea{resize:vertical;min-height:70px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+
+/* Proc sliders in modal */
+.proc-modal-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #EDF2F7}
+.proc-modal-label{width:80px;font-size:12px;font-weight:600;color:#4A5568;flex-shrink:0}
+.proc-modal-slider{flex:1;accent-color:#2E75B6;cursor:pointer}
+.proc-modal-val{width:42px;text-align:right;font-size:13px;font-weight:700;color:#2E75B6}
+
+/* Toast notification */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#2d3748;color:white;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:600;z-index:999;transition:transform .3s;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── Bottom Nav (mobile only) ── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #E2E8F0;z-index:90;box-shadow:0 -2px 10px rgba(0,0,0,.1)}
+.bottom-nav-inner{display:flex;justify-content:space-around}
+.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;border:none;background:none;cursor:pointer;font-size:10px;font-weight:600;color:#718096;gap:3px;transition:color .15s;-webkit-tap-highlight-color:transparent}
+.bnav-btn .bnav-icon{font-size:20px;line-height:1}
+.bnav-btn.active{color:#1F4E79}
+.bnav-btn.active .bnav-icon{filter:drop-shadow(0 0 4px rgba(46,117,182,.5))}
+
+/* ── Task Cards (mobile) ── */
+.task-cards-list{display:none}
+.task-card{background:white;border-radius:10px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;border-left:4px solid #CBD5E0}
+.task-card.prio-high{border-left-color:#E53E3E}
+.task-card.prio-mid{border-left-color:#ED8936}
+.task-card.prio-low{border-left-color:#38A169}
+.task-card.is-today{background:#FFF8F8}
+.task-card-head{display:flex;align-items:flex-start;justify-content:space-between;padding:12px 12px 8px;gap:8px}
+.task-card-body{padding:0 12px 10px}
+.task-card-title{font-size:14px;font-weight:600;line-height:1.4;flex:1}
+.task-card-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.task-card-meta{font-size:12px;color:#718096;display:flex;flex-wrap:wrap;gap:8px}
+.task-card-actions{display:flex;gap:6px;padding:8px 12px;border-top:1px solid #F0F0F0;background:#FAFAFA}
+.task-card-status-sel{font-size:13px;padding:5px 8px;border:1.5px solid #CBD5E0;border-radius:8px;flex:1;background:white}
+
+/* ── Mobile menu panel ── */
+.mobile-menu-btn{display:none;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:white;border-radius:8px;padding:7px 10px;font-size:18px;cursor:pointer;line-height:1}
+.mobile-menu-panel{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.5);z-index:95}
+.mobile-menu-panel.show{display:block}
+.mobile-menu-sheet{position:absolute;top:0;right:0;bottom:0;width:260px;background:white;padding:20px 16px;box-shadow:-4px 0 20px rgba(0,0,0,.2)}
+.mobile-menu-sheet h3{font-size:14px;font-weight:700;color:#1F4E79;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #EDF2F7}
+.mobile-menu-sheet .menu-btn{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;margin-bottom:8px;border-radius:10px;border:none;background:#F7FAFC;font-size:14px;font-weight:600;cursor:pointer;text-align:left}
+.mobile-menu-sheet .menu-btn:active{background:#EBF8FF}
+
+/* 日報展開ボタン：デフォルト非表示、スマホのみ表示 */
+.report-expand-btn{display:none}
+
+/* ── Responsive 900px ── */
+@media(max-width:900px){
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .sites-grid{grid-template-columns:1fr 1fr}
+  #detail-panel{width:100%;right:auto;bottom:-95vh;top:auto;height:90vh;border-radius:16px 16px 0 0;transition:bottom .3s ease}
+  #detail-panel.open{bottom:0}
+  .form-row{grid-template-columns:1fr 1fr}
+  .form-row-3{grid-template-columns:1fr 1fr}
+}
+
+/* ── Responsive 640px (スマートフォン) ── */
+@media(max-width:640px){
+  /* Body bottom padding for nav */
+  body{padding-bottom:64px}
+  .main{padding:10px}
+
+  /* Top bar compact */
+  .top-bar{padding:10px 14px;gap:10px}
+  .top-bar h1{font-size:15px}
+  .top-bar .subtitle{display:none}
+  .top-bar-actions .save-indicator,
+  .top-bar-actions .btn-ghost,
+  .top-bar-actions .date-badge{display:none}
+  .mobile-menu-btn{display:block}
+  .pc-tabs{display:none}
+
+  /* KPI 2x2 */
+  .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+  .kpi-card{padding:12px 14px}
+  .kpi-card .val{font-size:24px}
+  .kpi-card .icon{font-size:22px}
+
+  /* Cards */
+  .card{padding:14px;border-radius:10px;margin-bottom:12px}
+  .sites-grid{grid-template-columns:1fr}
+
+  /* Site card actions always visible on touch */
+  .site-card-actions{opacity:1}
+
+  /* Task: hide table, show cards */
+  .task-table-wrap{display:none}
+  .task-cards-list{display:block}
+  .bottom-nav{display:block}
+
+  /* 日報展開ボタン */
+  .report-expand-btn{display:inline-flex;align-items:center;justify-content:center;padding:6px 8px;background:#EBF8FF;border:1px solid #BEE3F8;border-radius:6px;font-size:16px;cursor:pointer;flex-shrink:0;min-width:36px;min-height:36px;}
+
+  /* Filter buttons: horizontal scroll */
+  .task-filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .task-filters::-webkit-scrollbar{display:none}
+  .filter-btn{white-space:nowrap;flex-shrink:0;padding:7px 14px;min-height:36px}
+
+  /* Add buttons */
+  .btn-sm{padding:8px 14px;font-size:13px}
+  .btn-icon{width:36px;height:36px;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
+
+  /* Modal: full-screen bottom sheet */
+  .modal-overlay{padding:0;align-items:flex-end}
+  .modal{border-radius:16px 16px 0 0;max-height:92vh;max-width:100%}
+
+  /* Detail panel: bottom sheet */
+  #detail-panel{width:100%;right:auto;bottom:-95vh;top:auto;height:88vh;border-radius:16px 16px 0 0;transition:bottom .3s ease;padding:16px}
+  #detail-panel.open{bottom:0}
+
+  /* Forms */
+  .form-row,.form-row-3{grid-template-columns:1fr}
+  .form-input,.form-select,.form-textarea{font-size:16px;padding:10px 12px}/* prevent iOS zoom */
+  .form-label{font-size:13px}
+
+  /* Process sliders */
+  .proc-slider{height:20px}/* larger touch target */
+
+  /* Toast above nav */
+  .toast{bottom:76px}
+
+  /* Gantt scrollable hint */
+  .gantt-wrap::before{content:'← 横にスクロールできます';display:block;font-size:11px;color:#718096;margin-bottom:6px}
+}
+
+/* Save indicator */
+.save-indicator{font-size:11px;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:4px}
+.save-indicator.saved::before{content:'✓';color:#68D391}
+.save-indicator.unsaved::before{content:'●';color:#F6AD55;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Checkbox */
+.task-check{width:16px;height:16px;cursor:pointer;accent-color:#38A169}
+
+.task-row-actions{display:flex;gap:3px;opacity:0;transition:opacity .2s}
+.task-table tr:hover .task-row-actions{opacity:1}
+
+/* Import hidden input */
+#json-import-input{display:none}
+
+/* ── 工程表 ── */
+.sch-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.sch-table{border-collapse:collapse;font-size:12px;table-layout:fixed;}
+.sch-site-head{background:#F0F4F8;font-weight:700;color:#4A5568;text-align:left;padding:8px 10px;position:sticky;left:0;z-index:3;border:1px solid #CBD5E0;min-width:130px;width:130px;}
+.sch-day-head{background:#F7FAFC;font-weight:700;color:#4A5568;text-align:center;padding:5px 4px;font-size:11px;min-width:90px;width:90px;border:1px solid #E2E8F0;white-space:nowrap;line-height:1.3;}
+.sch-day-head.sch-today{background:#EBF8FF;color:#2E75B6;}
+.sch-day-head.sch-weekend{color:#A0AEC0;}
+.sch-day-head.sch-sun{color:#E53E3E;}
+.sch-day-head.sch-holiday{color:#E53E3E;}
+.sch-holiday-name{display:block;font-size:9px;color:#E53E3E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:84px;font-weight:600;}
+.sch-site-name{font-size:12px;font-weight:600;color:#2d3748;padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;width:130px;position:sticky;left:0;background:white;border:1px solid #E2E8F0;z-index:1;transition:background .15s,color .15s;}
+.sch-site-name:hover{background:#EBF8FF;color:#2E75B6;}
+.sch-cell{text-align:left;padding:3px 4px;border:1px solid #F0F4F8;min-width:90px;width:90px;vertical-align:top;}
+.sch-cell.sch-today{background:#EBF8FF;}
+.sch-cell.sch-weekend{background:#FAFAFA;}
+.sch-cell.sch-sun{background:#FFF5F5;}
+.sch-cell.sch-holiday{background:#FFF5F5;}
+.sch-entry{display:block;font-size:10px;background:#C6F6D5;color:#276221;border-radius:3px;padding:2px 5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:82px;cursor:default;line-height:1.4;}
+.sch-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.sch-nav-title{flex:1;text-align:center;font-size:15px;font-weight:700;color:#1F4E79;}
+.sch-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:#4A5568;margin-top:10px;padding-top:10px;border-top:1px solid #EDF2F7;}
+.sch-legend-item{display:flex;align-items:center;gap:5px;}
+
+/* ── 日報 ── */
+.report-form-card{background:white;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px}
+.report-date-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.report-date-row input[type=date]{padding:8px 12px;border:1.5px solid #CBD5E0;border-radius:8px;font-size:14px;font-family:inherit}
+.report-weekday{font-size:14px;font-weight:700;color:#1F4E79}
+.report-entry{display:grid;grid-template-columns:1fr 2fr 80px 1fr 36px;gap:6px;align-items:center;margin-bottom:6px}
+.report-entry input,.report-entry select{padding:7px 10px;border:1.5px solid #CBD5E0;border-radius:8px;font-size:13px;font-family:inherit;width:100%}
+.report-entry input:focus,.report-entry select:focus{border-color:#2E75B6;outline:none}
+.report-entry .remove-btn{background:#FED7D7;border:none;border-radius:6px;color:#C53030;font-size:16px;cursor:pointer;padding:4px 8px;line-height:1}
+.report-entry .remove-btn:hover{background:#FC8181}
+.report-entry-header{display:grid;grid-template-columns:1fr 2fr 80px 1fr 36px;gap:6px;margin-bottom:4px}
+.report-entry-header span{font-size:11px;font-weight:700;color:#718096;padding:0 2px}
+.report-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.report-list-item{border:1px solid #E2E8F0;border-radius:8px;padding:14px;margin-bottom:10px;background:#FAFAFA}
+.report-list-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.report-list-date{font-size:15px;font-weight:700;color:#1F4E79}
+.report-list-table{width:100%;border-collapse:collapse;font-size:13px}
+.report-list-table th{background:#EBF8FF;padding:5px 8px;text-align:left;font-weight:600;color:#2E75B6;border-bottom:2px solid #BEE3F8}
+.report-list-table td{padding:5px 8px;border-bottom:1px solid #EDF2F7;vertical-align:top}
+.report-list-table tr:last-child td{border-bottom:none}
+/* 現場カード内日報 */
+.site-report-section{margin-top:14px;padding-top:12px;border-top:1px dashed #E2E8F0}
+.site-report-entry{font-size:12px;padding:6px 0;border-bottom:1px solid #EDF2F7;display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;align-items:start}
+.site-report-entry:last-child{border-bottom:none}
+@media(max-width:640px){
+  .report-entry{grid-template-columns:1fr 1fr;gap:6px}
+  .report-entry-header{display:none}
+  .report-entry .remove-btn{grid-column:2;justify-self:end;margin-top:-30px}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">🏗️</div>
+    <div class="login-title">建築現場 進捗管理</div>
+    <div class="login-sub">ログインIDとパスワードを入力してください</div>
+    <input class="login-input" id="loginIdInput" type="text" autocomplete="username" placeholder="ログインID">
+    <input class="login-input" id="loginInput" type="password" placeholder="••••••••"
+      autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">ログイン</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-hint">※ パスワードを忘れた場合は管理者にお問い合わせください</div>
+  </div>
+</div>
+
+<!-- ===== CLOUD LOAD SCREEN ===== -->
+<div id="cloudLoadScreen" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#002060 0%,#1F4E79 60%,#2E75B6 100%);z-index:9998;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.35);text-align:center;">
+    <div style="font-size:48px;margin-bottom:12px;" id="cloudLoadIcon">☁️</div>
+    <div style="font-size:18px;font-weight:700;color:#1F4E79;margin-bottom:8px;" id="cloudLoadTitle">クラウド読込中...</div>
+    <div style="font-size:13px;color:#718096;margin-bottom:20px;" id="cloudLoadMsg">最新データを取得しています。しばらくお待ちください。</div>
+    <div id="cloudLoadSpinner" style="margin:0 auto 16px;width:36px;height:36px;border:4px solid #BEE3F8;border-top-color:#2E75B6;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+    <div id="cloudLoadErrorBox" style="display:none;">
+      <div style="background:#FFF5F5;border:1.5px solid #FC8181;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:#C53030;text-align:left;" id="cloudLoadErrorMsg"></div>
+      <button onclick="retryStartupCloudLoad()" style="width:100%;padding:12px;background:#2E75B6;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">🔄 再試行</button>
+      <button onclick="skipStartupCloudLoad()" style="width:100%;padding:10px;background:white;color:#718096;border:1.5px solid #CBD5E0;border-radius:8px;font-size:13px;cursor:pointer;">スキップ（ローカルデータで続ける）</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TOP BAR ===== -->
+<div class="top-bar">
+  <div style="font-size:22px;">🏗️</div>
+  <div>
+    <h1>建築現場 進捗管理</h1>
+    <div class="subtitle">複数現場の進捗をリアルタイムで把握・編集</div>
+  </div>
+  <div class="top-bar-actions">
+    <div class="save-indicator" id="saveIndicator">保存済み</div>
+    <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="データをJSONファイルとして保存">💾 データ保存</button>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('json-import-input').click()" title="JSONファイルを読み込む">📂 データ読込</button>
+    <input type="file" id="json-import-input" accept=".json" onchange="importJSON(event)">
+    <button class="btn btn-ghost btn-sm" id="cloudSaveBtn" onclick="uploadToCloud()" title="クラウドに保存（PC↔スマホ同期）">☁️ クラウド保存</button>
+    <button class="btn btn-ghost btn-sm" id="cloudLoadBtn" onclick="downloadFromCloud()" title="クラウドから最新データを読み込む">🔄 クラウド読込</button>
+    <button class="btn btn-ghost btn-sm" onclick="openCloudSettings()" title="クラウド同期の設定（GitHub Gist切替など）">⚙️ クラウド設定</button>
+    <span id="autoBackupLabel" style="font-size:10px;color:#718096;white-space:nowrap;"></span>
+    <div class="date-badge" id="currentDate"></div>
+    <!-- Mobile menu button -->
+    <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="ログアウト" style="font-size:12px;">🔒 ログアウト</button>
+    <button class="mobile-menu-btn" onclick="openMobileMenu()">☰</button>
+  </div>
+</div>
+
+<!-- ===== MOBILE MENU ===== -->
+<div class="mobile-menu-panel" id="mobileMenuPanel" onclick="closeMobileMenu()">
+  <div class="mobile-menu-sheet" onclick="event.stopPropagation()">
+    <h3>⚙️ メニュー</h3>
+    <div class="save-indicator" id="saveIndicatorMobile" style="margin-bottom:14px;color:#4A5568;font-size:12px;">保存済み</div>
+    <button class="menu-btn" id="cloudSaveBtnM" onclick="uploadToCloud()" style="background:#EBF8FF;color:#1F4E79;font-weight:700;">☁️ クラウド保存</button>
+    <button class="menu-btn" id="cloudLoadBtnM" onclick="downloadFromCloud()" style="background:#EBF8FF;color:#1F4E79;">🔄 クラウド読込</button>
+    <button class="menu-btn" onclick="openCloudSettings();closeMobileMenu()" style="background:#F0FFF4;color:#276221;">⚙️ クラウド設定</button>
+    <div id="autoBackupLabelM" style="font-size:11px;color:#718096;text-align:center;padding:2px 0;"></div>
+    <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
+    <button class="menu-btn" onclick="exportJSON();closeMobileMenu()">💾 データ保存（JSON）</button>
+    <button class="menu-btn" onclick="document.getElementById('json-import-input').click();closeMobileMenu()">📂 データ読込（JSON）</button>
+
+    <button class="menu-btn" onclick="switchTab('report');closeMobileMenu()">📋 日報入力</button>
+    <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
+    <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
+    <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
+    <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- KPI (always visible) -->
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="icon">🏗️</div><div><div class="val" id="kpi-sites">0</div><div class="lbl">管理現場数</div></div></div>
+  </div>
+
+  <!-- PC タブナビ -->
+  <div class="pc-tabs" id="pc-tabs">
+    <button class="pc-tab-btn active" id="pctab-sites" onclick="switchTab('sites')">🏢 現場一覧</button>
+    <button class="pc-tab-btn" id="pctab-report" onclick="switchTab('report')">📋 日報</button>
+    <button class="pc-tab-btn" id="pctab-schedule" onclick="switchTab('schedule')">📅 工程</button>
+  </div>
+
+  <!-- ===== PAGE: 現場 ===== -->
+  <div class="section-page mob-active" id="page-sites">
+    <div class="card">
+      <div class="sites-header">
+        <div class="section-head" style="margin-bottom:0;border:none;">🏢 現場一覧</div>
+        <button class="btn btn-green btn-sm" onclick="openSiteModal()">＋ 現場追加</button>
+      </div>
+      <div class="sites-grid" id="sitesGrid"></div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: 日報 ===== -->
+  <div class="section-page" id="page-report">
+    <!-- 日報入力フォーム -->
+    <div class="report-form-card">
+      <div class="section-head">📋 日報入力</div>
+      <input type="hidden" id="report-editing-id" value="">
+      <div class="report-date-row">
+        <label style="font-size:13px;font-weight:600;color:#4A5568;">日付</label>
+        <input type="date" id="report-date-input" onchange="updateReportWeekday()">
+        <span class="report-weekday" id="report-weekday-label"></span>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:13px;font-weight:600;color:#4A5568;display:block;margin-bottom:4px;">現場名</label>
+        <select class="form-select" id="report-site-select" style="max-width:320px;" onfocus="this.innerHTML=buildSiteOptions(this.value)"></select>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;" id="report-rows-table">
+          <thead>
+            <tr style="background:#EBF8FF;">
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:#2E75B6;border-bottom:2px solid #BEE3F8;white-space:nowrap;">#</th>
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:#2E75B6;border-bottom:2px solid #BEE3F8;">作業内容</th>
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:#2E75B6;border-bottom:2px solid #BEE3F8;white-space:nowrap;">作業者氏名</th>
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:#2E75B6;border-bottom:2px solid #BEE3F8;white-space:nowrap;">作業時間(h)</th>
+            </tr>
+          </thead>
+          <tbody id="report-entries-container"></tbody>
+        </table>
+      </div>
+      <div class="report-actions" style="margin-top:14px;">
+        <button class="btn btn-green btn-sm" onclick="saveReport()">☁️ 保存してクラウド同期</button>
+        <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#718096;" onclick="cancelEditReport()">✕ キャンセル</button>
+      </div>
+    </div>
+    <!-- 過去の日報一覧 -->
+    <div class="report-form-card">
+      <div class="section-head" style="margin-bottom:12px;">📂 過去の日報</div>
+      <div id="report-list-container"></div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE: 工程 ===== -->
+  <div class="section-page" id="page-schedule">
+    <div class="card">
+      <div class="sch-nav">
+        <button class="btn btn-ghost" style="background:#EDF2F7;color:#2D3748;border:none;" onclick="scheduleNav(-1)">◀ 前</button>
+        <div class="sch-nav-title" id="schedule-title">—</div>
+        <button class="btn btn-ghost" style="background:#EDF2F7;color:#2D3748;border:none;" onclick="scheduleNav(1)">次 ▶</button>
+        <button class="btn btn-sm" style="background:#BEE3F8;color:#1F4E79;border:none;margin-left:4px;" onclick="scheduleToday()">今日</button>
+      </div>
+      <div id="sch-scroll-top" style="overflow-x:auto;overflow-y:hidden;height:14px;margin-bottom:2px;">
+        <div id="sch-scroll-top-inner" style="height:1px;"></div>
+      </div>
+      <div class="sch-wrap" id="sch-wrap">
+        <table class="sch-table" id="schedule-table"></table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== BOTTOM NAV ===== -->
+<nav class="bottom-nav" id="bottomNav">
+  <div class="bottom-nav-inner">
+    <button class="bnav-btn active" id="bnav-sites" onclick="switchTab('sites')">
+      <span class="bnav-icon">🏢</span>現場
+    </button>
+    <button class="bnav-btn" id="bnav-report" onclick="switchTab('report')">
+      <span class="bnav-icon">📋</span>日報
+    </button>
+    <button class="bnav-btn" id="bnav-schedule" onclick="switchTab('schedule')">
+      <span class="bnav-icon">📅</span>工程
+    </button>
+  </div>
+</nav>
+
+<!-- ===== DETAIL PANEL ===== -->
+<div id="detail-panel">
+  <button class="close-btn" onclick="closeDetail()">✕</button>
+  <div id="detail-content"></div>
+</div>
+
+<!-- ===== 工程表 作業内容ポップアップ ===== -->
+<div id="schPopup" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;padding:24px;">
+  <div style="background:white;border-radius:12px;padding:18px 20px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);" onclick="event.stopPropagation()">
+    <div style="font-size:12px;font-weight:700;color:#2E75B6;margin-bottom:8px;">作業内容</div>
+    <div id="schPopupText" style="font-size:14px;color:#2d3748;line-height:1.7;word-break:break-all;"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button onclick="document.getElementById('schPopup').style.display='none'" style="flex:1;padding:9px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">閉じる</button>
+      <button id="schPopupEditBtn" onclick="schPopupEdit()" style="flex:2;padding:9px;background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✏️ 日報を編集</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== クラウド設定モーダル ===== -->
+<div id="cloudSettingsModal" onclick="closeCloudSettings()" style="display:none;position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:14px;padding:22px 20px;max-width:400px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.25);" onclick="event.stopPropagation()">
+    <div style="font-size:16px;font-weight:700;color:#1F4E79;margin-bottom:4px;">⚙️ クラウド設定</div>
+    <div id="dataSizeInfo" style="font-size:12px;color:#718096;margin-bottom:14px;"></div>
+
+
+
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px;font-weight:600;color:#4A5568;display:block;margin-bottom:4px;">GitHub Personal Access Token</label>
+      <input id="gistTokenInput" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="width:100%;padding:9px 12px;border:1px solid #CBD5E0;border-radius:8px;font-size:13px;outline:none;">
+      <div style="font-size:11px;color:#718096;margin-top:3px;">※ <a href="https://github.com/settings/tokens" target="_blank" style="color:#2E75B6;">github.com/settings/tokens</a> で「gist」スコープで作成</div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:12px;font-weight:600;color:#4A5568;display:block;margin-bottom:4px;">Gist ID（空欄の場合は初回保存時に自動作成）</label>
+      <input id="gistIdInput" type="text" placeholder="例: a1b2c3d4e5f6..." style="width:100%;padding:9px 12px;border:1px solid #CBD5E0;border-radius:8px;font-size:13px;outline:none;">
+    </div>
+
+    <div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:#276221;line-height:1.6;">
+      <strong>現在の同期方法:</strong><br>
+      <span id="currentSyncMethod"></span>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="closeCloudSettings()" style="flex:1;min-width:80px;padding:10px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">キャンセル</button>
+      <button onclick="testGistConnection()" style="flex:1;min-width:80px;padding:10px;background:#FEFCBF;color:#744210;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔍 接続テスト</button>
+      <button onclick="saveCloudSettings()" style="flex:2;min-width:100px;padding:10px;background:linear-gradient(135deg,#1F4E79,#2E75B6);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 工程表 新規日報作成ポップアップ ===== -->
+<div id="schNewPopup" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;padding:24px;">
+  <div style="background:white;border-radius:12px;padding:18px 20px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2);" onclick="event.stopPropagation()">
+    <div style="font-size:12px;font-weight:700;color:#2E75B6;margin-bottom:6px;">📋 日報を作成</div>
+    <div id="schNewPopupInfo" style="font-size:14px;color:#2d3748;line-height:1.7;margin-bottom:14px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="document.getElementById('schNewPopup').style.display='none'" style="flex:1;padding:9px;background:#EDF2F7;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">閉じる</button>
+      <button onclick="schNewPopupCreate()" style="flex:2;padding:9px;background:linear-gradient(135deg,#38A169,#2F855A);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">＋ 日報を新規作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 日報入力展開モーダル ===== -->
+<div id="reportExpandModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:3000;align-items:flex-end;justify-content:center;">
+  <div style="background:white;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:640px;box-shadow:0 -4px 20px rgba(0,0,0,.2);">
+    <div style="font-size:14px;font-weight:700;color:#1F4E79;margin-bottom:10px;" id="reportExpandLabel">作業内容</div>
+    <textarea id="reportExpandTextarea" style="width:100%;height:140px;padding:10px 12px;font-size:16px;border:2px solid #BEE3F8;border-radius:10px;outline:none;resize:none;font-family:inherit;line-height:1.6;" placeholder="入力してください"></textarea>
+    <div style="display:flex;gap:10px;margin-top:12px;">
+      <button class="btn btn-white" style="flex:1;border:1.5px solid #CBD5E0;color:#4A5568;padding:11px;" onclick="closeReportExpand(false)">キャンセル</button>
+      <button class="btn btn-green" style="flex:2;padding:11px;font-size:15px;" onclick="closeReportExpand(true)">✅ 確定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SITE MODAL ===== -->
+<div class="modal-overlay" id="siteModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="siteModalTitle">現場追加</h2>
+      <button class="modal-close" onclick="closeSiteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="siteEditId">
+      <div class="form-group">
+        <label class="form-label">ステータス</label>
+        <select class="form-select" id="s-status">
+          <option>計画見積</option><option>準備中</option><option>工事中</option><option>完了請求</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">現場名 *</label>
+        <input class="form-input" id="s-name" placeholder="例: ○○邸改修工事">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">所在地</label>
+          <input class="form-input" id="s-addr" placeholder="例: 明石市">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">担当者</label>
+          <select class="form-select" id="s-mgr">
+            <option value="">選択してください</option>
+            <option value="山川">山川</option>
+            <option value="社長">社長</option>
+            <option value="会長">会長</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">請負形態</label>
+          <select class="form-select" id="s-contract">
+            <option value="">選択してください</option>
+            <option value="元請">元請</option>
+            <option value="下請">下請</option>
+          </select>
+        </div>
+        <div class="form-group"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">着工日</label>
+          <input class="form-input" id="s-start" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">竣工予定日</label>
+          <input class="form-input" id="s-end" type="date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">現況メモ</label>
+        <input class="form-input" id="s-note" placeholder="例: 内装工事中">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-white" style="color:#4A5568;border:1.5px solid #CBD5E0;" onclick="closeSiteModal()">キャンセル</button>
+      <button class="btn btn-green" onclick="saveSite()">☁️ 保存してクラウド同期</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DELETE CONFIRM MODAL ===== -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-head"><h2 id="confirmTitle">削除の確認</h2><button class="modal-close" onclick="closeConfirm()">✕</button></div>
+    <div class="modal-body"><p id="confirmMsg" style="font-size:14px;color:#4A5568;line-height:1.6;"></p></div>
+    <div class="modal-foot">
+      <button class="btn btn-white" style="color:#4A5568;border:1.5px solid #CBD5E0;" onclick="closeConfirm()">キャンセル</button>
+      <button class="btn btn-red" id="confirmOkBtn">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TOAST ===== -->
+<div class="toast" id="toast"></div>
+
+<script src="pilot-api.js"></script>
+<script>
+// =========================================================
+// 試験版: サーバー認証
+// =========================================================
+const PILOT_API_BASE = 'https://kanri-api.kagunyan.com/public/api/index.php';
+const PILOT = new KanriPilotApi(PILOT_API_BASE);
+let CURRENT_USER = null;
+
+// =========================================================
+// クラウド同期設定（GitHub Gistのみ）
+// =========================================================
+// GitHub Gist設定
+function getGistSettings(){
+  return {
+    token: localStorage.getItem('gist_token') || '',
+    gistId: localStorage.getItem('gist_id') || ''
+  };
+}
+
+function getDataSizeKB(){
+  const payload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId};
+  return Math.round(JSON.stringify(payload).length / 1024);
+}
+
+// クラウド設定ダイアログを開く
+function openCloudSettings(){
+  const g = getGistSettings();
+  document.getElementById('gistTokenInput').value = g.token;
+  document.getElementById('gistIdInput').value = g.gistId;
+  const kb = getDataSizeKB();
+  document.getElementById('dataSizeInfo').textContent = `現在のデータサイズ: 約${kb} KB`;
+  const methodEl = document.getElementById('currentSyncMethod');
+  if (methodEl) {
+    if (g.token) {
+      methodEl.textContent = '✅ GitHub Gist（' + (g.gistId ? 'Gist ID: ' + g.gistId.slice(0,8) + '...' : '初回保存時に自動作成') + '）';
+    } else {
+      methodEl.textContent = '⚠️ GitHub Gistが未設定です。トークンを設定してください。';
+    }
+  }
+  document.getElementById('cloudSettingsModal').style.display='flex';
+}
+function closeCloudSettings(){
+  document.getElementById('cloudSettingsModal').style.display='none';
+}
+function saveCloudSettings(){
+  const token = document.getElementById('gistTokenInput').value.trim();
+  const gistId = document.getElementById('gistIdInput').value.trim();
+  localStorage.setItem('gist_token', token);
+  localStorage.setItem('gist_id', gistId);
+  closeCloudSettings();
+  showToast('⚙️ クラウド設定を保存しました', 2000);
+}
+
+// GitHub Gist アップロード
+async function uploadToGist(payload, token, gistId){
+  const body = {
+    description: '現場進捗データ',
+    public: false,
+    files: { 'kenba_data.json': { content: JSON.stringify(payload) } }
+  };
+  const method = gistId ? 'PATCH' : 'POST';
+  const url = gistId ? `https://api.github.com/gists/${gistId}` : 'https://api.github.com/gists';
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const errBody = await res.text().catch(()=>'');
+    let hint = '';
+    if (res.status === 401) hint = '\n\n→ トークンが無効です。再発行してください。';
+    if (res.status === 403) hint = '\n\n→ トークンに「gist」スコープがありません。\n  再発行時に「gist」にチェックを入れてください。';
+    if (res.status === 422) hint = '\n\n→ データ形式が正しくありません。';
+    alert('❌ Gist保存失敗: HTTP ' + res.status + hint + '\n\n' + errBody.slice(0, 200));
+    throw new Error('Gist保存失敗: HTTP ' + res.status);
+  }
+  const json = await res.json();
+  if (!gistId) {
+    localStorage.setItem('gist_id', json.id);
+    alert('✅ GitHub Gistを新規作成しました！\n\nGist ID:\n' + json.id + '\n\n※このIDを他の2名に共有してください。\n　クラウド設定にも自動保存されました。');
+  }
+}
+
+// GitHub Gist ダウンロード
+async function downloadFromGist(token, gistId){
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
+  });
+  if (!res.ok) {
+    const errBody = await res.text().catch(()=>'');
+    let hint = '';
+    if (res.status === 401) hint = '\n\n→ トークンが無効です。';
+    if (res.status === 404) hint = '\n\n→ Gist IDが正しくありません。';
+    throw new Error('Gist読込失敗: HTTP ' + res.status + hint);
+  }
+  const json = await res.json();
+  const content = json.files['kenba_data.json']?.content;
+  if (!content) throw new Error('kenba_data.jsonが見つかりません');
+  return JSON.parse(content);
+}
+
+// Gist接続テスト
+async function testGistConnection(){
+  const token = document.getElementById('gistTokenInput').value.trim();
+  if (!token) { alert('トークンを入力してください'); return; }
+  try {
+    showToast('🔍 接続テスト中...');
+    const res = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+    const json = await res.json();
+    if (res.ok) {
+      alert('✅ 接続成功！\n\nGitHubユーザー: ' + json.login + '\n\nトークンは正常です。\n「保存」してクラウド保存を実行してください。');
+    } else {
+      alert('❌ 接続失敗: HTTP ' + res.status + '\n\n→ トークンが無効です。再発行してください。');
+    }
+  } catch(e) {
+    alert('❌ 接続エラー\n\n' + e.message);
+  }
+}
+
+async function uploadToCloud(silent=false) {
+  const btn = document.getElementById('cloudSaveBtn');
+  const btnM = document.getElementById('cloudSaveBtnM');
+  try {
+    [btn,btnM].forEach(b=>{if(b){b.disabled=true;b.textContent='☁️ 保存中...';}});
+    if(!silent) showToast('☁️ クラウドに保存中...');
+    const payload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId};
+    const g = getGistSettings();
+    if (!g.token) {
+      throw new Error('GitHub Gistのトークンが未設定です。⚙️ クラウド設定で設定してください。');
+    }
+
+    // ── マージ処理: 保存前にクラウドの最新データを取得して合成 ──
+    if (g.gistId) {
+      try {
+        const cloudData = await downloadFromGist(g.token, g.gistId);
+
+          // 削除済みリストをローカル・クラウド双方でマージ
+          const cloudDeletedSites = cloudData.deletedSites || [];
+          const cloudDeletedReports = cloudData.deletedReports || [];
+          DELETED_SITE_IDS = Array.from(new Set([...DELETED_SITE_IDS, ...cloudDeletedSites]));
+          DELETED_REPORT_IDS = Array.from(new Set([...DELETED_REPORT_IDS, ...cloudDeletedReports]));
+
+          // クラウドにあってローカルにない（かつ削除済みでない）データだけを追加
+          const localSiteIds = new Set(SITES.map(s => s.id));
+          const cloudOnlySites = (cloudData.sites || [])
+            .filter(s => !localSiteIds.has(s.id) && !DELETED_SITE_IDS.includes(s.id));
+          const localReportIds = new Set(REPORTS.map(r => r.id));
+          const cloudOnlyReports = (cloudData.reports || [])
+            .filter(r => !localReportIds.has(r.id) && !DELETED_REPORT_IDS.includes(r.id));
+
+          // ローカルにまだ残っている削除済みIDのデータを除去（他端末での削除を反映）
+          SITES = SITES.filter(s => !DELETED_SITE_IDS.includes(s.id));
+          REPORTS = REPORTS.filter(r => !DELETED_REPORT_IDS.includes(r.id));
+
+          if (cloudOnlySites.length > 0 || cloudOnlyReports.length > 0) {
+            SITES = [...SITES, ...cloudOnlySites];
+            REPORTS = [...REPORTS, ...cloudOnlyReports];
+            REPORTS.sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
+          }
+          nextReportId = Math.max(nextReportId, cloudData.nextReportId || 1);
+          nextTaskId   = Math.max(nextTaskId,   cloudData.nextTaskId   || 100);
+        saveState(); renderAll(); renderReportList();
+      } catch(mergeErr) {
+        // マージ取得失敗時はそのままローカルデータで上書き保存
+        console.warn('マージ取得失敗、上書き保存します:', mergeErr.message);
+      }
+    }
+    // マージ後のデータでアップロード
+    const mergedPayload = {sites:SITES, tasks:TASKS, reports:REPORTS, nextTaskId, nextReportId, deletedSites:DELETED_SITE_IDS, deletedReports:DELETED_REPORT_IDS};
+    await uploadToGist(mergedPayload, g.token, g.gistId);
+
+    const now = new Date();
+    const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    if(silent){
+      showToast(`☁️ 自動バックアップ完了（${hhmm}）`, 2000);
+    } else {
+      showToast('☁️ クラウド保存完了！PC↔スマホ同期されました', 3000);
+    }
+    updateAutoBackupLabel(hhmm);
+  } catch(e) {
+    if(!silent) showToast('❌ クラウド保存失敗: ' + e.message, 3500);
+    else console.error('自動バックアップ失敗:', e.message);
+  } finally {
+    [btn,btnM].forEach(b=>{if(b){b.disabled=false;b.textContent='☁️ クラウド保存';}});
+  }
+}
+
+function updateAutoBackupLabel(hhmm){
+  ['autoBackupLabel','autoBackupLabelM'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.textContent='最終自動保存: '+hhmm;
+  });
+}
+
+// 自動バックアップ: 30分ごとにクラウド保存
+const AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000;
+function startAutoBackup(){
+  setInterval(async ()=>{
+    if(SITES.length > 0 || TASKS.length > 0){
+      await uploadToCloud(true);
+    }
+  }, AUTO_BACKUP_INTERVAL_MS);
+}
+
+// ── 起動時クラウド強制読込 ──────────────────────────────
+async function startupCloudLoad() {
+  const g = getGistSettings();
+  if (!g.token || !g.gistId) return; // Gist未設定ならスキップ
+
+  const screen = document.getElementById('cloudLoadScreen');
+  screen.style.display = 'flex';
+  document.getElementById('cloudLoadIcon').textContent = '☁️';
+  document.getElementById('cloudLoadTitle').textContent = 'クラウド読込中...';
+  document.getElementById('cloudLoadMsg').textContent = '最新データを取得しています。しばらくお待ちください。';
+  document.getElementById('cloudLoadSpinner').style.display = 'block';
+  document.getElementById('cloudLoadErrorBox').style.display = 'none';
+  await performStartupCloudLoad();
+}
+
+async function performStartupCloudLoad() {
+  const g = getGistSettings();
+  try {
+    const d = await downloadFromGist(g.token, g.gistId);
+    // ID移行処理
+    const idMigrationMap = {};
+    (d.sites || []).forEach(s => {
+      if(s.id && !s.id.startsWith('_') && !s.id.startsWith('A')) {
+        idMigrationMap[s.id] = '_legacy_' + s.id;
+      }
+    });
+    SITES = (d.sites || []).map(s => idMigrationMap[s.id] ? {...s, id: idMigrationMap[s.id]} : s);
+    TASKS = d.tasks || [];
+    REPORTS = (d.reports || []).map(r => {
+      const newSiteId = idMigrationMap[r.siteId] || r.siteId;
+      const newEntries = (r.entries || []).map(e => {
+        const ns = idMigrationMap[e.siteId] || e.siteId;
+        return ns !== e.siteId ? {...e, siteId: ns} : e;
+      });
+      return {...r, siteId: newSiteId, entries: newEntries};
+    });
+    nextTaskId = d.nextTaskId || 100;
+    nextReportId = d.nextReportId || 1;
+
+    // 削除済みリストをローカルとクラウドでマージし、削除済みのものを除外
+    const cloudDeletedSites = d.deletedSites || [];
+    const cloudDeletedReports = d.deletedReports || [];
+    DELETED_SITE_IDS = Array.from(new Set([...DELETED_SITE_IDS, ...cloudDeletedSites]));
+    DELETED_REPORT_IDS = Array.from(new Set([...DELETED_REPORT_IDS, ...cloudDeletedReports]));
+    SITES = SITES.filter(s => !DELETED_SITE_IDS.includes(s.id));
+    REPORTS = REPORTS.filter(r => !DELETED_REPORT_IDS.includes(r.id));
+
+    saveState(); renderAll(); renderReportList();
+
+    // 成功 → 画面を閉じる
+    const screen = document.getElementById('cloudLoadScreen');
+    document.getElementById('cloudLoadIcon').textContent = '✅';
+    document.getElementById('cloudLoadTitle').textContent = '読込完了';
+    document.getElementById('cloudLoadMsg').textContent = `現場 ${SITES.length}件を読み込みました`;
+    document.getElementById('cloudLoadSpinner').style.display = 'none';
+    setTimeout(() => { screen.style.display = 'none'; }, 1200);
+  } catch(e) {
+    document.getElementById('cloudLoadSpinner').style.display = 'none';
+    document.getElementById('cloudLoadIcon').textContent = '❌';
+    document.getElementById('cloudLoadTitle').textContent = '読込に失敗しました';
+    document.getElementById('cloudLoadMsg').textContent = '';
+    document.getElementById('cloudLoadErrorMsg').textContent = e.message;
+    document.getElementById('cloudLoadErrorBox').style.display = 'block';
+  }
+}
+
+function retryStartupCloudLoad() {
+  document.getElementById('cloudLoadIcon').textContent = '☁️';
+  document.getElementById('cloudLoadTitle').textContent = 'クラウド読込中...';
+  document.getElementById('cloudLoadMsg').textContent = '最新データを取得しています。しばらくお待ちください。';
+  document.getElementById('cloudLoadSpinner').style.display = 'block';
+  document.getElementById('cloudLoadErrorBox').style.display = 'none';
+  performStartupCloudLoad();
+}
+
+function skipStartupCloudLoad() {
+  if (confirm('スキップすると、他の端末の最新データが反映されない場合があります。\nローカルデータで続けますか？')) {
+    document.getElementById('cloudLoadScreen').style.display = 'none';
+  }
+}
+// ────────────────────────────────────────────────────────
+
+async function downloadFromCloud() {
+  if (!confirm('クラウドからデータを読み込みます。\n現在の端末のデータは上書きされます。\nよろしいですか？')) return;
+  const btn = document.getElementById('cloudLoadBtn');
+  const btnM = document.getElementById('cloudLoadBtnM');
+  try {
+    [btn,btnM].forEach(b=>{if(b){b.disabled=true;b.textContent='🔄 読込中...';}});
+    showToast('🔄 クラウドから読み込み中...');
+
+    let d;
+    const g = getGistSettings();
+
+    if (!g.token || !g.gistId) {
+      throw new Error('GitHub Gistが未設定です。⚙️ クラウド設定を確認してください。');
+    }
+    d = await downloadFromGist(g.token, g.gistId);
+
+    // 旧形式ID（S-001など）を新形式に移行するマップを作成
+    const idMigrationMap = {};
+    (d.sites || []).forEach(s => {
+      if(s.id && !s.id.startsWith('_') && !s.id.startsWith('A')) {
+        idMigrationMap[s.id] = '_legacy_' + s.id;
+      }
+    });
+    SITES = (d.sites || []).map(s => {
+      if(idMigrationMap[s.id]) return {...s, id: idMigrationMap[s.id]};
+      return s;
+    });
+    TASKS = d.tasks || [];
+    REPORTS = (d.reports || []).map(r => {
+      const newSiteId = idMigrationMap[r.siteId] || r.siteId;
+      const newEntries = (r.entries || []).map(e => {
+        const newEsiteId = idMigrationMap[e.siteId] || e.siteId;
+        return newEsiteId !== e.siteId ? {...e, siteId: newEsiteId} : e;
+      });
+      return (newSiteId !== r.siteId || newEntries !== r.entries)
+        ? {...r, siteId: newSiteId, entries: newEntries}
+        : r;
+    });
+    nextTaskId = d.nextTaskId || 100;
+    nextReportId = d.nextReportId || 1;
+
+    // 削除済みリストをマージし、復活してしまった削除済みデータを除去
+    const cloudDeletedSites = d.deletedSites || [];
+    const cloudDeletedReports = d.deletedReports || [];
+    DELETED_SITE_IDS = Array.from(new Set([...DELETED_SITE_IDS, ...cloudDeletedSites]));
+    DELETED_REPORT_IDS = Array.from(new Set([...DELETED_REPORT_IDS, ...cloudDeletedReports]));
+    SITES = SITES.filter(s => !DELETED_SITE_IDS.includes(s.id));
+    REPORTS = REPORTS.filter(r => !DELETED_REPORT_IDS.includes(r.id));
+
+    saveState();
+    renderAll();
+    renderReportList();
+    showToast('🔄 クラウド読込完了！現場' + SITES.length + '件', 3000);
+  } catch(e) {
+    alert('❌ クラウド読込失敗\n\n' + e.message);
+  } finally {
+    [btn,btnM].forEach(b=>{if(b){b.disabled=false;b.textContent='🔄 クラウド読込';}});
+  }
+}
+
+async function doLogin() {
+  const id = document.getElementById('loginIdInput').value.trim();
+  const pw = document.getElementById('loginInput').value;
+  if (!id || !pw) { document.getElementById('loginError').textContent = 'ログインIDとパスワードを入力してください'; return; }
+  try {
+    CURRENT_USER = await PILOT.login(id, pw);
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('loginError').textContent = '';
+    await loadServerState();
+    renderAll(); renderReportList();
+  } catch (e) {
+    document.getElementById('loginError').textContent = '❌ ' + e.message;
+    document.getElementById('loginInput').value = '';
+    document.getElementById('loginInput').focus();
+  }
+}
+
+async function doLogout() {
+  if (!confirm('ログアウトしますか？')) return;
+  await PILOT.logout();
+  location.reload();
+}
+
+async function checkAuth() {
+  if (PILOT.isLoggedIn) {
+    try {
+      const me = await PILOT.me();
+      CURRENT_USER = me.user;
+    document.getElementById('loginScreen').style.display = 'none';
+      return true;
+    } catch (e) {
+      localStorage.removeItem('kanri_pilot_access_token');
+    }
+  }
+  document.getElementById('loginIdInput').focus();
+  return false;
+}
+
+// =========================================================
+// CONSTANTS & DATA
+// =========================================================
+const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+const THIS_WEEK_END = (() => { const d = new Date(TODAY); d.setDate(d.getDate() + (6 - d.getDay())); return d; })();
+
+const PROCESSES = [
+  {key:'仮設',label:'仮設工事'},{key:'土工',label:'土工事'},{key:'基礎',label:'基礎工事'},
+  {key:'躯体',label:'躯体工事'},{key:'屋根',label:'屋根工事'},{key:'外装',label:'外装工事'},
+  {key:'内装',label:'内装工事'},{key:'設備',label:'設備工事'},{key:'外構',label:'外構工事'},
+];
+
+// Default data
+const DEFAULT_SITES = [
+  {id:'_demo1',name:'桜ヶ丘マンション新築工事',addr:'東京都世田谷区',mgr:'田中 健司',start:'2025-10-01',end:'2026-09-30',progress:42,status:'工事中',note:'躯体4F施工中',
+   procs:[100,100,100,55,0,0,0,10,0]},
+  {id:'_demo2',name:'青葉台戸建住宅',addr:'神奈川県横浜市',mgr:'佐藤 美咲',start:'2026-01-15',end:'2026-08-31',progress:65,status:'工事中',note:'内装工事中',
+   procs:[100,100,100,100,100,80,50,60,0]},
+  {id:'_demo3',name:'港区オフィスビル改修',addr:'東京都港区',mgr:'鈴木 大輔',start:'2025-11-01',end:'2026-06-30',progress:78,status:'工事中',note:'仕上げ工事最終段階',
+   procs:[100,100,100,100,100,100,90,80,50]},
+  {id:'_demo4',name:'川崎工場増築工事',addr:'神奈川県川崎市',mgr:'山本 花子',start:'2026-02-01',end:'2026-12-20',progress:18,status:'工事中',note:'基礎工事中',
+   procs:[100,60,20,0,0,0,0,0,0]},
+  {id:'_demo5',name:'府中市立小学校改修',addr:'東京都府中市',mgr:'高橋 翔太',start:'2026-03-01',end:'2026-09-15',progress:8,status:'準備中',note:'仮設工事中',
+   procs:[40,0,0,0,0,0,0,0,0]},
+];
+
+// =========================================================
+// STATE
+// =========================================================
+let SITES = [];
+let TASKS = []; // データ互換性のため保持
+let REPORTS = [];
+let nextTaskId = 100;
+let nextReportId = 1;
+let unsaved = false;
+// 削除済みID（マージ時に他端末から復活させないための記録）
+let DELETED_SITE_IDS = [];
+let DELETED_REPORT_IDS = [];
+
+function loadState() {
+  SITES = [];
+  TASKS = [];
+  REPORTS = [];
+  DELETED_SITE_IDS = [];
+  DELETED_REPORT_IDS = [];
+}
+
+async function loadServerState() {
+  const [siteResult, reportResult] = await Promise.all([PILOT.sites(), PILOT.reports()]);
+  SITES = siteResult.sites || [];
+  REPORTS = reportResult.reports || [];
+  TASKS = [];
+  nextReportId = Math.max(1, ...REPORTS.map(r => Number(r.id) + 1));
+  DELETED_SITE_IDS = [];
+  DELETED_REPORT_IDS = [];
+  document.querySelectorAll('[onclick*="Cloud"], #autoBackupLabel, #autoBackupLabelM').forEach(el => { el.style.display = 'none'; });
+  document.querySelectorAll('.subtitle').forEach(el => { el.textContent = CURRENT_USER ? `${CURRENT_USER.name} としてログイン中（試験版）` : '試験版'; });
+}
+
+// saveState は下部の定義を使用（重複定義を削除）
+
+function markUnsaved() {
+  unsaved = true;
+  document.getElementById('saveIndicator').className = 'save-indicator unsaved';
+  document.getElementById('saveIndicator').textContent = '未保存の変更あり';
+}
+
+// =========================================================
+// UTILITIES
+// =========================================================
+function isToday(dateStr) {
+  const d = new Date(dateStr);
+  return d.getFullYear()===TODAY.getFullYear()&&d.getMonth()===TODAY.getMonth()&&d.getDate()===TODAY.getDate();
+}
+function isThisWeek(dateStr){ const d=new Date(dateStr); return d>=TODAY&&d<=THIS_WEEK_END; }
+function isOverdue(dateStr){ const d=new Date(dateStr); return d<TODAY; }
+function fmtDate(dateStr){ if(!dateStr)return'—'; const d=new Date(dateStr); return `${d.getMonth()+1}/${d.getDate()}`; }
+function fmtDateFull(dateStr){ if(!dateStr)return'—'; const d=new Date(dateStr); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function progClass(v){ return v>=70?'prog-high':v>=30?'prog-mid':'prog-low'; }
+function procClass(v){ return v===100?'proc-done':v>0?'proc-partial':'proc-none'; }
+function priorityClass(p){ return p==='高'?'p-high':p==='中'?'p-mid':'p-low'; }
+function statusClass(s){ return{未着手:'s-todo',進行中:'s-doing',完了:'s-done',保留:'s-hold'}[s]||'s-todo'; }
+function daysLeft(dateStr){
+  const d=new Date(dateStr);
+  const diff=Math.round((d-TODAY)/86400000);
+  if(diff<0)return`<span style="color:#E53E3E;font-weight:700;">${Math.abs(diff)}日超過</span>`;
+  if(diff===0)return`<span style="color:#E53E3E;font-weight:700;">今日</span>`;
+  if(diff<=3)return`<span style="color:#ED8936;font-weight:700;">あと${diff}日</span>`;
+  return`<span style="color:#718096;">あと${diff}日</span>`;
+}
+function siteName(id){ const s=SITES.find(x=>x.id===id); return s?s.name:'—'; }
+function showToast(msg,dur=2200){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+// =========================================================
+// KPI
+// =========================================================
+function renderKPI(){
+  const todayCount=TASKS.filter(t=>isToday(t.due)&&t.status!=='完了').length;
+  const urgentCount=TASKS.filter(t=>t.priority==='高'&&t.status!=='完了').length;
+  document.getElementById('kpi-sites').textContent=SITES.length;
+  document.getElementById('kpi-today').textContent=todayCount;
+  document.getElementById('kpi-urgent').textContent=urgentCount;
+  const d=TODAY;
+  const weekNames=['日','月','火','水','木','金','土'];
+  const el=document.getElementById('currentDate');
+  if(el)el.textContent=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${weekNames[d.getDay()]}）`;
+}
+
+// =========================================================
+// SITES
+// =========================================================
+function renderSites(){
+  const grid=document.getElementById('sitesGrid');
+  if(!SITES.length){
+    grid.innerHTML='<div style="color:#718096;padding:20px;text-align:center;">現場がありません。「＋ 現場追加」から追加してください。</div>';
+    return;
+  }
+  const badgeMap={計画見積:'badge-pause',準備中:'badge-prep',工事中:'badge-active',完了請求:'badge-complete'};
+  const statusOrder={計画見積:0,準備中:1,工事中:2,完了請求:3};
+  const sorted=[...SITES].sort((a,b)=>(statusOrder[a.status]??99)-(statusOrder[b.status]??99));
+  grid.innerHTML=sorted.map(s=>{
+    const badgeCls=badgeMap[s.status]||'badge-active';
+    const todayT=TASKS.filter(t=>t.site===s.id&&isToday(t.due)&&t.status!=='完了').length;
+    const weekT=TASKS.filter(t=>t.site===s.id&&isThisWeek(t.due)&&t.status!=='完了').length;
+    return`<div class="site-card" id="card-${s.id}" onclick="openDetail('${s.id}')" style="cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div class="site-id">${s.id.startsWith('_') ? '' : s.id}</div>
+        <div class="site-card-actions" onclick="event.stopPropagation()" style="position:static;opacity:inherit;display:flex;gap:4px;">
+          <button class="btn-icon" onclick="openSiteModal('${s.id}')" title="編集">✏️</button>
+          <button class="btn-icon del" onclick="confirmDeleteSite('${s.id}')" title="削除">🗑️</button>
+        </div>
+      </div>
+      <span class="status-badge ${badgeCls}">${s.status}</span>
+      <div class="site-name" style="padding-right:0;">${s.name}</div>
+      <div class="site-meta">📍 ${s.addr||'—'} &nbsp;｜&nbsp; 👷 ${s.mgr||'—'}</div>
+      ${s.note?`<div class="site-meta" style="color:#E53E3E;font-size:11px;">📝 ${s.note}</div>`:''}
+      <div class="site-footer">
+        <span>📅 本日: <strong style="color:#E53E3E;">${todayT}</strong>件</span>
+        <span>📆 今週: <strong style="color:#ED8936;">${weekT}</strong>件</span>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:#718096;display:flex;gap:10px;">
+        <span>🔨 着工 ${fmtDate(s.start)||'—'}</span>
+        <span>🏁 竣工 ${fmtDate(s.end)||'—'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// =========================================================
+// SITE MODAL
+// =========================================================
+function openSiteModal(siteId){
+  const isEdit=!!siteId;
+  document.getElementById('siteModalTitle').textContent=isEdit?'現場編集':'現場追加';
+  document.getElementById('siteEditId').value=siteId||'';
+
+  if(isEdit){
+    const s=SITES.find(x=>x.id===siteId);
+    if(!s)return;
+    document.getElementById('s-name').value=s.name;
+    document.getElementById('s-addr').value=s.addr||'';
+
+    document.getElementById('s-mgr').value=s.mgr||'';
+    document.getElementById('s-start').value=s.start||'';
+    document.getElementById('s-end').value=s.end||'';
+    document.getElementById('s-note').value=s.note||'';
+    document.getElementById('s-status').value=s.status||'工事中';
+    document.getElementById('s-contract').value=s.contract||'';
+  } else {
+    ['s-name','s-addr','s-mgr','s-note'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('s-contract').value='';
+    document.getElementById('s-start').value='';
+    document.getElementById('s-end').value='';
+    document.getElementById('s-status').value='工事中';
+  }
+  document.getElementById('siteModal').classList.add('show');
+}
+
+function closeSiteModal(){ document.getElementById('siteModal').classList.remove('show'); }
+
+
+async function saveSite(){
+  const isEdit=!!document.getElementById('siteEditId').value;
+  const id=isEdit?document.getElementById('siteEditId').value:'_'+Date.now();
+  const name=document.getElementById('s-name').value.trim();
+  if(!name){showToast('⚠️ 現場名を入力してください');return;}
+
+  const existing=SITES.find(s=>s.id===id);
+  const obj={
+    id,name,
+    addr:document.getElementById('s-addr').value.trim(),
+    mgr:document.getElementById('s-mgr').value.trim(),
+    progress:existing?existing.progress:0,
+    start:document.getElementById('s-start').value,
+    end:document.getElementById('s-end').value,
+    note:document.getElementById('s-note').value.trim(),
+    status:document.getElementById('s-status').value,
+    contract:document.getElementById('s-contract').value,
+    procs:existing?existing.procs:Array(9).fill(0),
+  };
+
+  try {
+    if(isEdit) {
+      const saved = await PILOT.updateSite(id, {...obj, version:existing.version});
+      const idx=SITES.findIndex(s=>s.id===id); if(idx>=0)SITES[idx]=saved.site;
+    } else {
+      const saved = await PILOT.createSite(obj);
+      SITES.push(saved.site);
+    }
+    closeSiteModal();
+    renderAll();
+    showToast(isEdit?'✅ 現場を更新しました':'✅ 現場を追加しました', 2200);
+  } catch(e) {
+    showToast('❌ 保存できません: ' + e.message, 3500);
+  }
+}
+
+function confirmDeleteSite(siteId){
+  const s=SITES.find(x=>x.id===siteId);
+  document.getElementById('confirmMsg').innerHTML=
+    `<strong>「${s.name}」</strong> を削除しますか？<br><br>この操作は元に戻せません。`;
+  document.getElementById('confirmOkBtn').onclick=async()=>{
+    try {
+      await PILOT.deleteSite(siteId, s.version);
+      SITES=SITES.filter(x=>x.id!==siteId);
+      REPORTS = REPORTS.filter(r=>r.siteId!==siteId);
+      closeConfirm(); renderAll(); renderReportList();
+      showToast('✅ 現場を削除しました', 2200);
+    } catch(e) {
+      showToast('❌ 削除できません: ' + e.message, 3500);
+    }
+  };
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+// =========================================================
+// ARCHIVE
+// =========================================================
+async function archiveSite(siteId){
+  const s = SITES.find(x=>x.id===siteId);
+  if(!s){ showToast('⚠️ 現場が見つかりません'); return; }
+
+  // アーカイブID生成: A + YY + MM + DD (例: A260109)
+  const archiveDate = new Date();
+  const yy = String(archiveDate.getFullYear()).slice(2);
+  const mm = String(archiveDate.getMonth()+1).padStart(2,'0');
+  const dd = String(archiveDate.getDate()).padStart(2,'0');
+  const archiveId = 'A' + yy + mm + dd;
+
+  const siteTasks = TASKS.filter(t=>t.site===siteId);
+  const siteReports = REPORTS.filter(r=>r.siteId===siteId)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  const weekNames=['日','月','火','水','木','金','土'];
+  const fmtD = str => {
+    if(!str) return '—';
+    const d = new Date(str+'T00:00:00');
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${weekNames[d.getDay()]}）`;
+  };
+  // ── 日報一覧 ──
+  const reportBlocks = siteReports.length===0
+    ? '<p style="color:#718096;">日報なし</p>'
+    : siteReports.map(r=>{
+        const entryRows = r.entries.map(e=>`
+          <tr>
+            <td>${e.content||'—'}</td>
+            <td>${e.worker||'—'}</td>
+            <td style="text-align:right;">${e.hours||0}h</td>
+          </tr>`).join('');
+        const totalHours = r.entries.reduce((s,e)=>s+(parseFloat(e.hours)||0),0);
+        return `
+        <div style="margin-bottom:20px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+          <div style="background:#EBF8FF;padding:8px 14px;font-weight:700;font-size:14px;color:#1F4E79;">
+            📅 ${fmtD(r.date)}
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:#F7FAFC;">
+                <th style="padding:6px 10px;text-align:left;width:50%;">作業内容</th>
+                <th style="padding:6px 10px;text-align:left;">作業者</th>
+                <th style="padding:6px 10px;text-align:right;">作業時間</th>
+              </tr>
+            </thead>
+            <tbody>${entryRows}</tbody>
+            <tfoot>
+              <tr style="background:#F7FAFC;font-weight:700;">
+                <td colspan="2" style="padding:6px 10px;text-align:right;color:#4A5568;">合計</td>
+                <td style="padding:6px 10px;text-align:right;color:#2E75B6;">${totalHours}h</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>`;
+      }).join('');
+
+  const now = new Date();
+  const nowStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+
+  // ── HTML生成 ──
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>アーカイブ：${s.name}</title>
+<style>
+  body{font-family:'Hiragino Sans','Yu Gothic','Segoe UI',sans-serif;color:#2d3748;font-size:14px;padding:32px;max-width:900px;margin:0 auto;}
+  h1{font-size:22px;color:#1F4E79;margin-bottom:4px;}
+  h2{font-size:16px;color:#1F4E79;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid #BEE3F8;}
+  .meta{color:#718096;font-size:12px;margin-bottom:24px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;}
+  th,td{padding:7px 10px;border:1px solid #e2e8f0;text-align:left;vertical-align:top;}
+  th{background:#F7FAFC;font-weight:700;color:#4A5568;}
+  .label{color:#718096;font-weight:700;width:120px;}
+  @media print{body{padding:16px;}}
+</style>
+</head>
+<body>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+  <div style="font-size:36px;">🏗️</div>
+  <div>
+    <h1>${s.name}</h1>
+    <div class="meta">アーカイブID：${archiveId}　／　アーカイブ出力日：${nowStr}</div>
+  </div>
+</div>
+
+<h2>📋 現場情報</h2>
+<table>
+  <tr><td class="label">ステータス</td><td colspan="3">${s.status||'—'}</td></tr>
+  <tr><td class="label">所在地</td><td colspan="3">${s.addr||'—'}</td></tr>
+
+  <tr><td class="label">担当者</td><td>${s.mgr||'—'}</td><td class="label">現況メモ</td><td>${s.note||'—'}</td></tr>
+  <tr><td class="label">着工日</td><td>${fmtD(s.start)}</td><td class="label">竣工予定日</td><td>${fmtD(s.end)}</td></tr>
+</table>
+
+<h2>📝 日報一覧（${siteReports.length}件）</h2>
+${reportBlocks}
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#A0AEC0;text-align:center;">
+  建築現場 進捗管理ダッシュボード　－　アーカイブ出力
+</div>
+</body>
+</html>`;
+
+  // ── ダウンロード ──
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${archiveId}_${s.name}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showToast('📦 アーカイブファイルを保存しました', 2000);
+
+  // ── ダウンロード後に削除確認 ──
+  setTimeout(async ()=>{
+    const reportCount = siteReports.length;
+    const msg =
+      `「${s.name}」のアーカイブを保存しました。\n\n` +
+      `この現場をダッシュボードから削除しますか？\n` +
+      `（日報 ${reportCount}件も削除されます）\n\n` +
+      `※ HTMLファイルとして保存済みのため、後から確認できます。`;
+    if(confirm(msg)){
+      try {
+        await PILOT.archiveSite(siteId, s.version, 'アプリからアーカイブ保存');
+        SITES = SITES.filter(x=>x.id!==siteId);
+        renderAll();
+        renderReportList();
+        showToast('✅ アーカイブへ移動しました', 2200);
+      } catch(e) {
+        showToast('❌ アーカイブできません: ' + e.message, 3500);
+      }
+    }
+  }, 600);
+}
+
+// =========================================================
+// CONFIRM MODAL
+// =========================================================
+function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); }
+
+// =========================================================
+// DETAIL PANEL
+// =========================================================
+function openDetail(siteId){
+  const s=SITES.find(x=>x.id===siteId);
+  if(!s)return;
+  document.querySelectorAll('.site-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('card-'+siteId)?.classList.add('selected');
+
+  const procs=s.procs||Array(9).fill(0);
+
+  document.getElementById('detail-content').innerHTML=`
+    ${s.id.startsWith('_') ? '' : `<div style="font-size:11px;font-weight:600;color:#2E75B6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${s.id}</div>`}
+    <div style="font-size:16px;font-weight:700;color:#1F4E79;margin-bottom:4px;padding-right:36px;">${s.name}</div>
+    <div style="margin:10px 0;padding:12px;background:#F7FAFC;border-radius:8px;">
+      <div class="detail-row"><div class="dl">所在地</div><div>📍 ${s.addr||'—'}</div></div>
+      <div class="detail-row"><div class="dl">担当者</div><div>👷 ${s.mgr||'—'}</div></div>
+      <div class="detail-row"><div class="dl">請負形態</div><div>${s.contract||'—'}</div></div>
+      <div class="detail-row"><div class="dl">着工</div><div>${s.start?fmtDate(s.start):'—'}</div></div>
+      <div class="detail-row"><div class="dl">竣工予定</div><div>${s.end?fmtDate(s.end)+' ('+daysLeft(s.end)+')':'—'}</div></div>
+      ${s.note?`<div class="detail-row" style="border:none;"><div class="dl">現況</div><div style="color:#E53E3E;font-weight:600;">📝 ${s.note}</div></div>`:''}
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#4A5568;flex:1;" onclick="openSiteModal('${s.id}');closeDetail()">✏️ 現場を編集</button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <button class="btn btn-amber btn-sm" style="width:100%;" onclick="goToReportWithSite('${s.id}');closeDetail()">📋 日報入力へ</button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSite('${s.id}');closeDetail()">📦 アーカイブ保存（完了現場の書き出し）</button>
+    </div>
+    ${buildSiteReportHtml(siteId)}`;
+
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail(){
+  document.getElementById('detail-panel').classList.remove('open');
+  document.querySelectorAll('.site-card').forEach(c=>c.classList.remove('selected'));
+}
+
+// =========================================================
+// JSON EXPORT / IMPORT
+// =========================================================
+function exportJSON(){
+  const data=JSON.stringify({sites:SITES,tasks:TASKS,reports:REPORTS,nextTaskId,nextReportId,exportedAt:new Date().toISOString()},null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='現場進捗データ_'+new Date().toISOString().split('T')[0]+'.json';
+  a.click(); URL.revokeObjectURL(url);
+  showToast('💾 JSONファイルを保存しました');
+}
+
+function importJSON(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(!d.sites||!d.tasks)throw new Error('invalid');
+      SITES=d.sites; TASKS=d.tasks; nextTaskId=d.nextTaskId||100;
+      renderAll(); saveState();
+      showToast('📂 データを読み込みました',3000);
+    }catch(err){
+      showToast('⚠️ ファイルの形式が正しくありません',3000);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+}
+
+// =========================================================
+// MOBILE MENU
+// =========================================================
+function openMobileMenu(){ document.getElementById('mobileMenuPanel').classList.add('show'); }
+function closeMobileMenu(){ document.getElementById('mobileMenuPanel').classList.remove('show'); }
+
+// Sync mobile save indicator
+const _origSaveState = saveState;
+
+// =========================================================
+// BOTTOM NAV TAB SWITCHING
+// =========================================================
+// =========================================================
+// 工程表
+// =========================================================
+
+// 日本の祝日（2024〜2026年）
+const JP_HOLIDAYS = {
+  // 2024年
+  '2024-01-01':'元日','2024-01-08':'成人の日','2024-02-11':'建国記念の日',
+  '2024-02-12':'振替休日','2024-02-23':'天皇誕生日','2024-03-20':'春分の日',
+  '2024-04-29':'昭和の日','2024-05-03':'憲法記念日','2024-05-04':'みどりの日',
+  '2024-05-05':'こどもの日','2024-05-06':'振替休日','2024-07-15':'海の日',
+  '2024-08-11':'山の日','2024-08-12':'振替休日','2024-09-16':'敬老の日',
+  '2024-09-22':'秋分の日','2024-09-23':'振替休日','2024-10-14':'スポーツの日',
+  '2024-11-03':'文化の日','2024-11-04':'振替休日','2024-11-23':'勤労感謝の日',
+  // 2025年
+  '2025-01-01':'元日','2025-01-13':'成人の日','2025-02-11':'建国記念の日',
+  '2025-02-23':'天皇誕生日','2025-02-24':'振替休日','2025-03-20':'春分の日',
+  '2025-04-29':'昭和の日','2025-05-03':'憲法記念日','2025-05-04':'みどりの日',
+  '2025-05-05':'こどもの日','2025-05-06':'振替休日','2025-07-21':'海の日',
+  '2025-08-11':'山の日','2025-09-15':'敬老の日','2025-09-23':'秋分の日',
+  '2025-10-13':'スポーツの日','2025-11-03':'文化の日','2025-11-23':'勤労感謝の日',
+  '2025-11-24':'振替休日',
+  // 2026年
+  '2026-01-01':'元日','2026-01-12':'成人の日','2026-02-11':'建国記念の日',
+  '2026-02-23':'天皇誕生日','2026-03-20':'春分の日','2026-04-29':'昭和の日',
+  '2026-05-03':'憲法記念日','2026-05-04':'みどりの日','2026-05-05':'こどもの日',
+  '2026-05-06':'振替休日','2026-07-20':'海の日','2026-08-11':'山の日',
+  '2026-09-21':'敬老の日','2026-09-23':'秋分の日','2026-10-12':'スポーツの日',
+  '2026-11-03':'文化の日','2026-11-23':'勤労感謝の日',
+};
+
+let currentScheduleDate = new Date();
+
+function scheduleIsMobile(){ return window.innerWidth <= 640; }
+
+function scheduleToday(){
+  currentScheduleDate = new Date();
+  renderSchedule();
+}
+
+function scheduleNav(dir){
+  if(scheduleIsMobile()){
+    currentScheduleDate.setDate(currentScheduleDate.getDate() + dir * 7);
+  } else {
+    currentScheduleDate.setMonth(currentScheduleDate.getMonth() + dir);
+  }
+  renderSchedule();
+}
+
+function renderSchedule(){
+  const table = document.getElementById('schedule-table');
+  const titleEl = document.getElementById('schedule-title');
+  if(!table || !titleEl) return;
+
+  const isMobile = scheduleIsMobile();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekNames = ['日','月','火','水','木','金','土'];
+
+  // ── 表示日付の配列を生成 ──
+  let days = [];
+  if(isMobile){
+    // 現在週（月〜日）
+    const base = new Date(currentScheduleDate); base.setHours(0,0,0,0);
+    const dow = base.getDay();
+    const mon = new Date(base);
+    mon.setDate(base.getDate() - (dow === 0 ? 6 : dow - 1));
+    for(let i = 0; i < 7; i++){
+      const d = new Date(mon); d.setDate(mon.getDate() + i);
+      days.push(d);
+    }
+    const d0 = days[0], d6 = days[6];
+    titleEl.textContent = `${d0.getMonth()+1}月${d0.getDate()}日（${weekNames[d0.getDay()]}）〜 ${d6.getMonth()+1}月${d6.getDate()}日（${weekNames[d6.getDay()]}）`;
+  } else {
+    // 当月全日
+    const y = currentScheduleDate.getFullYear();
+    const m = currentScheduleDate.getMonth();
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    for(let i = 1; i <= daysInMonth; i++) days.push(new Date(y, m, i));
+    titleEl.textContent = `${y}年${m+1}月`;
+  }
+
+  // ── 日付文字列に変換するヘルパー ──
+  const toStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  // ── ヘッダー行（上下共通） ──
+  let headerCells = '<th class="sch-site-head">現場名</th>';
+  days.forEach(d => {
+    const ds = toStr(d);
+    const isToday = d.getTime() === today.getTime();
+    const isSun = d.getDay() === 0;
+    const isSat = d.getDay() === 6;
+    const holiday = JP_HOLIDAYS[ds] || '';
+    let cls = isToday ? 'sch-today' : (holiday || isSun) ? 'sch-sun' : isSat ? 'sch-weekend' : '';
+    const holidayHtml = holiday ? `<span class="sch-holiday-name">${holiday}</span>` : '';
+    if(isMobile){
+      headerCells += `<th class="sch-day-head ${cls}">${weekNames[d.getDay()]}<br>${d.getDate()}${holidayHtml}</th>`;
+    } else {
+      headerCells += `<th class="sch-day-head ${cls}">${d.getDate()}<br><span style="font-size:9px;opacity:.75;">${weekNames[d.getDay()]}</span>${holidayHtml}</th>`;
+    }
+  });
+  let html = `<thead><tr>${headerCells}</tr></thead><tbody>`;
+
+  // ── データ行 ──
+  if(SITES.length === 0){
+    html += `<tr><td colspan="${days.length+1}" style="text-align:center;color:#718096;padding:24px;">現場がありません</td></tr>`;
+  } else {
+    SITES.forEach(site => {
+      html += '<tr>';
+      html += `<td class="sch-site-name" title="${site.name}" onclick="goToSiteCard('${site.id}')" style="cursor:pointer;">${site.name}</td>`;
+      days.forEach(d => {
+        const ds = toStr(d);
+        const isToday = d.getTime() === today.getTime();
+        const isSun = d.getDay() === 0;
+        const isSat = d.getDay() === 6;
+        const isHoliday = !!JP_HOLIDAYS[ds];
+        let cellCls = isToday ? 'sch-today' : (isHoliday || isSun) ? 'sch-sun' : isSat ? 'sch-weekend' : '';
+
+        const cellReports = REPORTS.filter(r => r.siteId === site.id && r.date === ds);
+
+        let entries = '';
+        cellReports.forEach(r => {
+          r.entries.forEach(e => {
+            if(e.content){
+              const full = (e.content + (e.worker ? ' ／ ' + e.worker : '')).replace(/'/g,"&#39;");
+              entries += `<span class="sch-entry" onclick="event.stopPropagation();showSchPopup('${full}',${r.id})">${e.content}</span>`;
+            }
+          });
+        });
+
+        const siteIdEsc = site.id.replace(/'/g,"&#39;");
+        html += `<td class="sch-cell ${cellCls}" onclick="showSchNewPopup('${siteIdEsc}','${ds}')">${entries}</td>`;
+      });
+      html += '</tr>';
+    });
+  }
+  html += `</tbody><tfoot><tr>${headerCells}</tr></tfoot>`;
+  table.innerHTML = html;
+  // 上部スクロールバーを同期
+  syncSchScrollbar();
+}
+
+function syncSchScrollbar() {
+  const wrap    = document.getElementById('sch-wrap');
+  const topBar  = document.getElementById('sch-scroll-top');
+  const topInner= document.getElementById('sch-scroll-top-inner');
+  if (!wrap || !topBar || !topInner) return;
+  // スマホでは非表示
+  if (window.innerWidth <= 640) { topBar.style.display = 'none'; return; }
+  topBar.style.display = 'block';
+  // 内側の幅をテーブルの横幅に合わせる
+  topInner.style.width = wrap.scrollWidth + 'px';
+  // 重複登録を避けるためイベントを付け直す
+  const newTop = topBar.cloneNode(true);
+  newTop.querySelector('#sch-scroll-top-inner').style.width = wrap.scrollWidth + 'px';
+  topBar.parentNode.replaceChild(newTop, topBar);
+  const newWrap = wrap; // wrapはそのまま
+  newTop.addEventListener('scroll', () => { newWrap.scrollLeft = newTop.scrollLeft; });
+  newWrap.addEventListener('scroll', () => { newTop.scrollLeft = newWrap.scrollLeft; });
+}
+
+// 工程表：新規日報作成ポップアップ
+let _schNewSiteId = null, _schNewDate = null;
+function goToSiteCard(siteId){
+  switchTab('sites');
+  setTimeout(()=>{ openDetail(siteId); }, 80);
+}
+
+function showSchNewPopup(siteId, date){
+  _schNewSiteId = siteId;
+  _schNewDate = date;
+  const site = SITES.find(s => s.id === siteId);
+  const siteName = site ? site.name : siteId;
+  const d = new Date(date + 'T00:00:00');
+  const wn = ['日','月','火','水','木','金','土'];
+  const dateLabel = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${wn[d.getDay()]}）`;
+  document.getElementById('schNewPopupInfo').textContent = `${siteName}\n${dateLabel}`;
+  document.getElementById('schNewPopup').style.display = 'flex';
+}
+function schNewPopupCreate(){
+  document.getElementById('schNewPopup').style.display = 'none';
+  switchTab('report');
+  setTimeout(()=>{
+    // 日付・現場をセット
+    const dateEl = document.getElementById('report-date-input');
+    if(dateEl){ dateEl.value = _schNewDate; updateReportWeekday(); }
+    const sel = document.getElementById('report-site-select');
+    if(sel){ sel.innerHTML = buildSiteOptions(_schNewSiteId); sel.value = _schNewSiteId; }
+    // 編集中IDをリセット（新規扱い）
+    document.getElementById('report-editing-id').value = '';
+    // 行を初期化
+    buildReportRows([]);
+    const reportPage = document.getElementById('page-report');
+    if(reportPage) reportPage.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 80);
+}
+
+// 工程表：既存日報ポップアップ
+let _schPopupReportId = null;
+function showSchPopup(text, reportId){
+  _schPopupReportId = reportId;
+  document.getElementById('schPopupText').textContent = text;
+  document.getElementById('schPopup').style.display = 'flex';
+}
+function schPopupEdit(){
+  document.getElementById('schPopup').style.display = 'none';
+  if(_schPopupReportId) editReport(_schPopupReportId);
+}
+
+function goToReportWithSite(siteId){
+  switchTab('report');
+  // initReportForm()がswitchTab内で走るため、setTimeout後に現場をセット
+  setTimeout(()=>{
+    const sel = document.getElementById('report-site-select');
+    if(sel){
+      sel.innerHTML = buildSiteOptions(siteId);
+      sel.value = siteId;
+    }
+    // 日報セクションへスクロール（PC・スマホ共通）
+    const reportPage = document.getElementById('page-report');
+    if(reportPage) reportPage.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 80);
+}
+
+let currentTab = 'sites';
+function switchTab(tab){
+  currentTab = tab;
+  ['sites','report','schedule'].forEach(p=>{
+    document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
+    const bnavBtn = document.getElementById('bnav-'+p);
+    if(bnavBtn) bnavBtn.classList.toggle('active', p===tab);
+    const pcBtn = document.getElementById('pctab-'+p);
+    if(pcBtn) pcBtn.classList.toggle('active', p===tab);
+  });
+  if(tab==='report') { initReportForm(); renderReportList(); }
+  else if(tab==='schedule') { renderSchedule(); }
+  else { window.scrollTo({top:0,behavior:'smooth'}); }
+}
+
+// =========================================================
+// CLOSE MODALS ON OVERLAY CLICK
+// =========================================================
+['siteModal','confirmModal'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('click',function(e){
+    if(e.target===this)this.classList.remove('show');
+  });
+});
+
+// Close detail panel on Escape
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    closeDetail();
+    closeMobileMenu();
+    ['siteModal','confirmModal'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.classList.remove('show');
+    });
+  }
+});
+
+// =========================================================
+// 日報 FUNCTIONS
+// =========================================================
+const WEEKDAYS = ['日','月','火','水','木','金','土'];
+
+const REPORT_ROW_COUNT = 10; // 固定行数
+
+function initReportForm() {
+  // 今日の日付をセット
+  const d = new Date();
+  const iso = d.toISOString().split('T')[0];
+  const el = document.getElementById('report-date-input');
+  if (el && !el.value) { el.value = iso; updateReportWeekday(); }
+  // 現場ドロップダウンを最新リストで更新
+  const sel = document.getElementById('report-site-select');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = buildSiteOptions(cur);
+  }
+  // 行が空なら10行初期化
+  const container = document.getElementById('report-entries-container');
+  if (!container) return;
+  if (container.children.length === 0) buildReportRows([]);
+}
+
+function updateReportWeekday() {
+  const val = document.getElementById('report-date-input').value;
+  if (!val) return;
+  const d = new Date(val + 'T00:00:00');
+  const lbl = document.getElementById('report-weekday-label');
+  if (lbl) lbl.textContent = `（${WEEKDAYS[d.getDay()]}曜日）`;
+}
+
+function buildSiteOptions(selectedId) {
+  const blank = `<option value="">現場を選択</option>`;
+  const opts = SITES.map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${s.id.startsWith('_') ? '' : '['+s.id+'] '}${s.name}</option>`).join('');
+  return blank + opts;
+}
+
+// ── 日報入力展開モーダル ──
+let _reportExpandTarget = null;
+function openReportExpand(inputEl, label) {
+  _reportExpandTarget = inputEl;
+  document.getElementById('reportExpandLabel').textContent = label;
+  const ta = document.getElementById('reportExpandTextarea');
+  ta.value = inputEl.value;
+  const modal = document.getElementById('reportExpandModal');
+  modal.style.display = 'flex';
+  setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 120);
+}
+function closeReportExpand(save) {
+  if (save && _reportExpandTarget) {
+    _reportExpandTarget.value = document.getElementById('reportExpandTextarea').value;
+  }
+  document.getElementById('reportExpandModal').style.display = 'none';
+  _reportExpandTarget = null;
+}
+
+function buildReportRows(entries) {
+  const container = document.getElementById('report-entries-container');
+  if (!container) return;
+  container.innerHTML = '';
+  for (let i = 0; i < REPORT_ROW_COUNT; i++) {
+    const e = entries[i] || {};
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid #EDF2F7;';
+    tr.innerHTML = `
+      <td style="padding:4px 6px;color:#A0AEC0;font-size:12px;text-align:center;">${i+1}</td>
+      <td style="padding:4px 6px;">
+        <div style="display:flex;gap:4px;align-items:center;">
+          <input type="text" class="re-content form-input" placeholder="作業内容" value="${e.content||''}" style="padding:6px 8px;font-size:13px;flex:1;min-width:0;">
+          <button class="report-expand-btn" type="button" onclick="openReportExpand(this.parentElement.querySelector('.re-content'),'作業内容')">📝</button>
+        </div>
+      </td>
+      <td style="padding:4px 6px;">
+        <div style="display:flex;gap:4px;align-items:center;">
+          <input type="text" class="re-worker form-input" placeholder="氏名" value="${e.worker||''}" style="padding:6px 8px;font-size:13px;flex:1;min-width:0;">
+          <button class="report-expand-btn" type="button" onclick="openReportExpand(this.parentElement.querySelector('.re-worker'),'作業者氏名')">📝</button>
+        </div>
+      </td>
+      <td style="padding:4px 6px;"><input type="number" class="re-hours form-input" placeholder="時間" min="0.5" max="24" step="0.5" value="${e.hours||''}" style="padding:6px 8px;font-size:13px;width:70px;"></td>`;
+    container.appendChild(tr);
+  }
+}
+
+async function saveReport() {
+  const dateVal = document.getElementById('report-date-input').value;
+  if (!dateVal) { showToast('⚠️ 日付を入力してください', 2500); return; }
+  const siteId = document.getElementById('report-site-select').value;
+  if (!siteId) { showToast('⚠️ 現場を選択してください', 2500); return; }
+  const rows = document.querySelectorAll('#report-entries-container tr');
+  const entries = [];
+  rows.forEach(row => {
+    const content = row.querySelector('.re-content').value.trim();
+    const worker  = row.querySelector('.re-worker').value.trim();
+    const hours   = parseFloat(row.querySelector('.re-hours').value) || 0;
+    if (content || worker) entries.push({ siteId, content, hours, worker });
+  });
+  if (entries.length === 0) { showToast('⚠️ 作業内容を入力してください', 2500); return; }
+
+  const editingId = parseInt(document.getElementById('report-editing-id').value) || 0;
+  try {
+  if (editingId) {
+    const existing = REPORTS.find(r => r.id === editingId);
+    if (existing) {
+      await PILOT.updateReport(editingId, {date:dateVal, siteId, entries, version:existing.version});
+      existing.date = dateVal; existing.siteId = siteId; existing.entries = entries; existing.version += 1;
+    }
+    document.getElementById('report-editing-id').value = '';
+  } else {
+    const saved = await PILOT.createReport({date:dateVal, siteId, entries});
+    REPORTS.push({ id:saved.id, date: dateVal, siteId, entries, version:1 });
+  }
+  REPORTS.sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
+  renderReportList();
+  // フォームリセット
+  buildReportRows([]);
+  document.getElementById('report-site-select').value = '';
+  showToast('✅ 日報を保存しました', 2200);
+  } catch(e) {
+    showToast('❌ 日報を保存できません: ' + e.message, 3500);
+  }
+}
+
+async function deleteReport(id) {
+  const r = REPORTS.find(r => r.id === id);
+  if (!r) return;
+  if (!confirm(`${fmtDateJP(r.date)}の日報を削除しますか？`)) return;
+  try {
+    await PILOT.deleteReport(id, r.version);
+    REPORTS = REPORTS.filter(r => r.id !== id);
+    renderReportList();
+    showToast('✅ 日報を削除しました', 2200);
+  } catch(e) {
+    showToast('❌ 日報を削除できません: ' + e.message, 3500);
+  }
+}
+
+function cancelEditReport() {
+  document.getElementById('report-editing-id').value = '';
+  buildReportRows([]);
+  document.getElementById('report-site-select').value = '';
+  showToast('修正をキャンセルしました', 1800);
+}
+
+function editReport(id) {
+  const r = REPORTS.find(r => r.id === id);
+  if (!r) return;
+  document.getElementById('report-date-input').value = r.date;
+  document.getElementById('report-editing-id').value = r.id;
+  document.getElementById('report-site-select').value = r.siteId || (r.entries[0]?.siteId||'');
+  updateReportWeekday();
+  buildReportRows(r.entries);
+  switchTab('report');
+  // 日報入力フォームの先頭へスクロール
+  setTimeout(()=>{
+    const el = document.getElementById('page-report');
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 80);
+}
+
+function fmtDateJP(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getMonth()+1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
+}
+
+function buildSiteReportHtml(siteId) {
+  // その現場に関連する日報を日報単位でグループ化して新しい順で表示
+  const reportItems = [];
+  REPORTS.forEach(r => {
+    const matchingEntries = r.entries.filter(e => e.siteId === siteId || r.siteId === siteId);
+    if (matchingEntries.length > 0) {
+      reportItems.push({ date: r.date, reportId: r.id, entries: matchingEntries });
+    }
+  });
+  reportItems.sort((a,b) => b.date.localeCompare(a.date));
+  const show = reportItems.slice(0, 60);
+  if (show.length === 0) return '';
+
+  const blocks = show.map(item => {
+    const entryRows = item.entries.map(e => `
+      <div style="display:flex;gap:8px;padding:4px 0 4px 10px;border-left:2px solid #BEE3F8;font-size:12px;color:#2D3748;align-items:baseline;">
+        <span style="font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.content||'—'}</span>
+        <span style="color:#4A5568;white-space:nowrap;flex-shrink:0;">${e.hours||0}h</span>
+        <span style="color:#718096;white-space:nowrap;flex-shrink:0;">${e.worker||'—'}</span>
+      </div>`).join('');
+    return `
+      <div style="border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#FAFBFD;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span style="color:#1F4E79;font-weight:700;font-size:13px;">📅 ${fmtDateJP(item.date)}</span>
+          <div style="display:flex;gap:4px;flex-shrink:0;">
+            <button onclick="editReport(${item.reportId});closeDetail()"
+              style="background:#EBF8FF;border:1px solid #90CDF4;color:#2B6CB0;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">✏️ 編集</button>
+            <button onclick="deleteReport(${item.reportId});openDetail('${siteId}')"
+              style="background:#FFF5F5;border:1px solid #FEB2B2;color:#C53030;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">🗑️</button>
+          </div>
+        </div>
+        ${entryRows}
+      </div>`;
+  }).join('');
+
+  return `<div class="site-report-section">
+    <div style="font-weight:700;font-size:12px;color:#1F4E79;margin-bottom:8px;">📋 作業日報（直近${show.length}件）</div>
+    ${blocks}
+  </div>`;
+}
+
+function renderReportList() {
+  const el = document.getElementById('report-list-container');
+  if (!el) return;
+  if (REPORTS.length === 0) {
+    el.innerHTML = '<div style="color:#718096;font-size:13px;padding:8px 0;">日報はまだありません</div>';
+    return;
+  }
+  el.innerHTML = REPORTS.map(r => {
+    const reportSite = SITES.find(s=>s.id===r.siteId);
+    const rows = r.entries.map(e => {
+      const sn = reportSite || SITES.find(s=>s.id===e.siteId);
+      return `<tr>
+        <td>${sn ? sn.name : '—'}</td>
+        <td>${e.content||'—'}</td>
+        <td style="text-align:center;">${e.hours||0}h</td>
+        <td>${e.worker||'—'}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="report-list-item">
+      <div class="report-list-header">
+        <span class="report-list-date">📅 ${fmtDateJP(r.date)}</span>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-white btn-sm" style="border:1px solid #CBD5E0;" onclick="editReport(${r.id})">✏️ 修正</button>
+          <button class="btn btn-red btn-sm" onclick="deleteReport(${r.id})">🗑️</button>
+        </div>
+      </div>
+      <table class="report-list-table">
+        <thead><tr><th>現場名</th><th>作業内容</th><th>時間</th><th>作業者氏名</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+}
+
+// =========================================================
+// DATA CLEAR (全データ削除)
+// =========================================================
+function clearAllData(){
+  if(!confirm('⚠️ 全データを削除して初期化します。\n現場・タスク・日報がすべて消えます。\nこの操作は元に戻せません。\n\nよろしいですか？')) return;
+  if(!confirm('本当に削除しますか？\nデータは完全に消えます。')) return;
+  SITES = [];
+  TASKS = [];
+  REPORTS = [];
+  nextTaskId = 100;
+  nextReportId = 1;
+  saveState();      // ← 空の状態をlocalStorageに保存（更新後もデモデータが復活しないよう）
+  renderAll();
+  renderReportList();
+  showToast('🗑️ データを初期化しました。現場追加から登録してください。', 3000);
+}
+
+// =========================================================
+// SAVE STATE (override to sync mobile indicator)
+// =========================================================
+function saveState(){
+  try {
+    localStorage.setItem('kenba_data', JSON.stringify({sites:SITES,tasks:TASKS,reports:REPORTS,nextTaskId,nextReportId,deletedSites:DELETED_SITE_IDS,deletedReports:DELETED_REPORT_IDS}));
+  } catch(e){}
+  unsaved=false;
+  ['saveIndicator','saveIndicatorMobile'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){el.className='save-indicator saved';el.textContent='自動保存済み';}
+  });
+}
+
+// =========================================================
+// RENDER ALL
+// =========================================================
+function renderAll(){
+  try { renderKPI(); } catch(e){ console.error('renderKPI error',e); }
+  try {
+    renderSites();
+  } catch(e){
+    console.error('renderSites error',e);
+    const grid=document.getElementById('sitesGrid');
+    if(grid) grid.innerHTML='<div style="color:#E53E3E;padding:20px;text-align:center;">⚠️ 現場一覧の表示でエラーが発生しました。ページを再読み込みしてください。</div>';
+  }
+  // 日報フォームを初期化（PC/スマホ共通）- ドロップダウン更新＋行が空なら10行作成
+  try { initReportForm(); } catch(e){ console.error('initReportForm error',e); }
+  try { renderSchedule(); } catch(e){ console.error('renderSchedule error',e); }
+  // Sync date to mobile menu
+  const d=TODAY;
+  const dateStr=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+  const el=document.getElementById('currentDateMobile');
+  if(el)el.textContent='📅 '+dateStr;
+}
+
+// =========================================================
+// INIT
+// =========================================================
+(async function initPilot() {
+  if (await checkAuth()) {
+    try {
+      await loadServerState();
+      renderAll();
+      renderReportList();
+    } catch (e) {
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('loginError').textContent = '❌ データを読み込めません: ' + e.message;
+    }
+  }
+})();
+</script>
+</body>
+</html>

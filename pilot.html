@@ -423,6 +423,7 @@ input,select,textarea,button{font-family:inherit}
   </div>
   <div class="top-bar-actions">
     <div class="save-indicator" id="saveIndicator">保存済み</div>
+    <button class="btn btn-ghost btn-sm" data-admin-only style="display:none;background:#FFF5F5;color:#C53030;border-color:#FEB2B2;" onclick="openAiReportModal()">🎙️ AIに報告</button>
     <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="データをJSONファイルとして保存">💾 データ保存</button>
     <button class="btn btn-ghost btn-sm" onclick="document.getElementById('json-import-input').click()" title="JSONファイルを読み込む">📂 データ読込</button>
     <input type="file" id="json-import-input" accept=".json" onchange="importJSON(event)">
@@ -451,6 +452,7 @@ input,select,textarea,button{font-family:inherit}
     <button class="menu-btn" onclick="document.getElementById('json-import-input').click();closeMobileMenu()">📂 データ読込（JSON）</button>
 
     <button class="menu-btn" onclick="switchTab('report');closeMobileMenu()">📋 日報入力</button>
+    <button class="menu-btn" data-admin-only style="display:none;background:#FFF5F5;color:#C53030;" onclick="openAiReportModal();closeMobileMenu()">🎙️ AIに報告（社長のみ）</button>
     <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
@@ -728,6 +730,19 @@ input,select,textarea,button{font-family:inherit}
       <button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeProjectCard()">キャンセル</button>
       <button class="btn btn-green" onclick="saveProjectCard()">保存</button>
     </div>
+  </div>
+</div>
+
+<!-- ===== AI REPORT ROUTING MODAL ===== -->
+<div class="modal-overlay" id="aiReportModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head"><h2>🎙️ AIに報告</h2><button class="modal-close" onclick="closeAiReportModal()">✕</button></div>
+    <div class="modal-body">
+      <div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#744210;">スマホではキーボードの🎙️で話して入力できます。AIは現場候補を出すだけで、内容を確認するまで保存しません。</div>
+      <textarea id="ai-report-source" class="form-input" style="width:100%;min-height:130px;box-sizing:border-box;resize:vertical;" placeholder="例：朝霧堂の確認申請は、横山氏から検査機関の回答待ち。壁量修正は提出済み。"></textarea>
+      <div id="ai-report-result" style="display:none;margin-top:14px;"></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiReportModal()">閉じる</button><button class="btn btn-green" id="ai-report-run" onclick="routeAiReport()">AIに案件を探してもらう</button></div>
   </div>
 </div>
 
@@ -1212,6 +1227,7 @@ async function loadServerState() {
   DELETED_REPORT_IDS = [];
   document.querySelectorAll('[onclick*="Cloud"], #autoBackupLabel, #autoBackupLabelM').forEach(el => { el.style.display = 'none'; });
   document.querySelectorAll('.subtitle').forEach(el => { el.textContent = CURRENT_USER ? `${CURRENT_USER.name} としてログイン中（試験版）` : '試験版'; });
+  document.querySelectorAll('[data-admin-only]').forEach(el => { el.style.display = CURRENT_USER && CURRENT_USER.role === 'admin' ? '' : 'none'; });
 }
 
 // saveState は下部の定義を使用（重複定義を削除）
@@ -1670,6 +1686,42 @@ function openProjectCard(siteId) {
   document.getElementById('projectCardModal').classList.add('show');
 }
 function closeProjectCard() { document.getElementById('projectCardModal').classList.remove('show'); projectCardSiteId = null; }
+let aiReportSourceText = '';
+function openAiReportModal(){
+  if(!CURRENT_USER || CURRENT_USER.role!=='admin') return;
+  document.getElementById('ai-report-source').value='';
+  document.getElementById('ai-report-result').style.display='none';
+  document.getElementById('aiReportModal').classList.add('show');
+  setTimeout(()=>document.getElementById('ai-report-source').focus(),80);
+}
+function closeAiReportModal(){ document.getElementById('aiReportModal').classList.remove('show'); aiReportSourceText=''; }
+function aiReportCandidateButton(siteId, note){
+  const name=siteName(siteId);
+  return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="continueAiReport('${siteId}')">🏗️ ${cardEscape(name)}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
+}
+async function routeAiReport(){
+  const source=document.getElementById('ai-report-source').value.trim();
+  if(!source){showToast('⚠️ 報告内容を入力してください');return;}
+  const button=document.getElementById('ai-report-run'); const result=document.getElementById('ai-report-result');
+  button.disabled=true;button.textContent='AIが案件を確認中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">登録済み現場と照合しています…</div>';
+  try{
+    aiReportSourceText=source;const data=await PILOT.routeReport(source);const route=data.route||{};
+    if(route.status==='matched'&&route.siteId){
+      result.innerHTML=`<div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:11px;font-size:13px;color:#276749;"><strong>該当候補：${cardEscape(siteName(route.siteId))}</strong><div style="margin-top:5px;">${cardEscape(route.reason)}</div>${aiReportCandidateButton(route.siteId,'この案件のカード下書きを作ります')}</div>`;
+    }else if(route.status==='ambiguous'&&(route.candidateSiteIds||[]).length){
+      result.innerHTML=`<div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:11px;font-size:13px;color:#744210;"><strong>案件を1つに決められませんでした。</strong><div style="margin-top:5px;">${cardEscape(route.reason||'該当する現場を選んでください。')}</div>${route.candidateSiteIds.map(id=>aiReportCandidateButton(id,'この案件を選ぶ')).join('')}</div>`;
+    }else{
+      result.innerHTML=`<div style="background:#FFF5F5;border:1px solid #FEB2B2;border-radius:8px;padding:11px;font-size:13px;color:#C53030;"><strong>該当する現場を特定できませんでした。</strong><div style="margin-top:5px;">${cardEscape(route.reason||'現場名を入れて、もう一度お試しください。')}</div></div>`;
+    }
+  }catch(e){result.innerHTML=`<div style="color:#C53030;font-size:13px;">AIによる案件判定に失敗しました: ${cardEscape(e.message)}</div>`;}
+  finally{button.disabled=false;button.textContent='AIに案件を探してもらう';}
+}
+async function continueAiReport(siteId){
+  if(!aiReportSourceText)return;
+  const source=aiReportSourceText;document.getElementById('aiReportModal').classList.remove('show');
+  openProjectCard(siteId);document.getElementById('card-source').value=source;
+  await draftProjectCard();
+}
 function cardInput() {
   return {
     summary:document.getElementById('card-summary').value.trim(),
@@ -1993,7 +2045,7 @@ function switchTab(tab){
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','confirmModal','projectCardModal','reportPhotoModal'].forEach(id=>{
+['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');
@@ -2005,7 +2057,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     closeDetail();
     closeMobileMenu();
-    ['siteModal','confirmModal','projectCardModal','reportPhotoModal'].forEach(id=>{
+    ['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.classList.remove('show');
     });

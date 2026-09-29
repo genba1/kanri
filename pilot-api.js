@@ -31,6 +31,17 @@
       return body;
     }
 
+    async requestBlob(path) {
+      const headers = {};
+      if (this.token) headers.Authorization = `Bearer ${this.token}`;
+      const response = await fetch(`${this.baseUrl}${path}`, { headers });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || `通信に失敗しました（${response.status}）`);
+      }
+      return response.blob();
+    }
+
     async login(username, password) {
       const body = await this.request('/auth/login', {
         method: 'POST',
@@ -81,6 +92,8 @@
       form.append('caption', caption);
       return this.request(`/reports/${encodeURIComponent(reportId)}/photos`, { method:'POST', body:form });
     }
+    reportPhotos(reportId) { return this.request(`/reports/${encodeURIComponent(reportId)}/photos`); }
+    photoBlob(photoId) { return this.requestBlob(`/photos/${encodeURIComponent(photoId)}/file`); }
   }
 
   global.KanriPilotApi = KanriPilotApi;

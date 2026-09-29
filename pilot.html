@@ -511,6 +511,12 @@ input,select,textarea,button{font-family:inherit}
           <tbody id="report-entries-container"></tbody>
         </table>
       </div>
+      <div style="margin-top:14px;">
+        <label style="font-size:13px;font-weight:600;color:#4A5568;display:block;margin-bottom:5px;">📷 現場写真（任意・複数可）</label>
+        <input type="file" id="report-photo-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onchange="prepareReportPhotos(this.files)" style="font-size:13px;max-width:100%;">
+        <div style="font-size:11px;color:#718096;margin-top:4px;">JPEG・PNG・WebPは端末内で自動圧縮し、1枚3MB以下で保存します。HEIFは3MB以下なら元の形式で保存します。</div>
+        <div id="report-photo-status" style="font-size:12px;color:#4A5568;margin-top:6px;"></div>
+      </div>
       <div class="report-actions" style="margin-top:14px;">
         <button class="btn btn-green btn-sm" onclick="saveReport()">☁️ 保存してクラウド同期</button>
         <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#718096;" onclick="cancelEditReport()">✕ キャンセル</button>
@@ -722,6 +728,14 @@ input,select,textarea,button{font-family:inherit}
       <button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeProjectCard()">キャンセル</button>
       <button class="btn btn-green" onclick="saveProjectCard()">保存</button>
     </div>
+  </div>
+</div>
+
+<!-- ===== REPORT PHOTO MODAL ===== -->
+<div class="modal-overlay" id="reportPhotoModal">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-head"><h2 id="reportPhotoTitle">📷 現場写真</h2><button class="modal-close" onclick="closeReportPhotos()">✕</button></div>
+    <div class="modal-body" id="reportPhotoBody"><div style="color:#718096;font-size:13px;">読み込み中です…</div></div>
   </div>
 </div>
 
@@ -1171,6 +1185,7 @@ const DEFAULT_SITES = [
 let SITES = [];
 let TASKS = []; // データ互換性のため保持
 let REPORTS = [];
+let REPORT_PHOTO_FILES = [];
 let nextTaskId = 100;
 let nextReportId = 1;
 let unsaved = false;
@@ -1234,6 +1249,50 @@ function showToast(msg,dur=2200){
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+function bytesLabel(bytes){ return `${(bytes / 1024 / 1024).toFixed(bytes >= 1024 * 1024 ? 1 : 2)}MB`; }
+function reportPhotoStatus(text, isError=false){
+  const el=document.getElementById('report-photo-status'); if(!el)return;
+  el.textContent=text; el.style.color=isError?'#C53030':'#4A5568';
+}
+async function compressReportPhoto(file){
+  const maxBytes=3*1024*1024;
+  const heif=/image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
+  if(heif){
+    if(file.size>maxBytes) throw new Error(`${file.name} はHEIFのまま3MBを超えています。iPhoneで「互換性優先」にして撮影するか、3MB以下の写真を選んでください。`);
+    return file;
+  }
+  if(file.size<=maxBytes && file.type==='image/png') return file;
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((resolve,reject)=>{ const x=new Image(); x.onload=()=>resolve(x); x.onerror=()=>reject(new Error(`${file.name} を読み込めませんでした。`)); x.src=url; });
+    const maxEdge=2400; const scale=Math.min(1,maxEdge/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+    const canvas=document.createElement('canvas'); canvas.width=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)); canvas.height=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));
+    const ctx=canvas.getContext('2d'); ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    const mime=file.type==='image/png'?'image/webp':'image/jpeg';
+    for(const quality of [.86,.78,.68,.58,.48]){
+      const blob=await new Promise(resolve=>canvas.toBlob(resolve,mime,quality));
+      if(blob && blob.size<=maxBytes){
+        const ext=mime==='image/webp'?'.webp':'.jpg'; const base=file.name.replace(/\.[^.]+$/,'');
+        return new File([blob],base+ext,{type:mime,lastModified:file.lastModified});
+      }
+    }
+    throw new Error(`${file.name} を3MB以下にできませんでした。`);
+  } finally { URL.revokeObjectURL(url); }
+}
+async function prepareReportPhotos(fileList){
+  const files=Array.from(fileList||[]); REPORT_PHOTO_FILES=[];
+  if(!files.length){ reportPhotoStatus(''); return; }
+  reportPhotoStatus(`写真${files.length}枚を確認・圧縮しています…`);
+  try{
+    REPORT_PHOTO_FILES=[];
+    for(const file of files) REPORT_PHOTO_FILES.push(await compressReportPhoto(file));
+    reportPhotoStatus(`写真${REPORT_PHOTO_FILES.length}枚を保存待ちにしました（合計 ${bytesLabel(REPORT_PHOTO_FILES.reduce((n,f)=>n+f.size,0))}）。`);
+  }catch(e){ REPORT_PHOTO_FILES=[]; document.getElementById('report-photo-input').value=''; reportPhotoStatus(e.message,true); }
+}
+function clearReportPhotos(){
+  REPORT_PHOTO_FILES=[]; const input=document.getElementById('report-photo-input'); if(input)input.value=''; reportPhotoStatus('');
 }
 
 // =========================================================
@@ -1927,7 +1986,7 @@ function switchTab(tab){
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','confirmModal','projectCardModal'].forEach(id=>{
+['siteModal','confirmModal','projectCardModal','reportPhotoModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');
@@ -1939,7 +1998,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     closeDetail();
     closeMobileMenu();
-    ['siteModal','confirmModal','projectCardModal'].forEach(id=>{
+    ['siteModal','confirmModal','projectCardModal','reportPhotoModal'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.classList.remove('show');
     });
@@ -2048,6 +2107,7 @@ async function saveReport() {
 
   const editingId = parseInt(document.getElementById('report-editing-id').value) || 0;
   try {
+  let reportId = editingId;
   if (editingId) {
     const existing = REPORTS.find(r => r.id === editingId);
     if (existing) {
@@ -2058,13 +2118,22 @@ async function saveReport() {
   } else {
     const saved = await PILOT.createReport({date:dateVal, siteId, entries});
     REPORTS.push({ id:saved.id, date: dateVal, siteId, entries, version:1 });
+    reportId = saved.id;
+  }
+  if (REPORT_PHOTO_FILES.length) {
+    const total = REPORT_PHOTO_FILES.length;
+    for (let i=0;i<total;i++) {
+      showToast(`📷 写真を保存中… ${i+1}/${total}`, 5000);
+      await PILOT.uploadPhoto(reportId, REPORT_PHOTO_FILES[i]);
+    }
   }
   REPORTS.sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
   renderReportList();
   // フォームリセット
   buildReportRows([]);
   document.getElementById('report-site-select').value = '';
-  showToast('✅ 日報を保存しました', 2200);
+  clearReportPhotos();
+  showToast('✅ 日報と写真を保存しました', 2200);
   } catch(e) {
     showToast('❌ 日報を保存できません: ' + e.message, 3500);
   }
@@ -2088,6 +2157,7 @@ function cancelEditReport() {
   document.getElementById('report-editing-id').value = '';
   buildReportRows([]);
   document.getElementById('report-site-select').value = '';
+  clearReportPhotos();
   showToast('修正をキャンセルしました', 1800);
 }
 
@@ -2099,6 +2169,7 @@ function editReport(id) {
   document.getElementById('report-site-select').value = r.siteId || (r.entries[0]?.siteId||'');
   updateReportWeekday();
   buildReportRows(r.entries);
+  clearReportPhotos();
   switchTab('report');
   // 日報入力フォームの先頭へスクロール
   setTimeout(()=>{
@@ -2112,6 +2183,24 @@ function fmtDateJP(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   return `${d.getMonth()+1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
 }
+
+function photoHtmlEscape(value){ return String(value||'').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+async function openReportPhotos(reportId, date){
+  const modal=document.getElementById('reportPhotoModal');
+  document.getElementById('reportPhotoTitle').textContent=`📷 現場写真（${fmtDateJP(date)}）`;
+  document.getElementById('reportPhotoBody').innerHTML='<div style="color:#718096;font-size:13px;">読み込み中です…</div>';
+  modal.classList.add('show');
+  try{
+    const result=await PILOT.reportPhotos(reportId); const photos=result.photos||[];
+    if(!photos.length){ document.getElementById('reportPhotoBody').innerHTML='<div style="color:#718096;font-size:13px;">この日報には写真がありません。</div>'; return; }
+    const items=await Promise.all(photos.map(async photo=>{
+      try { const blob=await PILOT.photoBlob(photo.id); const url=URL.createObjectURL(blob); return `<a href="${url}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;"><img src="${url}" alt="${photoHtmlEscape(photo.original_name)}" style="display:block;width:100%;height:150px;object-fit:cover;border-radius:8px;background:#EDF2F7;"><div style="font-size:11px;color:#4A5568;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px;">${photoHtmlEscape(photo.original_name)}・${bytesLabel(photo.bytes)}</div></a>`; }
+      catch(e){ return `<div style="font-size:12px;color:#C53030;">写真を表示できません</div>`; }
+    }));
+    document.getElementById('reportPhotoBody').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;">${items.join('')}</div><div style="font-size:11px;color:#718096;margin-top:12px;">写真を押すと原寸を別画面で開きます。</div>`;
+  }catch(e){ document.getElementById('reportPhotoBody').innerHTML=`<div style="font-size:13px;color:#C53030;">写真を読み込めません: ${photoHtmlEscape(e.message)}</div>`; }
+}
+function closeReportPhotos(){ document.getElementById('reportPhotoModal').classList.remove('show'); }
 
 function buildSiteReportHtml(siteId) {
   // その現場に関連する日報を日報単位でグループ化して新しい順で表示
@@ -2140,6 +2229,8 @@ function buildSiteReportHtml(siteId) {
           <div style="display:flex;gap:4px;flex-shrink:0;">
             <button onclick="editReport(${item.reportId});closeDetail()"
               style="background:#EBF8FF;border:1px solid #90CDF4;color:#2B6CB0;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">✏️ 編集</button>
+            <button onclick="openReportPhotos(${item.reportId},'${item.date}')"
+              style="background:#F0FFF4;border:1px solid #9AE6B4;color:#276749;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">📷 写真</button>
             <button onclick="deleteReport(${item.reportId});openDetail('${siteId}')"
               style="background:#FFF5F5;border:1px solid #FEB2B2;color:#C53030;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">🗑️</button>
           </div>
@@ -2176,6 +2267,7 @@ function renderReportList() {
       <div class="report-list-header">
         <span class="report-list-date">📅 ${fmtDateJP(r.date)}</span>
         <div style="display:flex;gap:6px;">
+          <button class="btn btn-white btn-sm" style="border:1px solid #9AE6B4;color:#276749;" onclick="openReportPhotos(${r.id},'${r.date}')">📷 写真</button>
           <button class="btn btn-white btn-sm" style="border:1px solid #CBD5E0;" onclick="editReport(${r.id})">✏️ 修正</button>
           <button class="btn btn-red btn-sm" onclick="deleteReport(${r.id})">🗑️</button>
         </div>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>現場進捗管理 — データコピー</title>
+<style>
+  body{margin:0;background:#f4f7fb;color:#243447;font-family:system-ui,-apple-system,"Yu Gothic",sans-serif;line-height:1.65}
+  main{max-width:620px;margin:40px auto;padding:0 18px}
+  .card{background:#fff;border-radius:14px;padding:25px;box-shadow:0 2px 14px #1f4e7918;margin-bottom:16px}
+  h1{margin:0 0 8px;color:#1f4e79;font-size:22px}h2{font-size:16px;color:#1f4e79;margin-top:0}
+  label{display:block;margin:13px 0 4px;font-weight:700;font-size:14px}input{box-sizing:border-box;width:100%;padding:11px;border:1px solid #cbd5e0;border-radius:8px;font:inherit}
+  button{margin-top:18px;width:100%;padding:12px;border:0;border-radius:8px;background:#1f4e79;color:#fff;font:700 15px inherit;cursor:pointer}button:disabled{opacity:.55;cursor:wait}
+  .note{font-size:13px;color:#4a5568}.warn{background:#fffaf0;border:1px solid #f6ad55;padding:12px;border-radius:8px;font-size:13px}.ok{background:#f0fff4;border:1px solid #9ae6b4;padding:12px;border-radius:8px}.error{background:#fff5f5;border:1px solid #feb2b2;color:#c53030;padding:12px;border-radius:8px}
+</style>
+<main>
+  <div class="card">
+    <h1>現場進捗管理：データコピー</h1>
+    <p class="note">現在のGistデータを、新しいMySQLへ<strong>コピー</strong>します。元のアプリ・Gistのデータは変更しません。</p>
+    <div class="warn">この画面は、MySQLが空の最初の一回だけ使えます。データ内容を確認してから「コピーを実行」を押してください。</div>
+  </div>
+  <div class="card" id="loginCard">
+    <h2>管理者ログイン</h2>
+    <label>ログインID<input id="username" autocomplete="username"></label>
+    <label>パスワード<input id="password" type="password" autocomplete="current-password"></label>
+    <button id="loginButton">ログインしてファイルを選ぶ</button>
+    <div id="loginResult"></div>
+  </div>
+  <div class="card" id="importCard" hidden>
+    <h2>コピー元のJSONファイル</h2>
+    <p class="note">現在のアプリの「💾 データ保存」で作成したJSONファイルを選択してください。</p>
+    <input id="jsonFile" type="file" accept="application/json,.json">
+    <div id="fileInfo" class="note"></div>
+    <button id="importButton" disabled>コピーを実行</button>
+    <div id="importResult"></div>
+  </div>
+</main>
+<script src="pilot-api.js"></script>
+<script>
+(() => {
+  const api = new KanriPilotApi('https://kanri-api.kagunyan.com/public/api/index.php');
+  const loginCard=document.getElementById('loginCard'), importCard=document.getElementById('importCard');
+  const loginResult=document.getElementById('loginResult'), importResult=document.getElementById('importResult');
+  let payload=null;
+  const message=(target,text,kind)=>{target.className=kind;target.textContent=text;};
+  document.getElementById('loginButton').onclick=async()=>{
+    const button=document.getElementById('loginButton');button.disabled=true;loginResult.className='note';loginResult.textContent='';
+    try{
+      const user=await api.login(document.getElementById('username').value.trim(),document.getElementById('password').value);
+      if(user.role!=='admin') throw new Error('データコピーは管理者だけが実行できます。');
+      loginCard.hidden=true;importCard.hidden=false;
+    }catch(e){message(loginResult,'❌ '+e.message,'error');}finally{button.disabled=false;}
+  };
+  document.getElementById('jsonFile').onchange=async(e)=>{
+    payload=null;document.getElementById('importButton').disabled=true;importResult.textContent='';
+    const file=e.target.files[0];if(!file)return;
+    try{
+      const data=JSON.parse(await file.text());
+      if(!Array.isArray(data.sites)||!Array.isArray(data.reports))throw new Error('現場・日報データを含むJSONファイルを選択してください。');
+      payload=data;
+      document.getElementById('fileInfo').textContent=`確認済み：現場 ${data.sites.length} 件、日報 ${data.reports.length} 件`;
+      document.getElementById('importButton').disabled=false;
+    }catch(err){message(importResult,'❌ '+err.message,'error');}
+  };
+  document.getElementById('importButton').onclick=async()=>{
+    if(!payload)return;
+    if(!confirm(`現場 ${payload.sites.length} 件、日報 ${payload.reports.length} 件を新しいサーバーへコピーします。元のGistは変更しません。実行しますか？`))return;
+    const button=document.getElementById('importButton');button.disabled=true;
+    try{
+      const result=await api.request('/admin/import-gist-snapshot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      message(importResult,`✅ コピー完了：現場 ${result.sites} 件、日報 ${result.reports} 件。試験版ページを再読み込みして確認してください。`,'ok');
+    }catch(e){message(importResult,'❌ '+e.message,'error');button.disabled=false;}
+  };
+})();
+</script>
+</html>

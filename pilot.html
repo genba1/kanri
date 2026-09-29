@@ -489,7 +489,10 @@ input,select,textarea,button{font-family:inherit}
   <div class="section-page" id="page-report">
     <!-- 日報入力フォーム -->
     <div class="report-form-card">
-      <div class="section-head">📋 日報入力</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;">
+        <div class="section-head" style="margin-bottom:0;">📋 日報入力</div>
+        <button class="btn btn-sm" data-admin-only style="display:none;background:#2E75B6;color:white;border:none;white-space:nowrap;" onclick="openAiDailyReportModal()">🎙️ AIで下書き</button>
+      </div>
       <input type="hidden" id="report-editing-id" value="">
       <div class="report-date-row">
         <label style="font-size:13px;font-weight:600;color:#4A5568;">日付</label>
@@ -743,6 +746,19 @@ input,select,textarea,button{font-family:inherit}
       <div id="ai-report-result" style="display:none;margin-top:14px;"></div>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiReportModal()">閉じる</button><button class="btn btn-green" id="ai-report-run" onclick="routeAiReport()">AIに案件を探してもらう</button></div>
+  </div>
+</div>
+
+<!-- ===== AI DAILY REPORT DRAFT MODAL ===== -->
+<div class="modal-overlay" id="aiDailyReportModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head"><h2>🎙️ AIで日報下書き</h2><button class="modal-close" onclick="closeAiDailyReportModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:#4A5568;line-height:1.6;margin:0 0 10px;">現場名・作業内容・作業者・時間を、そのまま話して入力してください。AIが日報の行に分けます。</p>
+      <textarea id="ai-daily-report-source" class="form-input" rows="7" style="resize:vertical;line-height:1.65;" placeholder="例：朝霧堂で、今日は山川と留美が9時から15時まで、洗面所の解体と配管の仕込みをした。"></textarea>
+      <div id="ai-daily-report-result" style="display:none;margin-top:12px;"></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiDailyReportModal()">閉じる</button><button class="btn btn-green" id="ai-daily-report-run" onclick="draftAiDailyReport()">日報の下書きを作る</button></div>
   </div>
 </div>
 
@@ -1722,6 +1738,53 @@ async function continueAiReport(siteId){
   openProjectCard(siteId);document.getElementById('card-source').value=source;
   await draftProjectCard();
 }
+let aiDailyReportDraft = null;
+function openAiDailyReportModal(){
+  if(!CURRENT_USER || CURRENT_USER.role!=='admin')return;
+  aiDailyReportDraft=null;
+  document.getElementById('ai-daily-report-source').value='';
+  document.getElementById('ai-daily-report-result').style.display='none';
+  document.getElementById('aiDailyReportModal').classList.add('show');
+  setTimeout(()=>document.getElementById('ai-daily-report-source').focus(),80);
+}
+function closeAiDailyReportModal(){
+  document.getElementById('aiDailyReportModal').classList.remove('show');
+  aiDailyReportDraft=null;
+}
+function aiDailyCandidateButton(siteId, note){
+  return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="applyAiDailyReportDraft('${siteId}')">🏗️ ${cardEscape(siteName(siteId))}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
+}
+async function draftAiDailyReport(){
+  const source=document.getElementById('ai-daily-report-source').value.trim();
+  if(!source){showToast('⚠️ 報告内容を入力してください');return;}
+  const button=document.getElementById('ai-daily-report-run');const result=document.getElementById('ai-daily-report-result');
+  button.disabled=true;button.textContent='AIが日報を整理中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">現場と日報の内容を整理しています…</div>';
+  try{
+    const data=await PILOT.createDailyReportDraft(source);const draft=data.draft||{};aiDailyReportDraft=draft;
+    const summary=`${draft.date||'日付未設定'} ／ ${Array.isArray(draft.entries)?draft.entries.length:0}件の作業行`;
+    if(draft.status==='matched'&&draft.siteId){
+      result.innerHTML=`<div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:11px;font-size:13px;color:#276749;"><strong>該当現場：${cardEscape(siteName(draft.siteId))}</strong><div style="margin-top:5px;">${cardEscape(summary)}</div><div style="margin-top:5px;">${cardEscape(draft.reason||'下書きを確認してください。')}</div>${aiDailyCandidateButton(draft.siteId,'日報入力画面へ下書きを入れる')}</div>`;
+    }else if(draft.status==='ambiguous'&&(draft.candidateSiteIds||[]).length){
+      result.innerHTML=`<div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:11px;font-size:13px;color:#744210;"><strong>現場を1つに決められませんでした。</strong><div style="margin-top:5px;">${cardEscape(draft.reason||'該当する現場を選んでください。')}</div><div style="margin-top:5px;">${cardEscape(summary)}</div>${draft.candidateSiteIds.map(id=>aiDailyCandidateButton(id,'この現場へ日報下書きを入れる')).join('')}</div>`;
+    }else{
+      result.innerHTML=`<div style="background:#FFF5F5;border:1px solid #FEB2B2;border-radius:8px;padding:11px;font-size:13px;color:#C53030;"><strong>現場を特定できませんでした。</strong><div style="margin-top:5px;">${cardEscape(draft.reason||'現場名を入れて、もう一度お試しください。')}</div></div>`;
+    }
+  }catch(e){result.innerHTML=`<div style="color:#C53030;font-size:13px;">AIによる日報下書きに失敗しました: ${cardEscape(e.message)}</div>`;}
+  finally{button.disabled=false;button.textContent='日報の下書きを作る';}
+}
+function applyAiDailyReportDraft(siteId){
+  const draft=aiDailyReportDraft;
+  if(!draft||!siteId)return;
+  switchTab('report');
+  document.getElementById('report-editing-id').value='';
+  document.getElementById('report-date-input').value=draft.date||localToday();
+  updateReportWeekday();
+  const select=document.getElementById('report-site-select');select.innerHTML=buildSiteOptions(siteId);select.value=siteId;
+  buildReportRows((draft.entries||[]).map(e=>({content:e.content||'',worker:e.worker||'',hours:e.hours||''})));
+  clearReportPhotos();
+  closeAiDailyReportModal();
+  showToast('✨ AIの日報下書きを入れました。内容を確認して保存してください。',3500);
+}
 function cardInput() {
   return {
     summary:document.getElementById('card-summary').value.trim(),
@@ -2045,7 +2108,7 @@ function switchTab(tab){
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal'].forEach(id=>{
+['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');
@@ -2057,7 +2120,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     closeDetail();
     closeMobileMenu();
-    ['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal'].forEach(id=>{
+    ['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.classList.remove('show');
     });
@@ -2070,11 +2133,15 @@ document.addEventListener('keydown',e=>{
 const WEEKDAYS = ['日','月','火','水','木','金','土'];
 
 const REPORT_ROW_COUNT = 10; // 固定行数
+function localToday() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
 
 function initReportForm() {
   // 今日の日付をセット
-  const d = new Date();
-  const iso = d.toISOString().split('T')[0];
+  const iso = localToday();
   const el = document.getElementById('report-date-input');
   if (el && !el.value) { el.value = iso; updateReportWeekday(); }
   // 現場ドロップダウンを最新リストで更新

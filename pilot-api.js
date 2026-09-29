@@ -79,6 +79,7 @@
     replaceDocumentItems(documentId, items) { return this.request(`/documents/${encodeURIComponent(documentId)}/items`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({items}) }); }
     createCardDraft(siteId, sourceText) { return this.request(`/sites/${encodeURIComponent(siteId)}/ai/draft`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sourceText}) }); }
     routeReport(sourceText) { return this.request('/ai/route-report', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sourceText}) }); }
+    createDailyReportDraft(sourceText) { return this.request('/ai/daily-report-draft', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sourceText}) }); }
     card(id) { return this.request(`/sites/${encodeURIComponent(id)}/card`); }
     updateCard(id, card, version, sourceText = '') {
       return this.request(`/sites/${encodeURIComponent(id)}/card`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({card, version, sourceText}) });

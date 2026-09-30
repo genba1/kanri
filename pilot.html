@@ -731,25 +731,19 @@ input,select,textarea,button{font-family:inherit}
 <!-- ===== PROJECT CARD MODAL ===== -->
 <div class="modal-overlay" id="projectCardModal">
   <div class="modal" style="max-width:620px;">
-    <div class="modal-head"><h2>🧭 案件カードを整理</h2><button class="modal-close" onclick="closeProjectCard()">✕</button></div>
+    <div class="modal-head"><h2>🧭 この現場のタスクを整理</h2><button class="modal-close" onclick="closeProjectCard()">✕</button></div>
     <div class="modal-body">
       <div style="background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#4A5568;">
-        報告を入力して「AIで下書き」を押すと、6項目だけに整理します。事実と違う内容は保存しないでください。
+        この現場の報告を入力すると、AIが必要な社長タスク候補に整理します。追加したタスクは「社長タスク」と同じ一件です。完了にすると両方の一覧から消えます。
       </div>
       <label style="font-size:12px;font-weight:700;color:#1F4E79;">AIに整理させる報告（社長のみ）</label>
       <textarea id="card-source" class="form-input" style="width:100%;min-height:76px;box-sizing:border-box;margin:4px 0 8px;resize:vertical;" placeholder="例：横山氏から、確認検査機関の回答待ち。壁量の修正図面は提出済み。"></textarea>
-      <button type="button" class="btn btn-white btn-sm" style="border:1.5px solid #90CDF4;color:#2B6CB0;margin-bottom:15px;" onclick="draftProjectCard()">✨ AIで下書き</button>
+      <button type="button" class="btn btn-white btn-sm" style="border:1.5px solid #90CDF4;color:#2B6CB0;margin-bottom:8px;" onclick="draftProjectCard()">✨ AIでタスク候補を作る</button>
       <div id="card-task-drafts"></div>
-      <label>要約<textarea id="card-summary" class="form-input" style="width:100%;box-sizing:border-box;min-height:56px;resize:vertical;"></textarea></label>
-      <label>ボールを持つ人<input id="card-holder" class="form-input"></label>
-      <label>次の一手<textarea id="card-next" class="form-input" style="width:100%;box-sizing:border-box;min-height:48px;resize:vertical;"></textarea></label>
-      <label>待ち事項<textarea id="card-waiting" class="form-input" style="width:100%;box-sizing:border-box;min-height:48px;resize:vertical;"></textarea></label>
-      <label>次の確認日<input id="card-check" type="date" class="form-input"></label>
-      <label>注意点<textarea id="card-caution" class="form-input" style="width:100%;box-sizing:border-box;min-height:48px;resize:vertical;"></textarea></label>
+      <div id="card-current-tasks"></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeProjectCard()">キャンセル</button>
-      <button class="btn btn-green" onclick="saveProjectCard()">保存</button>
+      <button class="btn btn-green" onclick="closeProjectCard()">閉じる</button>
     </div>
   </div>
 </div>
@@ -1703,43 +1697,53 @@ function closeDetail(){
 }
 
 // =========================================================
-// PROJECT CARD（タスク一覧を増やさない案件の現在地）
+// PROJECT CARD（現場ごとの社長タスク）
 // =========================================================
 function cardEscape(value) {
   return String(value || '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function projectTaskRowsHtml(siteId, inModal=false) {
+  const tasks=TASKS.filter(t=>taskIsOpen(t)&&t.siteId===siteId)
+    .sort((a,b)=>(a.dueDate||'9999-12-31').localeCompare(b.dueDate||'9999-12-31') || b.id-a.id);
+  if(!tasks.length) return `<div style="font-size:12px;color:#718096;padding:${inModal?'10px 0 0':'8px 0 2px'};">未完了の社長タスクはありません。</div>`;
+  return tasks.map(task=>{
+    const wait=task.kind==='waiting';
+    return `<div style="border-left:4px solid ${wait?'#ED8936':'#2E75B6'};background:${wait?'#FFF9E6':'#F7FBFF'};border-radius:8px;padding:9px 10px;margin-top:7px;font-size:12px;">
+      <div style="font-weight:700;color:#1F4E79;line-height:1.45;">${taskKindLabel(task.kind)}　${cardEscape(task.title)}</div>
+      <div style="color:#4A5568;margin-top:4px;">📅 ${cardEscape(taskDueText(task))}</div>
+      ${task.note?`<div style="color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(task.note)}</div>`:''}
+      <button class="btn btn-sm" style="margin-top:7px;background:white;border:1px solid #9AE6B4;color:#276749;" onclick="completeAdminTask(${task.id})">✅ 完了にする</button>
+    </div>`;
+  }).join('');
+}
 function projectCardHtml(site) {
-  const c = site.card || {};
   const editable = CURRENT_USER && CURRENT_USER.role === 'admin';
-  const rows = [
-    ['要約', c.summary], ['ボールを持つ人', c.ballHolder], ['次の一手', c.nextAction],
-    ['待ち事項', c.waitingFor], ['次の確認', c.nextCheckAt], ['注意点', c.caution],
-  ];
+  if(!editable)return '';
   return `<div style="margin:14px 0;padding:13px;background:#F0F7FF;border:1px solid #BEE3F8;border-radius:9px;">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px;">
       <strong style="color:#1F4E79;font-size:13px;">🧭 案件カード（現在地）</strong>
-      ${editable ? `<button class="btn btn-sm" style="background:#2E75B6;color:white;border:none;" onclick="openProjectCard('${site.id}')">整理する</button>` : ''}
+      <button class="btn btn-sm" style="background:#2E75B6;color:white;border:none;" onclick="openProjectCard('${site.id}')">AIで整理</button>
     </div>
-    ${rows.map(([label,value]) => `<div style="display:grid;grid-template-columns:88px 1fr;gap:7px;padding:4px 0;font-size:12px;border-top:1px solid #DCEBFA;"><span style="font-weight:700;color:#4A5568;">${label}</span><span style="white-space:pre-wrap;">${cardEscape(value)}</span></div>`).join('')}
+    <div style="font-size:12px;color:#4A5568;">この現場の未完了タスク</div>
+    ${projectTaskRowsHtml(site.id)}
   </div>`;
 }
 let projectCardSiteId = null;
 function openProjectCard(siteId) {
   const s = SITES.find(x => x.id === siteId);
   if (!s || !CURRENT_USER || CURRENT_USER.role !== 'admin') return;
-  const c = s.card || {};
   projectCardSiteId = siteId;
   document.getElementById('card-source').value = '';
-  document.getElementById('card-summary').value = c.summary || '';
-  document.getElementById('card-holder').value = c.ballHolder || '';
-  document.getElementById('card-next').value = c.nextAction || '';
-  document.getElementById('card-waiting').value = c.waitingFor || '';
-  document.getElementById('card-check').value = c.nextCheckAt || '';
-  document.getElementById('card-caution').value = c.caution || '';
   document.getElementById('card-task-drafts').innerHTML = '';
+  renderProjectCardTaskList();
   document.getElementById('projectCardModal').classList.add('show');
 }
 function closeProjectCard() { document.getElementById('projectCardModal').classList.remove('show'); projectCardSiteId = null; }
+function renderProjectCardTaskList(){
+  const el=document.getElementById('card-current-tasks');
+  if(!el)return;
+  el.innerHTML=projectCardSiteId?`<div style="font-size:12px;font-weight:700;color:#1F4E79;margin-top:14px;">この現場の未完了タスク</div>${projectTaskRowsHtml(projectCardSiteId,true)}`:'';
+}
 let aiReportSourceText = '';
 let aiReportMode = 'card';
 function selectAiReportMode(mode){
@@ -1855,7 +1859,7 @@ async function applyAiDailyReportDraft(siteId){
   buildReportRows((draft.entries||[]).map(e=>({content:e.content||'',worker:e.worker||'',hours:e.hours||''})));
   clearReportPhotos();
   closeAiDailyReportModal();
-  await draftTasksForSource(source,'report-task-drafts');
+  await draftTasksForSource(source,'report-task-drafts',siteId);
   showToast('✨ AIの日報下書きを入れました。内容を確認して保存してください。',3500);
 }
 let aiTaskSourceText='';
@@ -1888,11 +1892,11 @@ function renderAiTaskDrafts(targetId=aiTaskDraftTargetId){
   if(!aiTaskDrafts.length){result.innerHTML=`${heading}<div style="background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:11px;font-size:13px;color:#4A5568;">今すぐ追加すべきタスク候補はありませんでした。</div>`;return;}
   result.innerHTML=`${heading}<div style="font-size:13px;color:#4A5568;margin-bottom:6px;">必要なものだけ追加してください。</div>${aiTaskDrafts.map(aiTaskDraftHtml).join('')}`;
 }
-async function draftTasksForSource(source,targetId){
+async function draftTasksForSource(source,targetId,forcedSiteId=''){
   const result=document.getElementById(targetId);if(!source||!result)return;
   aiTaskSourceText=source;aiTaskDraftTargetId=targetId;
   result.innerHTML='<div style="font-size:12px;color:#718096;margin:12px 0 4px;">🧭 同じ報告から社長タスク候補を整理しています…</div>';
-  try{const data=await PILOT.createTaskDraft(source);aiTaskDrafts=(data.drafts||[]).map(x=>({...x,saved:false}));renderAiTaskDrafts(targetId);}
+  try{const data=await PILOT.createTaskDraft(source);aiTaskDrafts=(data.drafts||[]).map(x=>({...x,siteId:forcedSiteId||x.siteId,saved:false}));renderAiTaskDrafts(targetId);}
   catch(e){result.innerHTML=`<div style="color:#C53030;font-size:12px;margin-top:10px;">タスク候補を作成できません: ${cardEscape(e.message)}</div>`;}
 }
 async function draftAiTasks(){
@@ -1906,7 +1910,7 @@ async function saveAiTaskDraft(index){
   const draft=aiTaskDrafts[index];if(!draft||draft.saved)return;
   try{
     const saved=await PILOT.createTask({...draft,sourceText:aiTaskSourceText});
-    draft.saved=true;TASKS.unshift(saved.task);renderAiTaskDrafts(aiTaskDraftTargetId);renderAdminTasks();renderAll();
+    draft.saved=true;TASKS.unshift(saved.task);renderAiTaskDrafts(aiTaskDraftTargetId);renderProjectCardTaskList();renderAdminTasks();renderAll();refreshOpenDetailTaskList(saved.task.siteId);
     showToast('✅ 社長タスクに追加しました');
   }catch(e){showToast('❌ タスクを追加できません: '+e.message,3500);}
 }
@@ -1919,7 +1923,7 @@ function taskDueText(task){
 function renderAdminTasks(){
   const el=document.getElementById('admin-task-list');if(!el)return;
   if(!CURRENT_USER || CURRENT_USER.role!=='admin'){el.innerHTML='';return;}
-  const tasks=[...TASKS].sort((a,b)=>Number(!taskIsOpen(a))-Number(!taskIsOpen(b)) || (a.dueDate||'9999-12-31').localeCompare(b.dueDate||'9999-12-31') || b.id-a.id);
+  const tasks=TASKS.filter(taskIsOpen).sort((a,b)=>(a.dueDate||'9999-12-31').localeCompare(b.dueDate||'9999-12-31') || b.id-a.id);
   if(!tasks.length){el.innerHTML='<div style="text-align:center;padding:25px 8px;color:#718096;font-size:13px;">タスクはまだありません。報告を話して、必要なものだけ追加してください。</div>';return;}
   el.innerHTML=tasks.map(task=>{
     const done=!taskIsOpen(task);const wait=task.kind==='waiting';const border=done?'#CBD5E0':wait?'#ED8936':'#2E75B6';
@@ -1933,46 +1937,20 @@ function renderAdminTasks(){
 }
 async function completeAdminTask(id){
   const task=TASKS.find(x=>x.id===id);if(!task)return;
-  try{const saved=await PILOT.updateTask(id,{siteId:task.siteId,title:task.title,kind:task.kind,dueDate:task.dueDate,status:'done',note:task.note,version:task.version});Object.assign(task,saved.task);renderAdminTasks();renderAll();showToast('✅ タスクを完了にしました');}
+  try{const saved=await PILOT.updateTask(id,{siteId:task.siteId,title:task.title,kind:task.kind,dueDate:task.dueDate,status:'done',note:task.note,version:task.version});Object.assign(task,saved.task);renderProjectCardTaskList();renderAdminTasks();renderAll();refreshOpenDetailTaskList(task.siteId);showToast('✅ タスクを完了にしました');}
   catch(e){showToast('❌ タスクを更新できません: '+e.message,3500);}
-}
-function cardInput() {
-  return {
-    summary:document.getElementById('card-summary').value.trim(),
-    ballHolder:document.getElementById('card-holder').value.trim(),
-    nextAction:document.getElementById('card-next').value.trim(),
-    waitingFor:document.getElementById('card-waiting').value.trim(),
-    nextCheckAt:document.getElementById('card-check').value,
-    caution:document.getElementById('card-caution').value.trim(),
-  };
 }
 async function draftProjectCard() {
   const source = document.getElementById('card-source').value.trim();
   if (!source) { showToast('⚠️ 報告内容を入力してください'); return; }
   try {
-    const result = await PILOT.createCardDraft(projectCardSiteId, source);
-    const c = result.draft;
-    document.getElementById('card-summary').value = c.summary || '';
-    document.getElementById('card-holder').value = c.ballHolder || '';
-    document.getElementById('card-next').value = c.nextAction || '';
-    document.getElementById('card-waiting').value = c.waitingFor || '';
-    document.getElementById('card-check').value = c.nextCheckAt || '';
-    document.getElementById('card-caution').value = c.caution || '';
-    await draftTasksForSource(source,'card-task-drafts');
-    showToast('✨ AIが下書きを作成しました。内容を確認して保存してください。', 3000);
+    await draftTasksForSource(source,'card-task-drafts',projectCardSiteId);
+    showToast('✨ AIがタスク候補を作成しました。必要なものだけ追加してください。', 3000);
   } catch(e) { showToast('❌ AI整理できません: ' + e.message, 3500); }
 }
-async function saveProjectCard() {
-  const site = SITES.find(x => x.id === projectCardSiteId);
-  if (!site) return;
-  try {
-    const result = await PILOT.updateCard(site.id, cardInput(), site.version, document.getElementById('card-source').value.trim());
-    site.card = result.card;
-    site.version += 1;
-    closeProjectCard();
-    openDetail(site.id);
-    showToast('✅ 案件カードを保存しました', 2200);
-  } catch(e) { showToast('❌ 保存できません: ' + e.message, 3500); }
+function refreshOpenDetailTaskList(siteId){
+  const panel=document.getElementById('detail-panel');
+  if(panel && panel.classList.contains('open') && document.getElementById('card-'+siteId)?.classList.contains('selected'))openDetail(siteId);
 }
 
 // =========================================================

@@ -528,6 +528,7 @@ input,select,textarea,button{font-family:inherit}
         <button class="btn btn-green btn-sm" onclick="saveReport()">☁️ 保存してクラウド同期</button>
         <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#718096;" onclick="cancelEditReport()">✕ キャンセル</button>
       </div>
+      <div id="report-task-drafts"></div>
     </div>
     <!-- 過去の日報一覧 -->
     <div class="report-form-card">
@@ -736,6 +737,7 @@ input,select,textarea,button{font-family:inherit}
       <label style="font-size:12px;font-weight:700;color:#1F4E79;">AIに整理させる報告（社長のみ）</label>
       <textarea id="card-source" class="form-input" style="width:100%;min-height:76px;box-sizing:border-box;margin:4px 0 8px;resize:vertical;" placeholder="例：横山氏から、確認検査機関の回答待ち。壁量の修正図面は提出済み。"></textarea>
       <button type="button" class="btn btn-white btn-sm" style="border:1.5px solid #90CDF4;color:#2B6CB0;margin-bottom:15px;" onclick="draftProjectCard()">✨ AIで下書き</button>
+      <div id="card-task-drafts"></div>
       <label>要約<textarea id="card-summary" class="form-input" style="width:100%;box-sizing:border-box;min-height:56px;resize:vertical;"></textarea></label>
       <label>ボールを持つ人<input id="card-holder" class="form-input"></label>
       <label>次の一手<textarea id="card-next" class="form-input" style="width:100%;box-sizing:border-box;min-height:48px;resize:vertical;"></textarea></label>
@@ -1727,6 +1729,7 @@ function openProjectCard(siteId) {
   document.getElementById('card-waiting').value = c.waitingFor || '';
   document.getElementById('card-check').value = c.nextCheckAt || '';
   document.getElementById('card-caution').value = c.caution || '';
+  document.getElementById('card-task-drafts').innerHTML = '';
   document.getElementById('projectCardModal').classList.add('show');
 }
 function closeProjectCard() { document.getElementById('projectCardModal').classList.remove('show'); projectCardSiteId = null; }
@@ -1767,9 +1770,10 @@ async function continueAiReport(siteId){
   await draftProjectCard();
 }
 let aiDailyReportDraft = null;
+let aiDailyReportSourceText = '';
 function openAiDailyReportModal(){
   if(!CURRENT_USER || CURRENT_USER.role!=='admin')return;
-  aiDailyReportDraft=null;
+  aiDailyReportDraft=null;aiDailyReportSourceText='';
   document.getElementById('ai-daily-report-source').value='';
   document.getElementById('ai-daily-report-result').style.display='none';
   document.getElementById('aiDailyReportModal').classList.add('show');
@@ -1788,7 +1792,7 @@ async function draftAiDailyReport(){
   const button=document.getElementById('ai-daily-report-run');const result=document.getElementById('ai-daily-report-result');
   button.disabled=true;button.textContent='AIが日報を整理中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">現場と日報の内容を整理しています…</div>';
   try{
-    const data=await PILOT.createDailyReportDraft(source);const draft=data.draft||{};aiDailyReportDraft=draft;
+    const data=await PILOT.createDailyReportDraft(source);const draft=data.draft||{};aiDailyReportDraft=draft;aiDailyReportSourceText=source;
     const summary=`${draft.date||'日付未設定'} ／ ${Array.isArray(draft.entries)?draft.entries.length:0}件の作業行`;
     if(draft.status==='matched'&&draft.siteId){
       result.innerHTML=`<div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:11px;font-size:13px;color:#276749;"><strong>該当現場：${cardEscape(siteName(draft.siteId))}</strong><div style="margin-top:5px;">${cardEscape(summary)}</div><div style="margin-top:5px;">${cardEscape(draft.reason||'下書きを確認してください。')}</div>${aiDailyCandidateButton(draft.siteId,'日報入力画面へ下書きを入れる')}</div>`;
@@ -1800,9 +1804,10 @@ async function draftAiDailyReport(){
   }catch(e){result.innerHTML=`<div style="color:#C53030;font-size:13px;">AIによる日報下書きに失敗しました: ${cardEscape(e.message)}</div>`;}
   finally{button.disabled=false;button.textContent='日報の下書きを作る';}
 }
-function applyAiDailyReportDraft(siteId){
+async function applyAiDailyReportDraft(siteId){
   const draft=aiDailyReportDraft;
   if(!draft||!siteId)return;
+  const source=aiDailyReportSourceText;
   switchTab('report');
   document.getElementById('report-editing-id').value='';
   document.getElementById('report-date-input').value=draft.date||localToday();
@@ -1811,10 +1816,12 @@ function applyAiDailyReportDraft(siteId){
   buildReportRows((draft.entries||[]).map(e=>({content:e.content||'',worker:e.worker||'',hours:e.hours||''})));
   clearReportPhotos();
   closeAiDailyReportModal();
+  await draftTasksForSource(source,'report-task-drafts');
   showToast('✨ AIの日報下書きを入れました。内容を確認して保存してください。',3500);
 }
 let aiTaskSourceText='';
 let aiTaskDrafts=[];
+let aiTaskDraftTargetId='ai-task-result';
 function openAiTaskModal(){
   if(!CURRENT_USER || CURRENT_USER.role!=='admin')return;
   aiTaskSourceText='';aiTaskDrafts=[];
@@ -1835,15 +1842,24 @@ function aiTaskDraftHtml(draft,index){
     <button class="btn btn-sm" ${draft.saved?'disabled':''} style="margin-top:8px;background:${draft.saved?'#A0AEC0':'#38A169'};color:white;border:none;" onclick="saveAiTaskDraft(${index})">${draft.saved?'追加済み':'このタスクを追加'}</button>
   </div>`;
 }
-function renderAiTaskDrafts(){
-  const result=document.getElementById('ai-task-result');result.style.display='block';
-  if(!aiTaskDrafts.length){result.innerHTML='<div style="background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:11px;font-size:13px;color:#4A5568;">今すぐ追加すべきタスク候補はありませんでした。</div>';return;}
-  result.innerHTML=`<div style="font-size:13px;color:#4A5568;margin-bottom:6px;">必要なものだけ追加してください。</div>${aiTaskDrafts.map(aiTaskDraftHtml).join('')}`;
+function renderAiTaskDrafts(targetId=aiTaskDraftTargetId){
+  const result=document.getElementById(targetId);if(!result)return;
+  const embedded=targetId!=='ai-task-result';
+  const heading=embedded?'<div style="font-size:12px;font-weight:700;color:#1F4E79;margin:12px 0 5px;">🧭 同じ報告からの社長タスク候補</div>':'';
+  if(!aiTaskDrafts.length){result.innerHTML=`${heading}<div style="background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:11px;font-size:13px;color:#4A5568;">今すぐ追加すべきタスク候補はありませんでした。</div>`;return;}
+  result.innerHTML=`${heading}<div style="font-size:13px;color:#4A5568;margin-bottom:6px;">必要なものだけ追加してください。</div>${aiTaskDrafts.map(aiTaskDraftHtml).join('')}`;
+}
+async function draftTasksForSource(source,targetId){
+  const result=document.getElementById(targetId);if(!source||!result)return;
+  aiTaskSourceText=source;aiTaskDraftTargetId=targetId;
+  result.innerHTML='<div style="font-size:12px;color:#718096;margin:12px 0 4px;">🧭 同じ報告から社長タスク候補を整理しています…</div>';
+  try{const data=await PILOT.createTaskDraft(source);aiTaskDrafts=(data.drafts||[]).map(x=>({...x,saved:false}));renderAiTaskDrafts(targetId);}
+  catch(e){result.innerHTML=`<div style="color:#C53030;font-size:12px;margin-top:10px;">タスク候補を作成できません: ${cardEscape(e.message)}</div>`;}
 }
 async function draftAiTasks(){
   const source=document.getElementById('ai-task-source').value.trim();if(!source){showToast('⚠️ 報告内容を入力してください');return;}
   const button=document.getElementById('ai-task-run');const result=document.getElementById('ai-task-result');button.disabled=true;button.textContent='AIが候補を整理中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">次に動くこと・相手待ちを整理しています…</div>';
-  try{aiTaskSourceText=source;const data=await PILOT.createTaskDraft(source);aiTaskDrafts=(data.drafts||[]).map(x=>({...x,saved:false}));renderAiTaskDrafts();}
+  try{await draftTasksForSource(source,'ai-task-result');}
   catch(e){result.innerHTML=`<div style="color:#C53030;font-size:13px;">AIによるタスク候補の作成に失敗しました: ${cardEscape(e.message)}</div>`;}
   finally{button.disabled=false;button.textContent='タスク候補を作る';}
 }
@@ -1851,7 +1867,7 @@ async function saveAiTaskDraft(index){
   const draft=aiTaskDrafts[index];if(!draft||draft.saved)return;
   try{
     const saved=await PILOT.createTask({...draft,sourceText:aiTaskSourceText});
-    draft.saved=true;TASKS.unshift(saved.task);renderAiTaskDrafts();renderAdminTasks();renderAll();
+    draft.saved=true;TASKS.unshift(saved.task);renderAiTaskDrafts(aiTaskDraftTargetId);renderAdminTasks();renderAll();
     showToast('✅ 社長タスクに追加しました');
   }catch(e){showToast('❌ タスクを追加できません: '+e.message,3500);}
 }
@@ -1903,6 +1919,7 @@ async function draftProjectCard() {
     document.getElementById('card-waiting').value = c.waitingFor || '';
     document.getElementById('card-check').value = c.nextCheckAt || '';
     document.getElementById('card-caution').value = c.caution || '';
+    await draftTasksForSource(source,'card-task-drafts');
     showToast('✨ AIが下書きを作成しました。内容を確認して保存してください。', 3000);
   } catch(e) { showToast('❌ AI整理できません: ' + e.message, 3500); }
 }

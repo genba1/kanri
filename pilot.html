@@ -223,6 +223,7 @@ input,select,textarea,button{font-family:inherit}
 
 /* ── Mobile menu panel ── */
 .mobile-menu-btn{display:none;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:white;border-radius:8px;padding:7px 10px;font-size:18px;cursor:pointer;line-height:1}
+.mobile-ai-report-btn{display:none!important}
 .mobile-menu-panel{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.5);z-index:95}
 .mobile-menu-panel.show{display:block}
 .mobile-menu-sheet{position:absolute;top:0;right:0;bottom:0;width:260px;background:white;padding:20px 16px;box-shadow:-4px 0 20px rgba(0,0,0,.2)}
@@ -256,6 +257,7 @@ input,select,textarea,button{font-family:inherit}
   .top-bar-actions .save-indicator,
   .top-bar-actions .btn-ghost,
   .top-bar-actions .date-badge{display:none}
+  .top-bar-actions .mobile-ai-report-btn{display:inline-flex!important;align-items:center;white-space:nowrap;background:#FFF5F5;color:#C53030;border:1px solid #FEB2B2;padding:7px 9px;font-size:12px}
   .mobile-menu-btn{display:block}
   .pc-tabs{display:none}
 
@@ -434,6 +436,7 @@ input,select,textarea,button{font-family:inherit}
     <div class="date-badge" id="currentDate"></div>
     <!-- Mobile menu button -->
     <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="ログアウト" style="font-size:12px;">🔒 ログアウト</button>
+    <button class="btn btn-sm mobile-ai-report-btn" data-admin-only style="display:none;" onclick="openAiReportModal()">🎙️ AIに報告</button>
     <button class="mobile-menu-btn" onclick="openMobileMenu()">☰</button>
   </div>
 </div>
@@ -453,7 +456,6 @@ input,select,textarea,button{font-family:inherit}
 
     <button class="menu-btn" onclick="switchTab('report');closeMobileMenu()">📋 日報入力</button>
     <button class="menu-btn" data-admin-only style="display:none;background:#F0F7FF;color:#1F4E79;" onclick="switchTab('tasks');closeMobileMenu()">🧭 社長タスク</button>
-    <button class="menu-btn" data-admin-only style="display:none;background:#FFF5F5;color:#C53030;" onclick="openAiReportModal();closeMobileMenu()">🎙️ AIに報告（社長のみ）</button>
     <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
@@ -757,7 +759,12 @@ input,select,textarea,button{font-family:inherit}
   <div class="modal" style="max-width:620px;">
     <div class="modal-head"><h2>🎙️ AIに報告</h2><button class="modal-close" onclick="closeAiReportModal()">✕</button></div>
     <div class="modal-body">
-      <div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#744210;">スマホではキーボードの🎙️で話して入力できます。AIは現場候補を出すだけで、内容を確認するまで保存しません。</div>
+      <div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#744210;">スマホではキーボードの🎙️で話して入力できます。AIは下書きを作るだけで、内容を確認するまで保存しません。</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <button type="button" class="btn btn-sm" id="ai-report-mode-card" onclick="selectAiReportMode('card')">🧭 案件カードへ記入</button>
+        <button type="button" class="btn btn-sm" id="ai-report-mode-daily" onclick="selectAiReportMode('daily')">📋 日報へ記入</button>
+      </div>
+      <div id="ai-report-mode-help" style="font-size:12px;color:#4A5568;margin:0 0 10px;"></div>
       <textarea id="ai-report-source" class="form-input" style="width:100%;min-height:130px;box-sizing:border-box;resize:vertical;" placeholder="例：朝霧堂の確認申請は、横山氏から検査機関の回答待ち。壁量修正は提出済み。"></textarea>
       <div id="ai-report-result" style="display:none;margin-top:14px;"></div>
     </div>
@@ -1734,8 +1741,26 @@ function openProjectCard(siteId) {
 }
 function closeProjectCard() { document.getElementById('projectCardModal').classList.remove('show'); projectCardSiteId = null; }
 let aiReportSourceText = '';
+let aiReportMode = 'card';
+function selectAiReportMode(mode){
+  aiReportMode = mode === 'daily' ? 'daily' : 'card';
+  const isCard = aiReportMode === 'card';
+  const cardBtn=document.getElementById('ai-report-mode-card');
+  const dailyBtn=document.getElementById('ai-report-mode-daily');
+  const selectedStyle='background:#1F4E79;color:white;border:1px solid #1F4E79;';
+  const normalStyle='background:white;color:#4A5568;border:1px solid #CBD5E0;';
+  cardBtn.style.cssText=isCard?selectedStyle:normalStyle;
+  dailyBtn.style.cssText=isCard?normalStyle:selectedStyle;
+  document.getElementById('ai-report-mode-help').textContent=isCard
+    ? '現場を選んだ後、案件カードの下書きと社長タスク候補を作ります。'
+    : '現場を選んだ後、日報の作業内容・作業者・作業時間の下書きを作ります。';
+  document.getElementById('ai-report-source').placeholder=isCard
+    ? '例：朝霧堂の確認申請は、横山氏から検査機関の回答待ち。壁量修正は提出済み。'
+    : '例：朝霧堂で、山川と留美が9時から15時まで、洗面所の解体と配管の仕込みをした。';
+}
 function openAiReportModal(){
   if(!CURRENT_USER || CURRENT_USER.role!=='admin') return;
+  aiReportMode='card';selectAiReportMode('card');
   document.getElementById('ai-report-source').value='';
   document.getElementById('ai-report-result').style.display='none';
   document.getElementById('aiReportModal').classList.add('show');
@@ -1753,10 +1778,11 @@ async function routeAiReport(){
   button.disabled=true;button.textContent='AIが案件を確認中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">登録済み現場と照合しています…</div>';
   try{
     aiReportSourceText=source;const data=await PILOT.routeReport(source);const route=data.route||{};
+    const actionText=aiReportMode==='daily' ? 'この現場の日報下書きを作ります' : 'この案件のカード下書きを作ります';
     if(route.status==='matched'&&route.siteId){
-      result.innerHTML=`<div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:11px;font-size:13px;color:#276749;"><strong>該当候補：${cardEscape(siteName(route.siteId))}</strong><div style="margin-top:5px;">${cardEscape(route.reason)}</div>${aiReportCandidateButton(route.siteId,'この案件のカード下書きを作ります')}</div>`;
+      result.innerHTML=`<div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:11px;font-size:13px;color:#276749;"><strong>該当候補：${cardEscape(siteName(route.siteId))}</strong><div style="margin-top:5px;">${cardEscape(route.reason)}</div>${aiReportCandidateButton(route.siteId,actionText)}</div>`;
     }else if(route.status==='ambiguous'&&(route.candidateSiteIds||[]).length){
-      result.innerHTML=`<div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:11px;font-size:13px;color:#744210;"><strong>案件を1つに決められませんでした。</strong><div style="margin-top:5px;">${cardEscape(route.reason||'該当する現場を選んでください。')}</div>${route.candidateSiteIds.map(id=>aiReportCandidateButton(id,'この案件を選ぶ')).join('')}</div>`;
+      result.innerHTML=`<div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:11px;font-size:13px;color:#744210;"><strong>案件を1つに決められませんでした。</strong><div style="margin-top:5px;">${cardEscape(route.reason||'該当する現場を選んでください。')}</div>${route.candidateSiteIds.map(id=>aiReportCandidateButton(id,actionText)).join('')}</div>`;
     }else{
       result.innerHTML=`<div style="background:#FFF5F5;border:1px solid #FEB2B2;border-radius:8px;padding:11px;font-size:13px;color:#C53030;"><strong>該当する現場を特定できませんでした。</strong><div style="margin-top:5px;">${cardEscape(route.reason||'現場名を入れて、もう一度お試しください。')}</div></div>`;
     }
@@ -1766,8 +1792,21 @@ async function routeAiReport(){
 async function continueAiReport(siteId){
   if(!aiReportSourceText)return;
   const source=aiReportSourceText;document.getElementById('aiReportModal').classList.remove('show');
+  if(aiReportMode==='daily'){
+    await continueAiReportDaily(siteId,source);
+    return;
+  }
   openProjectCard(siteId);document.getElementById('card-source').value=source;
   await draftProjectCard();
+}
+async function continueAiReportDaily(siteId,source){
+  showToast('📋 AIが日報下書きを作成中…',5000);
+  try{
+    const data=await PILOT.createDailyReportDraft(source);
+    aiDailyReportDraft=data.draft||{};
+    aiDailyReportSourceText=source;
+    await applyAiDailyReportDraft(siteId);
+  }catch(e){showToast('❌ AIの日報下書きを作成できません: '+e.message,4000);}
 }
 let aiDailyReportDraft = null;
 let aiDailyReportSourceText = '';

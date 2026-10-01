@@ -223,10 +223,6 @@ input,select,textarea,button{font-family:inherit}
 
 /* ── Mobile menu panel ── */
 .mobile-menu-btn{display:none;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:white;border-radius:8px;padding:7px 10px;font-size:18px;cursor:pointer;line-height:1}
-.mobile-ai-report-btn{display:none!important}
-.mobile-task-btn{display:none!important}
-.pc-speech-input{margin:6px 0 2px;background:#F0F7FF;color:#1F4E79;border:1px solid #90CDF4}
-.pc-speech-input.is-listening{background:#C53030;color:white;border-color:#C53030}
 .mobile-menu-panel{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.5);z-index:95}
 .mobile-menu-panel.show{display:block}
 .mobile-menu-sheet{position:absolute;top:0;right:0;bottom:0;width:260px;background:white;padding:20px 16px;box-shadow:-4px 0 20px rgba(0,0,0,.2)}
@@ -260,9 +256,6 @@ input,select,textarea,button{font-family:inherit}
   .top-bar-actions .save-indicator,
   .top-bar-actions .btn-ghost,
   .top-bar-actions .date-badge{display:none}
-  .top-bar-actions .mobile-ai-report-btn{display:inline-flex!important;align-items:center;white-space:nowrap;background:#FFF5F5;color:#C53030;border:1px solid #FEB2B2;padding:7px 9px;font-size:12px}
-  .top-bar-actions .mobile-task-btn{display:inline-flex!important;align-items:center;white-space:nowrap;background:#F0F7FF;color:#1F4E79;border:1px solid #90CDF4;padding:7px 8px;font-size:12px}
-  .pc-speech-input{display:none!important}
   .mobile-menu-btn{display:block}
   .pc-tabs{display:none}
 
@@ -312,8 +305,8 @@ input,select,textarea,button{font-family:inherit}
   /* Process sliders */
   .proc-slider{height:20px}/* larger touch target */
 
-  /* Toast above nav: iPhoneのブラウザ下部バーも考慮して、固定ナビと重ねない */
-  .toast{bottom:calc(118px + env(safe-area-inset-bottom))}
+  /* Toast above nav */
+  .toast{bottom:76px}
 
   /* Gantt scrollable hint */
   .gantt-wrap::before{content:'← 横にスクロールできます';display:block;font-size:11px;color:#718096;margin-bottom:6px}
@@ -430,7 +423,6 @@ input,select,textarea,button{font-family:inherit}
   </div>
   <div class="top-bar-actions">
     <div class="save-indicator" id="saveIndicator">保存済み</div>
-    <button class="btn btn-ghost btn-sm" data-admin-only style="display:none;background:#FFF5F5;color:#C53030;border-color:#FEB2B2;" onclick="openAiReportModal()">🎙️ AIに報告</button>
     <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="データをJSONファイルとして保存">💾 データ保存</button>
     <button class="btn btn-ghost btn-sm" onclick="document.getElementById('json-import-input').click()" title="JSONファイルを読み込む">📂 データ読込</button>
     <input type="file" id="json-import-input" accept=".json" onchange="importJSON(event)">
@@ -441,8 +433,6 @@ input,select,textarea,button{font-family:inherit}
     <div class="date-badge" id="currentDate"></div>
     <!-- Mobile menu button -->
     <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="ログアウト" style="font-size:12px;">🔒 ログアウト</button>
-    <button class="btn btn-sm mobile-ai-report-btn" data-admin-only style="display:none;" onclick="openAiReportModal()">🎙️ AIに報告</button>
-    <button class="btn btn-sm mobile-task-btn" data-admin-only style="display:none;" onclick="switchTab('tasks')">🧭 タスク</button>
     <button class="mobile-menu-btn" onclick="openMobileMenu()">☰</button>
   </div>
 </div>
@@ -480,7 +470,6 @@ input,select,textarea,button{font-family:inherit}
     <button class="pc-tab-btn active" id="pctab-sites" onclick="switchTab('sites')">🏢 現場一覧</button>
     <button class="pc-tab-btn" id="pctab-report" onclick="switchTab('report')">📋 日報</button>
     <button class="pc-tab-btn" id="pctab-schedule" onclick="switchTab('schedule')">📅 工程</button>
-    <button class="pc-tab-btn" id="pctab-tasks" data-admin-only style="display:none;" onclick="switchTab('tasks')">🧭 社長タスク</button>
   </div>
 
   <!-- ===== PAGE: 現場 ===== -->
@@ -498,10 +487,7 @@ input,select,textarea,button{font-family:inherit}
   <div class="section-page" id="page-report">
     <!-- 日報入力フォーム -->
     <div class="report-form-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;">
-        <div class="section-head" style="margin-bottom:0;">📋 日報入力</div>
-        <button class="btn btn-sm" data-admin-only style="display:none;background:#2E75B6;color:white;border:none;white-space:nowrap;" onclick="openAiDailyReportModal()">🎙️ AIで下書き</button>
-      </div>
+      <div class="section-head">📋 日報入力</div>
       <input type="hidden" id="report-editing-id" value="">
       <div class="report-date-row">
         <label style="font-size:13px;font-weight:600;color:#4A5568;">日付</label>
@@ -525,17 +511,10 @@ input,select,textarea,button{font-family:inherit}
           <tbody id="report-entries-container"></tbody>
         </table>
       </div>
-      <div style="margin-top:14px;">
-        <label style="font-size:13px;font-weight:600;color:#4A5568;display:block;margin-bottom:5px;">📷 現場写真（任意・複数可）</label>
-        <input type="file" id="report-photo-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onchange="prepareReportPhotos(this.files)" style="font-size:13px;max-width:100%;">
-        <div style="font-size:11px;color:#718096;margin-top:4px;">HEIFは端末内でJPEGへ変換します。JPEG・PNG・WebPも含め、1枚3MB以下で保存します。</div>
-        <div id="report-photo-status" style="font-size:12px;color:#4A5568;margin-top:6px;"></div>
-      </div>
       <div class="report-actions" style="margin-top:14px;">
         <button class="btn btn-green btn-sm" onclick="saveReport()">☁️ 保存してクラウド同期</button>
         <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#718096;" onclick="cancelEditReport()">✕ キャンセル</button>
       </div>
-      <div id="report-task-drafts"></div>
     </div>
     <!-- 過去の日報一覧 -->
     <div class="report-form-card">
@@ -559,18 +538,6 @@ input,select,textarea,button{font-family:inherit}
       <div class="sch-wrap" id="sch-wrap">
         <table class="sch-table" id="schedule-table"></table>
       </div>
-    </div>
-  </div>
-
-  <!-- ===== PAGE: 社長タスク（管理者のみ） ===== -->
-  <div class="section-page" id="page-tasks">
-    <div class="report-form-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;">
-        <div class="section-head" style="margin:0;">🧭 社長タスク</div>
-        <button class="btn btn-sm" style="background:#2E75B6;color:white;border:none;white-space:nowrap;" onclick="openAiTaskModal()">🎙️ AIで候補作成</button>
-      </div>
-      <div style="font-size:12px;line-height:1.6;color:#718096;margin-bottom:13px;">話した報告から、次に動くことと相手待ちだけを候補にします。保存するまでは登録されません。</div>
-      <div id="admin-task-list"></div>
     </div>
   </div>
 
@@ -733,82 +700,6 @@ input,select,textarea,button{font-family:inherit}
   </div>
 </div>
 
-<!-- ===== PROJECT CARD MODAL ===== -->
-<div class="modal-overlay" id="projectCardModal">
-  <div class="modal" style="max-width:620px;">
-    <div class="modal-head"><h2>🧭 この現場のタスクを整理</h2><button class="modal-close" onclick="closeProjectCard()">✕</button></div>
-    <div class="modal-body">
-      <div style="background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#4A5568;">
-        この現場の報告を入力すると、AIが必要な社長タスク候補に整理します。追加したタスクは「社長タスク」と同じ一件です。完了にすると両方の一覧から消えます。
-      </div>
-      <label style="font-size:12px;font-weight:700;color:#1F4E79;">AIに整理させる報告（社長のみ）</label>
-      <textarea id="card-source" class="form-input" style="width:100%;min-height:76px;box-sizing:border-box;margin:4px 0 8px;resize:vertical;" placeholder="例：横山氏から、確認検査機関の回答待ち。壁量の修正図面は提出済み。"></textarea>
-      <button type="button" class="btn btn-sm pc-speech-input" id="card-source-mic" onclick="toggleSpeechInput('card-source','card-source-mic')">🎙️ 音声入力を開始</button>
-      <button type="button" class="btn btn-white btn-sm" style="border:1.5px solid #90CDF4;color:#2B6CB0;margin-bottom:8px;" onclick="draftProjectCard()">✨ AIでタスク候補を作る</button>
-      <div id="card-task-drafts"></div>
-      <div id="card-current-tasks"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-green" onclick="closeProjectCard()">閉じる</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== AI REPORT ROUTING MODAL ===== -->
-<div class="modal-overlay" id="aiReportModal">
-  <div class="modal" style="max-width:620px;">
-    <div class="modal-head"><h2>🎙️ AIに報告</h2><button class="modal-close" onclick="closeAiReportModal()">✕</button></div>
-    <div class="modal-body">
-      <div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#744210;">スマホではキーボードの🎙️で話して入力できます。AIは下書きを作るだけで、内容を確認するまで保存しません。</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <button type="button" class="btn btn-sm" id="ai-report-mode-card" onclick="selectAiReportMode('card')">🧭 案件カードへ記入</button>
-        <button type="button" class="btn btn-sm" id="ai-report-mode-daily" onclick="selectAiReportMode('daily')">📋 日報へ記入</button>
-      </div>
-      <div id="ai-report-mode-help" style="font-size:12px;color:#4A5568;margin:0 0 10px;"></div>
-      <textarea id="ai-report-source" class="form-input" style="width:100%;min-height:130px;box-sizing:border-box;resize:vertical;" placeholder="例：朝霧堂の確認申請は、横山氏から検査機関の回答待ち。壁量修正は提出済み。"></textarea>
-      <button type="button" class="btn btn-sm pc-speech-input" id="ai-report-source-mic" onclick="toggleSpeechInput('ai-report-source','ai-report-source-mic')">🎙️ 音声入力を開始</button>
-      <div id="ai-report-result" style="display:none;margin-top:14px;"></div>
-    </div>
-    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiReportModal()">閉じる</button><button class="btn btn-green" id="ai-report-run" onclick="routeAiReport()">AIに案件を探してもらう</button></div>
-  </div>
-</div>
-
-<!-- ===== AI DAILY REPORT DRAFT MODAL ===== -->
-<div class="modal-overlay" id="aiDailyReportModal">
-  <div class="modal" style="max-width:620px;">
-    <div class="modal-head"><h2>🎙️ AIで日報下書き</h2><button class="modal-close" onclick="closeAiDailyReportModal()">✕</button></div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:#4A5568;line-height:1.6;margin:0 0 10px;">現場名・作業内容・作業者・時間を、そのまま話して入力してください。AIが日報の行に分けます。</p>
-      <textarea id="ai-daily-report-source" class="form-input" rows="7" style="resize:vertical;line-height:1.65;" placeholder="例：朝霧堂で、今日は山川と留美が9時から15時まで、洗面所の解体と配管の仕込みをした。"></textarea>
-      <button type="button" class="btn btn-sm pc-speech-input" id="ai-daily-report-source-mic" onclick="toggleSpeechInput('ai-daily-report-source','ai-daily-report-source-mic')">🎙️ 音声入力を開始</button>
-      <div id="ai-daily-report-result" style="display:none;margin-top:12px;"></div>
-    </div>
-    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiDailyReportModal()">閉じる</button><button class="btn btn-green" id="ai-daily-report-run" onclick="draftAiDailyReport()">日報の下書きを作る</button></div>
-  </div>
-</div>
-
-<!-- ===== AI TASK DRAFT MODAL ===== -->
-<div class="modal-overlay" id="aiTaskModal">
-  <div class="modal" style="max-width:620px;">
-    <div class="modal-head"><h2>🎙️ AIでタスク候補</h2><button class="modal-close" onclick="closeAiTaskModal()">✕</button></div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:#4A5568;line-height:1.6;margin:0 0 10px;">現場の状況や連絡内容を話してください。AIが、社長が動くことと相手待ちを必要な分だけ候補にします。</p>
-      <textarea id="ai-task-source" class="form-input" rows="7" style="resize:vertical;line-height:1.65;" placeholder="例：朝霧堂は文化財の書類を朝霧堂様へ渡す必要がある。横山氏から検査機関の返答も待ち。10月3日に確認したい。"></textarea>
-      <button type="button" class="btn btn-sm pc-speech-input" id="ai-task-source-mic" onclick="toggleSpeechInput('ai-task-source','ai-task-source-mic')">🎙️ 音声入力を開始</button>
-      <div id="ai-task-result" style="display:none;margin-top:12px;"></div>
-    </div>
-    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiTaskModal()">閉じる</button><button class="btn btn-green" id="ai-task-run" onclick="draftAiTasks()">タスク候補を作る</button></div>
-  </div>
-</div>
-
-<!-- ===== REPORT PHOTO MODAL ===== -->
-<div class="modal-overlay" id="reportPhotoModal">
-  <div class="modal" style="max-width:760px;">
-    <div class="modal-head"><h2 id="reportPhotoTitle">📷 現場写真</h2><button class="modal-close" onclick="closeReportPhotos()">✕</button></div>
-    <div class="modal-body" id="reportPhotoBody"><div style="color:#718096;font-size:13px;">読み込み中です…</div></div>
-  </div>
-</div>
-
 <!-- ===== DELETE CONFIRM MODAL ===== -->
 <div class="modal-overlay" id="confirmModal">
   <div class="modal" style="max-width:380px;">
@@ -824,7 +715,6 @@ input,select,textarea,button{font-family:inherit}
 <!-- ===== TOAST ===== -->
 <div class="toast" id="toast"></div>
 
-<script src="heic2any.min.js"></script>
 <script src="pilot-api.js"></script>
 <script>
 // =========================================================
@@ -1256,7 +1146,6 @@ const DEFAULT_SITES = [
 let SITES = [];
 let TASKS = []; // データ互換性のため保持
 let REPORTS = [];
-let REPORT_PHOTO_FILES = [];
 let nextTaskId = 100;
 let nextReportId = 1;
 let unsaved = false;
@@ -1276,13 +1165,12 @@ async function loadServerState() {
   const [siteResult, reportResult] = await Promise.all([PILOT.sites(), PILOT.reports()]);
   SITES = siteResult.sites || [];
   REPORTS = reportResult.reports || [];
-  TASKS = CURRENT_USER && CURRENT_USER.role === 'admin' ? ((await PILOT.tasks()).tasks || []) : [];
+  TASKS = [];
   nextReportId = Math.max(1, ...REPORTS.map(r => Number(r.id) + 1));
   DELETED_SITE_IDS = [];
   DELETED_REPORT_IDS = [];
   document.querySelectorAll('[onclick*="Cloud"], #autoBackupLabel, #autoBackupLabelM').forEach(el => { el.style.display = 'none'; });
   document.querySelectorAll('.subtitle').forEach(el => { el.textContent = CURRENT_USER ? `${CURRENT_USER.name} としてログイン中（試験版）` : '試験版'; });
-  document.querySelectorAll('[data-admin-only]').forEach(el => { el.style.display = CURRENT_USER && CURRENT_USER.role === 'admin' ? '' : 'none'; });
 }
 
 // saveState は下部の定義を使用（重複定義を削除）
@@ -1300,7 +1188,6 @@ function isToday(dateStr) {
   const d = new Date(dateStr);
   return d.getFullYear()===TODAY.getFullYear()&&d.getMonth()===TODAY.getMonth()&&d.getDate()===TODAY.getDate();
 }
-function taskIsOpen(task){ return task.status === 'open'; }
 function isThisWeek(dateStr){ const d=new Date(dateStr); return d>=TODAY&&d<=THIS_WEEK_END; }
 function isOverdue(dateStr){ const d=new Date(dateStr); return d<TODAY; }
 function fmtDate(dateStr){ if(!dateStr)return'—'; const d=new Date(dateStr); return `${d.getMonth()+1}/${d.getDate()}`; }
@@ -1324,104 +1211,12 @@ function showToast(msg,dur=2200){
   setTimeout(()=>t.classList.remove('show'),dur);
 }
 
-let activeSpeechRecognition=null;
-let activeSpeechTargetId='';
-let activeSpeechButtonId='';
-function resetSpeechButton(){
-  const button=document.getElementById(activeSpeechButtonId);
-  if(button){button.textContent='🎙️ 音声入力を開始';button.classList.remove('is-listening');}
-  activeSpeechRecognition=null;activeSpeechTargetId='';activeSpeechButtonId='';
-}
-function stopSpeechInputFor(targetId){
-  if(activeSpeechRecognition&&activeSpeechTargetId===targetId)activeSpeechRecognition.stop();
-}
-function toggleSpeechInput(targetId,buttonId){
-  if(activeSpeechRecognition){
-    if(activeSpeechTargetId===targetId){activeSpeechRecognition.stop();return;}
-    activeSpeechRecognition.stop();resetSpeechButton();
-  }
-  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!Recognition){showToast('⚠️ このブラウザでは音声入力に対応していません。パソコンではChromeをご利用ください。',4200);return;}
-  const target=document.getElementById(targetId);const button=document.getElementById(buttonId);
-  if(!target||!button)return;
-  const recognition=new Recognition();
-  const before=target.value.trim();let finalText='';
-  recognition.lang='ja-JP';recognition.continuous=true;recognition.interimResults=true;
-  activeSpeechRecognition=recognition;activeSpeechTargetId=targetId;activeSpeechButtonId=buttonId;
-  recognition.onstart=()=>{button.textContent='⏹️ 音声入力を停止';button.classList.add('is-listening');showToast('🎙️ 音声入力中です。話し終えたら「停止」を押してください。',3000);};
-  recognition.onresult=(event)=>{
-    let interimText='';
-    for(let i=event.resultIndex;i<event.results.length;i++){
-      const text=event.results[i][0].transcript;
-      if(event.results[i].isFinal)finalText+=text;else interimText+=text;
-    }
-    target.value=(before?(before+'\n'):'')+finalText+interimText;
-    target.focus();
-  };
-  recognition.onerror=(event)=>{
-    if(event.error==='not-allowed'||event.error==='service-not-allowed')showToast('⚠️ マイクの使用が許可されていません。ブラウザのアドレス欄からマイクを許可してください。',5000);
-    else if(event.error!=='aborted'&&event.error!=='no-speech')showToast('⚠️ 音声入力を続けられませんでした: '+event.error,3500);
-  };
-  recognition.onend=()=>{if(activeSpeechRecognition===recognition)resetSpeechButton();};
-  try{recognition.start();}catch(e){resetSpeechButton();showToast('⚠️ 音声入力を開始できませんでした。',3500);}
-}
-
-function bytesLabel(bytes){ return `${(bytes / 1024 / 1024).toFixed(bytes >= 1024 * 1024 ? 1 : 2)}MB`; }
-function reportPhotoStatus(text, isError=false){
-  const el=document.getElementById('report-photo-status'); if(!el)return;
-  el.textContent=text; el.style.color=isError?'#C53030':'#4A5568';
-}
-async function compressReportPhoto(file){
-  const maxBytes=3*1024*1024;
-  const heif=/image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
-  if(heif){
-    if(typeof heic2any!=='function') throw new Error('HEIF変換部品を読み込めませんでした。画面を更新してからもう一度お試しください。');
-    try{
-      const converted=await heic2any({blob:file,toType:'image/jpeg',quality:.86});
-      const jpeg=Array.isArray(converted)?converted[0]:converted;
-      if(!(jpeg instanceof Blob)) throw new Error('JPEG変換結果を確認できませんでした。');
-      const base=file.name.replace(/\.[^.]+$/,'');
-      file=new File([jpeg],base+'.jpg',{type:'image/jpeg',lastModified:file.lastModified});
-    }catch(e){ throw new Error(`${file.name} をJPEGへ変換できませんでした。`); }
-  }
-  if(file.size<=maxBytes && file.type==='image/png') return file;
-  const url=URL.createObjectURL(file);
-  try{
-    const img=await new Promise((resolve,reject)=>{ const x=new Image(); x.onload=()=>resolve(x); x.onerror=()=>reject(new Error(`${file.name} を読み込めませんでした。`)); x.src=url; });
-    const maxEdge=2400; const scale=Math.min(1,maxEdge/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
-    const canvas=document.createElement('canvas'); canvas.width=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)); canvas.height=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));
-    const ctx=canvas.getContext('2d'); ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    const mime=file.type==='image/png'?'image/webp':'image/jpeg';
-    for(const quality of [.86,.78,.68,.58,.48]){
-      const blob=await new Promise(resolve=>canvas.toBlob(resolve,mime,quality));
-      if(blob && blob.size<=maxBytes){
-        const ext=mime==='image/webp'?'.webp':'.jpg'; const base=file.name.replace(/\.[^.]+$/,'');
-        return new File([blob],base+ext,{type:mime,lastModified:file.lastModified});
-      }
-    }
-    throw new Error(`${file.name} を3MB以下にできませんでした。`);
-  } finally { URL.revokeObjectURL(url); }
-}
-async function prepareReportPhotos(fileList){
-  const files=Array.from(fileList||[]); REPORT_PHOTO_FILES=[];
-  if(!files.length){ reportPhotoStatus(''); return; }
-  reportPhotoStatus(`写真${files.length}枚を確認・圧縮しています…`);
-  try{
-    REPORT_PHOTO_FILES=[];
-    for(const file of files) REPORT_PHOTO_FILES.push(await compressReportPhoto(file));
-    reportPhotoStatus(`写真${REPORT_PHOTO_FILES.length}枚を保存待ちにしました（合計 ${bytesLabel(REPORT_PHOTO_FILES.reduce((n,f)=>n+f.size,0))}）。`);
-  }catch(e){ REPORT_PHOTO_FILES=[]; document.getElementById('report-photo-input').value=''; reportPhotoStatus(e.message,true); }
-}
-function clearReportPhotos(){
-  REPORT_PHOTO_FILES=[]; const input=document.getElementById('report-photo-input'); if(input)input.value=''; reportPhotoStatus('');
-}
-
 // =========================================================
 // KPI
 // =========================================================
 function renderKPI(){
-  const todayCount=TASKS.filter(t=>taskIsOpen(t)&&isToday(t.dueDate)).length;
-  const urgentCount=TASKS.filter(t=>taskIsOpen(t)&&t.dueDate&&isOverdue(t.dueDate)).length;
+  const todayCount=TASKS.filter(t=>isToday(t.due)&&t.status!=='完了').length;
+  const urgentCount=TASKS.filter(t=>t.priority==='高'&&t.status!=='完了').length;
   document.getElementById('kpi-sites').textContent=SITES.length;
   document.getElementById('kpi-today').textContent=todayCount;
   document.getElementById('kpi-urgent').textContent=urgentCount;
@@ -1445,8 +1240,8 @@ function renderSites(){
   const sorted=[...SITES].sort((a,b)=>(statusOrder[a.status]??99)-(statusOrder[b.status]??99));
   grid.innerHTML=sorted.map(s=>{
     const badgeCls=badgeMap[s.status]||'badge-active';
-    const todayT=TASKS.filter(t=>taskIsOpen(t)&&t.siteId===s.id&&isToday(t.dueDate)).length;
-    const weekT=TASKS.filter(t=>taskIsOpen(t)&&t.siteId===s.id&&isThisWeek(t.dueDate)).length;
+    const todayT=TASKS.filter(t=>t.site===s.id&&isToday(t.due)&&t.status!=='完了').length;
+    const weekT=TASKS.filter(t=>t.site===s.id&&isThisWeek(t.due)&&t.status!=='完了').length;
     return`<div class="site-card" id="card-${s.id}" onclick="openDetail('${s.id}')" style="cursor:pointer;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <div class="site-id">${s.id.startsWith('_') ? '' : s.id}</div>
@@ -1736,7 +1531,6 @@ function openDetail(siteId){
     <div style="margin-bottom:12px;">
       <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSite('${s.id}');closeDetail()">📦 アーカイブ保存（完了現場の書き出し）</button>
     </div>
-    ${projectCardHtml(s)}
     ${buildSiteReportHtml(siteId)}`;
 
   document.getElementById('detail-panel').classList.add('open');
@@ -1745,264 +1539,6 @@ function openDetail(siteId){
 function closeDetail(){
   document.getElementById('detail-panel').classList.remove('open');
   document.querySelectorAll('.site-card').forEach(c=>c.classList.remove('selected'));
-}
-
-// =========================================================
-// PROJECT CARD（現場ごとの社長タスク）
-// =========================================================
-function cardEscape(value) {
-  return String(value || '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function projectTaskRowsHtml(siteId, inModal=false) {
-  const tasks=TASKS.filter(t=>taskIsOpen(t)&&t.siteId===siteId)
-    .sort((a,b)=>(a.dueDate||'9999-12-31').localeCompare(b.dueDate||'9999-12-31') || b.id-a.id);
-  if(!tasks.length) return `<div style="font-size:12px;color:#718096;padding:${inModal?'10px 0 0':'8px 0 2px'};">未完了の社長タスクはありません。</div>`;
-  return tasks.map(task=>{
-    const wait=task.kind==='waiting';
-    return `<div style="border-left:4px solid ${wait?'#ED8936':'#2E75B6'};background:${wait?'#FFF9E6':'#F7FBFF'};border-radius:8px;padding:9px 10px;margin-top:7px;font-size:12px;">
-      <div style="font-weight:700;color:#1F4E79;line-height:1.45;">${taskKindLabel(task.kind)}　${cardEscape(task.title)}</div>
-      <div style="color:#4A5568;margin-top:4px;">📅 ${cardEscape(taskDueText(task))}</div>
-      ${task.note?`<div style="color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(task.note)}</div>`:''}
-      <button class="btn btn-sm" style="margin-top:7px;background:white;border:1px solid #9AE6B4;color:#276749;" onclick="completeAdminTask(${task.id})">✅ 完了にする</button>
-    </div>`;
-  }).join('');
-}
-function projectCardHtml(site) {
-  const editable = CURRENT_USER && CURRENT_USER.role === 'admin';
-  if(!editable)return '';
-  return `<div style="margin:14px 0;padding:13px;background:#F0F7FF;border:1px solid #BEE3F8;border-radius:9px;">
-    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px;">
-      <strong style="color:#1F4E79;font-size:13px;">🧭 案件カード（現在地）</strong>
-      <button class="btn btn-sm" style="background:#2E75B6;color:white;border:none;" onclick="openProjectCard('${site.id}')">AIで整理</button>
-    </div>
-    <div style="font-size:12px;color:#4A5568;">この現場の未完了タスク</div>
-    ${projectTaskRowsHtml(site.id)}
-  </div>`;
-}
-let projectCardSiteId = null;
-function openProjectCard(siteId) {
-  const s = SITES.find(x => x.id === siteId);
-  if (!s || !CURRENT_USER || CURRENT_USER.role !== 'admin') return;
-  projectCardSiteId = siteId;
-  document.getElementById('card-source').value = '';
-  document.getElementById('card-task-drafts').innerHTML = '';
-  renderProjectCardTaskList();
-  document.getElementById('projectCardModal').classList.add('show');
-}
-function closeProjectCard() { stopSpeechInputFor('card-source');document.getElementById('projectCardModal').classList.remove('show'); projectCardSiteId = null; }
-function renderProjectCardTaskList(){
-  const el=document.getElementById('card-current-tasks');
-  if(!el)return;
-  el.innerHTML=projectCardSiteId?`<div style="font-size:12px;font-weight:700;color:#1F4E79;margin-top:14px;">この現場の未完了タスク</div>${projectTaskRowsHtml(projectCardSiteId,true)}`:'';
-}
-let aiReportSourceText = '';
-let aiReportMode = 'card';
-function selectAiReportMode(mode){
-  aiReportMode = mode === 'daily' ? 'daily' : 'card';
-  const isCard = aiReportMode === 'card';
-  const cardBtn=document.getElementById('ai-report-mode-card');
-  const dailyBtn=document.getElementById('ai-report-mode-daily');
-  const selectedStyle='background:#1F4E79;color:white;border:1px solid #1F4E79;';
-  const normalStyle='background:white;color:#4A5568;border:1px solid #CBD5E0;';
-  cardBtn.style.cssText=isCard?selectedStyle:normalStyle;
-  dailyBtn.style.cssText=isCard?normalStyle:selectedStyle;
-  document.getElementById('ai-report-mode-help').textContent=isCard
-    ? '現場を選んだ後、案件カードの下書きと社長タスク候補を作ります。'
-    : '現場を選んだ後、日報の作業内容・作業者・作業時間の下書きを作ります。';
-  document.getElementById('ai-report-source').placeholder=isCard
-    ? '例：朝霧堂の確認申請は、横山氏から検査機関の回答待ち。壁量修正は提出済み。'
-    : '例：朝霧堂で、山川と留美が9時から15時まで、洗面所の解体と配管の仕込みをした。';
-}
-function openAiReportModal(){
-  if(!CURRENT_USER || CURRENT_USER.role!=='admin') return;
-  aiReportMode='card';selectAiReportMode('card');
-  document.getElementById('ai-report-source').value='';
-  document.getElementById('ai-report-result').style.display='none';
-  document.getElementById('aiReportModal').classList.add('show');
-  setTimeout(()=>document.getElementById('ai-report-source').focus(),80);
-}
-function closeAiReportModal(){ stopSpeechInputFor('ai-report-source');document.getElementById('aiReportModal').classList.remove('show'); aiReportSourceText=''; }
-function aiReportCandidateButton(siteId, note){
-  const name=siteName(siteId);
-  return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="continueAiReport('${siteId}')">🏗️ ${cardEscape(name)}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
-}
-async function routeAiReport(){
-  const source=document.getElementById('ai-report-source').value.trim();
-  if(!source){showToast('⚠️ 報告内容を入力してください');return;}
-  const button=document.getElementById('ai-report-run'); const result=document.getElementById('ai-report-result');
-  button.disabled=true;button.textContent='AIが案件を確認中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">登録済み現場と照合しています…</div>';
-  try{
-    aiReportSourceText=source;const data=await PILOT.routeReport(source);const route=data.route||{};
-    const actionText=aiReportMode==='daily' ? 'この現場の日報下書きを作ります' : 'この案件のカード下書きを作ります';
-    if(route.status==='matched'&&route.siteId){
-      result.innerHTML=`<div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:11px;font-size:13px;color:#276749;"><strong>該当候補：${cardEscape(siteName(route.siteId))}</strong><div style="margin-top:5px;">${cardEscape(route.reason)}</div>${aiReportCandidateButton(route.siteId,actionText)}</div>`;
-    }else if(route.status==='ambiguous'&&(route.candidateSiteIds||[]).length){
-      result.innerHTML=`<div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:11px;font-size:13px;color:#744210;"><strong>案件を1つに決められませんでした。</strong><div style="margin-top:5px;">${cardEscape(route.reason||'該当する現場を選んでください。')}</div>${route.candidateSiteIds.map(id=>aiReportCandidateButton(id,actionText)).join('')}</div>`;
-    }else{
-      result.innerHTML=`<div style="background:#FFF5F5;border:1px solid #FEB2B2;border-radius:8px;padding:11px;font-size:13px;color:#C53030;"><strong>該当する現場を特定できませんでした。</strong><div style="margin-top:5px;">${cardEscape(route.reason||'現場名を入れて、もう一度お試しください。')}</div></div>`;
-    }
-  }catch(e){result.innerHTML=`<div style="color:#C53030;font-size:13px;">AIによる案件判定に失敗しました: ${cardEscape(e.message)}</div>`;}
-  finally{button.disabled=false;button.textContent='AIに案件を探してもらう';}
-}
-async function continueAiReport(siteId){
-  if(!aiReportSourceText)return;
-  const source=aiReportSourceText;document.getElementById('aiReportModal').classList.remove('show');
-  if(aiReportMode==='daily'){
-    await continueAiReportDaily(siteId,source);
-    return;
-  }
-  openProjectCard(siteId);document.getElementById('card-source').value=source;
-  await draftProjectCard();
-}
-async function continueAiReportDaily(siteId,source){
-  showToast('📋 AIが日報下書きを作成中…',5000);
-  try{
-    const data=await PILOT.createDailyReportDraft(source);
-    aiDailyReportDraft=data.draft||{};
-    aiDailyReportSourceText=source;
-    await applyAiDailyReportDraft(siteId);
-  }catch(e){showToast('❌ AIの日報下書きを作成できません: '+e.message,4000);}
-}
-let aiDailyReportDraft = null;
-let aiDailyReportSourceText = '';
-function openAiDailyReportModal(){
-  if(!CURRENT_USER || CURRENT_USER.role!=='admin')return;
-  aiDailyReportDraft=null;aiDailyReportSourceText='';
-  document.getElementById('ai-daily-report-source').value='';
-  document.getElementById('ai-daily-report-result').style.display='none';
-  document.getElementById('aiDailyReportModal').classList.add('show');
-  setTimeout(()=>document.getElementById('ai-daily-report-source').focus(),80);
-}
-function closeAiDailyReportModal(){
-  stopSpeechInputFor('ai-daily-report-source');
-  document.getElementById('aiDailyReportModal').classList.remove('show');
-  aiDailyReportDraft=null;
-}
-function aiDailyCandidateButton(siteId, note){
-  return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="applyAiDailyReportDraft('${siteId}')">🏗️ ${cardEscape(siteName(siteId))}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
-}
-async function draftAiDailyReport(){
-  const source=document.getElementById('ai-daily-report-source').value.trim();
-  if(!source){showToast('⚠️ 報告内容を入力してください');return;}
-  const button=document.getElementById('ai-daily-report-run');const result=document.getElementById('ai-daily-report-result');
-  button.disabled=true;button.textContent='AIが日報を整理中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">現場と日報の内容を整理しています…</div>';
-  try{
-    const data=await PILOT.createDailyReportDraft(source);const draft=data.draft||{};aiDailyReportDraft=draft;aiDailyReportSourceText=source;
-    const summary=`${draft.date||'日付未設定'} ／ ${Array.isArray(draft.entries)?draft.entries.length:0}件の作業行`;
-    if(draft.status==='matched'&&draft.siteId){
-      result.innerHTML=`<div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:11px;font-size:13px;color:#276749;"><strong>該当現場：${cardEscape(siteName(draft.siteId))}</strong><div style="margin-top:5px;">${cardEscape(summary)}</div><div style="margin-top:5px;">${cardEscape(draft.reason||'下書きを確認してください。')}</div>${aiDailyCandidateButton(draft.siteId,'日報入力画面へ下書きを入れる')}</div>`;
-    }else if(draft.status==='ambiguous'&&(draft.candidateSiteIds||[]).length){
-      result.innerHTML=`<div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:11px;font-size:13px;color:#744210;"><strong>現場を1つに決められませんでした。</strong><div style="margin-top:5px;">${cardEscape(draft.reason||'該当する現場を選んでください。')}</div><div style="margin-top:5px;">${cardEscape(summary)}</div>${draft.candidateSiteIds.map(id=>aiDailyCandidateButton(id,'この現場へ日報下書きを入れる')).join('')}</div>`;
-    }else{
-      result.innerHTML=`<div style="background:#FFF5F5;border:1px solid #FEB2B2;border-radius:8px;padding:11px;font-size:13px;color:#C53030;"><strong>現場を特定できませんでした。</strong><div style="margin-top:5px;">${cardEscape(draft.reason||'現場名を入れて、もう一度お試しください。')}</div></div>`;
-    }
-  }catch(e){result.innerHTML=`<div style="color:#C53030;font-size:13px;">AIによる日報下書きに失敗しました: ${cardEscape(e.message)}</div>`;}
-  finally{button.disabled=false;button.textContent='日報の下書きを作る';}
-}
-async function applyAiDailyReportDraft(siteId){
-  const draft=aiDailyReportDraft;
-  if(!draft||!siteId)return;
-  const source=aiDailyReportSourceText;
-  switchTab('report');
-  document.getElementById('report-editing-id').value='';
-  document.getElementById('report-date-input').value=draft.date||localToday();
-  updateReportWeekday();
-  const select=document.getElementById('report-site-select');select.innerHTML=buildSiteOptions(siteId);select.value=siteId;
-  buildReportRows((draft.entries||[]).map(e=>({content:e.content||'',worker:e.worker||'',hours:e.hours||''})));
-  clearReportPhotos();
-  closeAiDailyReportModal();
-  await draftTasksForSource(source,'report-task-drafts',siteId);
-  showToast('✨ AIの日報下書きを入れました。内容を確認して保存してください。',3500);
-}
-let aiTaskSourceText='';
-let aiTaskDrafts=[];
-let aiTaskDraftTargetId='ai-task-result';
-function openAiTaskModal(){
-  if(!CURRENT_USER || CURRENT_USER.role!=='admin')return;
-  aiTaskSourceText='';aiTaskDrafts=[];
-  document.getElementById('ai-task-source').value='';
-  document.getElementById('ai-task-result').style.display='none';
-  document.getElementById('aiTaskModal').classList.add('show');
-  setTimeout(()=>document.getElementById('ai-task-source').focus(),80);
-}
-function closeAiTaskModal(){stopSpeechInputFor('ai-task-source');document.getElementById('aiTaskModal').classList.remove('show');aiTaskSourceText='';aiTaskDrafts=[];}
-function taskKindLabel(kind){return kind==='waiting'?'⏳ 相手待ち':'▶️ 次に動く';}
-function aiTaskDraftHtml(draft,index){
-  const site=draft.siteId?siteName(draft.siteId):'案件未特定';
-  const date=draft.dueDate?`確認日：${draft.dueDate}`:'確認日：未設定';
-  return `<div style="border:1px solid ${draft.kind==='waiting'?'#F6D365':'#90CDF4'};background:${draft.kind==='waiting'?'#FFF9E6':'#F0F7FF'};border-radius:9px;padding:11px;margin-top:8px;font-size:13px;">
-    <div style="font-weight:700;color:#1F4E79;">${taskKindLabel(draft.kind)}　${cardEscape(draft.title)}</div>
-    <div style="font-size:12px;color:#4A5568;margin-top:5px;">🏗️ ${cardEscape(site)}　｜　📅 ${cardEscape(date)}</div>
-    ${draft.note?`<div style="font-size:12px;color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(draft.note)}</div>`:''}
-    <button class="btn btn-sm" ${draft.saved?'disabled':''} style="margin-top:8px;background:${draft.saved?'#A0AEC0':'#38A169'};color:white;border:none;" onclick="saveAiTaskDraft(${index})">${draft.saved?'追加済み':'このタスクを追加'}</button>
-  </div>`;
-}
-function renderAiTaskDrafts(targetId=aiTaskDraftTargetId){
-  const result=document.getElementById(targetId);if(!result)return;
-  const embedded=targetId!=='ai-task-result';
-  const heading=embedded?'<div style="font-size:12px;font-weight:700;color:#1F4E79;margin:12px 0 5px;">🧭 同じ報告からの社長タスク候補</div>':'';
-  if(!aiTaskDrafts.length){result.innerHTML=`${heading}<div style="background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:11px;font-size:13px;color:#4A5568;">今すぐ追加すべきタスク候補はありませんでした。</div>`;return;}
-  result.innerHTML=`${heading}<div style="font-size:13px;color:#4A5568;margin-bottom:6px;">必要なものだけ追加してください。</div>${aiTaskDrafts.map(aiTaskDraftHtml).join('')}`;
-}
-async function draftTasksForSource(source,targetId,forcedSiteId=''){
-  const result=document.getElementById(targetId);if(!source||!result)return;
-  aiTaskSourceText=source;aiTaskDraftTargetId=targetId;
-  result.innerHTML='<div style="font-size:12px;color:#718096;margin:12px 0 4px;">🧭 同じ報告から社長タスク候補を整理しています…</div>';
-  try{const data=await PILOT.createTaskDraft(source);aiTaskDrafts=(data.drafts||[]).map(x=>({...x,siteId:forcedSiteId||x.siteId,saved:false}));renderAiTaskDrafts(targetId);}
-  catch(e){result.innerHTML=`<div style="color:#C53030;font-size:12px;margin-top:10px;">タスク候補を作成できません: ${cardEscape(e.message)}</div>`;}
-}
-async function draftAiTasks(){
-  const source=document.getElementById('ai-task-source').value.trim();if(!source){showToast('⚠️ 報告内容を入力してください');return;}
-  const button=document.getElementById('ai-task-run');const result=document.getElementById('ai-task-result');button.disabled=true;button.textContent='AIが候補を整理中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">次に動くこと・相手待ちを整理しています…</div>';
-  try{await draftTasksForSource(source,'ai-task-result');}
-  catch(e){result.innerHTML=`<div style="color:#C53030;font-size:13px;">AIによるタスク候補の作成に失敗しました: ${cardEscape(e.message)}</div>`;}
-  finally{button.disabled=false;button.textContent='タスク候補を作る';}
-}
-async function saveAiTaskDraft(index){
-  const draft=aiTaskDrafts[index];if(!draft||draft.saved)return;
-  try{
-    const saved=await PILOT.createTask({...draft,sourceText:aiTaskSourceText});
-    draft.saved=true;TASKS.unshift(saved.task);renderAiTaskDrafts(aiTaskDraftTargetId);renderProjectCardTaskList();renderAdminTasks();renderAll();refreshOpenDetailTaskList(saved.task.siteId);
-    showToast('✅ 社長タスクに追加しました');
-  }catch(e){showToast('❌ タスクを追加できません: '+e.message,3500);}
-}
-function taskDueText(task){
-  if(!task.dueDate)return '確認日：未設定';
-  if(isToday(task.dueDate))return '確認日：今日';
-  if(isOverdue(task.dueDate))return `確認日：${task.dueDate}（期限超過）`;
-  return `確認日：${task.dueDate}`;
-}
-function renderAdminTasks(){
-  const el=document.getElementById('admin-task-list');if(!el)return;
-  if(!CURRENT_USER || CURRENT_USER.role!=='admin'){el.innerHTML='';return;}
-  const tasks=TASKS.filter(taskIsOpen).sort((a,b)=>(a.dueDate||'9999-12-31').localeCompare(b.dueDate||'9999-12-31') || b.id-a.id);
-  if(!tasks.length){el.innerHTML='<div style="text-align:center;padding:25px 8px;color:#718096;font-size:13px;">タスクはまだありません。報告を話して、必要なものだけ追加してください。</div>';return;}
-  el.innerHTML=tasks.map(task=>{
-    const done=!taskIsOpen(task);const wait=task.kind==='waiting';const border=done?'#CBD5E0':wait?'#ED8936':'#2E75B6';
-    return `<div style="border-left:4px solid ${border};border-radius:8px;background:${done?'#F7FAFC':wait?'#FFF9E6':'#F7FBFF'};padding:11px 12px;margin-bottom:9px;opacity:${done?'.62':'1'};">
-      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;"><div style="font-weight:700;font-size:14px;line-height:1.45;text-decoration:${done?'line-through':'none'};">${taskKindLabel(task.kind)}　${cardEscape(task.title)}</div>${done?'<span style="font-size:11px;color:#718096;white-space:nowrap;">完了</span>':'<span style="font-size:11px;color:#2E75B6;white-space:nowrap;">未完了</span>'}</div>
-      <div style="font-size:12px;color:#4A5568;margin-top:6px;">🏗️ ${cardEscape(task.siteId?siteName(task.siteId):'案件未特定')}　｜　📅 ${cardEscape(taskDueText(task))}</div>
-      ${task.note?`<div style="font-size:12px;color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(task.note)}</div>`:''}
-      ${done?'':`<button class="btn btn-sm" style="margin-top:8px;background:white;border:1px solid #9AE6B4;color:#276749;" onclick="completeAdminTask(${task.id})">✅ 完了にする</button>`}
-    </div>`;
-  }).join('');
-}
-async function completeAdminTask(id){
-  const task=TASKS.find(x=>x.id===id);if(!task)return;
-  try{const saved=await PILOT.updateTask(id,{siteId:task.siteId,title:task.title,kind:task.kind,dueDate:task.dueDate,status:'done',note:task.note,version:task.version});Object.assign(task,saved.task);renderProjectCardTaskList();renderAdminTasks();renderAll();refreshOpenDetailTaskList(task.siteId);showToast('✅ タスクを完了にしました');}
-  catch(e){showToast('❌ タスクを更新できません: '+e.message,3500);}
-}
-async function draftProjectCard() {
-  const source = document.getElementById('card-source').value.trim();
-  if (!source) { showToast('⚠️ 報告内容を入力してください'); return; }
-  try {
-    await draftTasksForSource(source,'card-task-drafts',projectCardSiteId);
-    showToast('✨ AIがタスク候補を作成しました。必要なものだけ追加してください。', 3000);
-  } catch(e) { showToast('❌ AI整理できません: ' + e.message, 3500); }
-}
-function refreshOpenDetailTaskList(siteId){
-  const panel=document.getElementById('detail-panel');
-  if(panel && panel.classList.contains('open') && document.getElementById('card-'+siteId)?.classList.contains('selected'))openDetail(siteId);
 }
 
 // =========================================================
@@ -2275,7 +1811,7 @@ function goToReportWithSite(siteId){
 let currentTab = 'sites';
 function switchTab(tab){
   currentTab = tab;
-  ['sites','report','schedule','tasks'].forEach(p=>{
+  ['sites','report','schedule'].forEach(p=>{
     document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
     const bnavBtn = document.getElementById('bnav-'+p);
     if(bnavBtn) bnavBtn.classList.toggle('active', p===tab);
@@ -2284,14 +1820,13 @@ function switchTab(tab){
   });
   if(tab==='report') { initReportForm(); renderReportList(); }
   else if(tab==='schedule') { renderSchedule(); }
-  else if(tab==='tasks') { renderAdminTasks(); }
   else { window.scrollTo({top:0,behavior:'smooth'}); }
 }
 
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal'].forEach(id=>{
+['siteModal','confirmModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');
@@ -2303,7 +1838,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     closeDetail();
     closeMobileMenu();
-    ['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal'].forEach(id=>{
+    ['siteModal','confirmModal'].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.classList.remove('show');
     });
@@ -2316,15 +1851,11 @@ document.addEventListener('keydown',e=>{
 const WEEKDAYS = ['日','月','火','水','木','金','土'];
 
 const REPORT_ROW_COUNT = 10; // 固定行数
-function localToday() {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 10);
-}
 
 function initReportForm() {
   // 今日の日付をセット
-  const iso = localToday();
+  const d = new Date();
+  const iso = d.toISOString().split('T')[0];
   const el = document.getElementById('report-date-input');
   if (el && !el.value) { el.value = iso; updateReportWeekday(); }
   // 現場ドロップダウンを最新リストで更新
@@ -2416,7 +1947,6 @@ async function saveReport() {
 
   const editingId = parseInt(document.getElementById('report-editing-id').value) || 0;
   try {
-  let reportId = editingId;
   if (editingId) {
     const existing = REPORTS.find(r => r.id === editingId);
     if (existing) {
@@ -2427,22 +1957,13 @@ async function saveReport() {
   } else {
     const saved = await PILOT.createReport({date:dateVal, siteId, entries});
     REPORTS.push({ id:saved.id, date: dateVal, siteId, entries, version:1 });
-    reportId = saved.id;
-  }
-  if (REPORT_PHOTO_FILES.length) {
-    const total = REPORT_PHOTO_FILES.length;
-    for (let i=0;i<total;i++) {
-      showToast(`📷 写真を保存中… ${i+1}/${total}`, 5000);
-      await PILOT.uploadPhoto(reportId, REPORT_PHOTO_FILES[i]);
-    }
   }
   REPORTS.sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
   renderReportList();
   // フォームリセット
   buildReportRows([]);
   document.getElementById('report-site-select').value = '';
-  clearReportPhotos();
-  showToast('✅ 日報と写真を保存しました', 2200);
+  showToast('✅ 日報を保存しました', 2200);
   } catch(e) {
     showToast('❌ 日報を保存できません: ' + e.message, 3500);
   }
@@ -2466,7 +1987,6 @@ function cancelEditReport() {
   document.getElementById('report-editing-id').value = '';
   buildReportRows([]);
   document.getElementById('report-site-select').value = '';
-  clearReportPhotos();
   showToast('修正をキャンセルしました', 1800);
 }
 
@@ -2478,7 +1998,6 @@ function editReport(id) {
   document.getElementById('report-site-select').value = r.siteId || (r.entries[0]?.siteId||'');
   updateReportWeekday();
   buildReportRows(r.entries);
-  clearReportPhotos();
   switchTab('report');
   // 日報入力フォームの先頭へスクロール
   setTimeout(()=>{
@@ -2492,24 +2011,6 @@ function fmtDateJP(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   return `${d.getMonth()+1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
 }
-
-function photoHtmlEscape(value){ return String(value||'').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-async function openReportPhotos(reportId, date){
-  const modal=document.getElementById('reportPhotoModal');
-  document.getElementById('reportPhotoTitle').textContent=`📷 現場写真（${fmtDateJP(date)}）`;
-  document.getElementById('reportPhotoBody').innerHTML='<div style="color:#718096;font-size:13px;">読み込み中です…</div>';
-  modal.classList.add('show');
-  try{
-    const result=await PILOT.reportPhotos(reportId); const photos=result.photos||[];
-    if(!photos.length){ document.getElementById('reportPhotoBody').innerHTML='<div style="color:#718096;font-size:13px;">この日報には写真がありません。</div>'; return; }
-    const items=await Promise.all(photos.map(async photo=>{
-      try { const blob=await PILOT.photoBlob(photo.id); const url=URL.createObjectURL(blob); return `<a href="${url}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;"><img src="${url}" alt="${photoHtmlEscape(photo.original_name)}" style="display:block;width:100%;height:150px;object-fit:cover;border-radius:8px;background:#EDF2F7;"><div style="font-size:11px;color:#4A5568;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px;">${photoHtmlEscape(photo.original_name)}・${bytesLabel(photo.bytes)}</div></a>`; }
-      catch(e){ return `<div style="font-size:12px;color:#C53030;">写真を表示できません</div>`; }
-    }));
-    document.getElementById('reportPhotoBody').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;">${items.join('')}</div><div style="font-size:11px;color:#718096;margin-top:12px;">写真を押すと原寸を別画面で開きます。</div>`;
-  }catch(e){ document.getElementById('reportPhotoBody').innerHTML=`<div style="font-size:13px;color:#C53030;">写真を読み込めません: ${photoHtmlEscape(e.message)}</div>`; }
-}
-function closeReportPhotos(){ document.getElementById('reportPhotoModal').classList.remove('show'); }
 
 function buildSiteReportHtml(siteId) {
   // その現場に関連する日報を日報単位でグループ化して新しい順で表示
@@ -2538,8 +2039,6 @@ function buildSiteReportHtml(siteId) {
           <div style="display:flex;gap:4px;flex-shrink:0;">
             <button onclick="editReport(${item.reportId});closeDetail()"
               style="background:#EBF8FF;border:1px solid #90CDF4;color:#2B6CB0;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">✏️ 編集</button>
-            <button onclick="openReportPhotos(${item.reportId},'${item.date}')"
-              style="background:#F0FFF4;border:1px solid #9AE6B4;color:#276749;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">📷 写真</button>
             <button onclick="deleteReport(${item.reportId});openDetail('${siteId}')"
               style="background:#FFF5F5;border:1px solid #FEB2B2;color:#C53030;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">🗑️</button>
           </div>
@@ -2576,7 +2075,6 @@ function renderReportList() {
       <div class="report-list-header">
         <span class="report-list-date">📅 ${fmtDateJP(r.date)}</span>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-white btn-sm" style="border:1px solid #9AE6B4;color:#276749;" onclick="openReportPhotos(${r.id},'${r.date}')">📷 写真</button>
           <button class="btn btn-white btn-sm" style="border:1px solid #CBD5E0;" onclick="editReport(${r.id})">✏️ 修正</button>
           <button class="btn btn-red btn-sm" onclick="deleteReport(${r.id})">🗑️</button>
         </div>
@@ -2625,7 +2123,6 @@ function saveState(){
 // =========================================================
 function renderAll(){
   try { renderKPI(); } catch(e){ console.error('renderKPI error',e); }
-  try { renderAdminTasks(); } catch(e){ console.error('renderAdminTasks error',e); }
   try {
     renderSites();
   } catch(e){

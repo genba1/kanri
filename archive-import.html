@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>旧アーカイブ復元 | 現場進捗管理</title>
+  <style>
+    body{font-family:system-ui,-apple-system,"Yu Gothic",sans-serif;background:#f4f7fb;color:#26364a;margin:0;padding:22px}
+    main{max-width:900px;margin:auto;background:#fff;border-radius:16px;padding:24px;box-shadow:0 5px 24px #18324d12}
+    h1{font-size:22px;color:#1f4e79;margin:0 0 16px}.muted{color:#5c6b7c;line-height:1.7}
+    .box{border:1px solid #d7e1eb;border-radius:12px;padding:16px;margin:16px 0}.warning{background:#fff8e7;border-color:#f0d28a}
+    button{background:#25845d;color:#fff;border:0;border-radius:9px;padding:12px 18px;font-size:16px;font-weight:700;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
+    input{max-width:100%;margin:10px 0}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:8px;border-bottom:1px solid #e7edf3}th{background:#f5f8fb}
+    #status{white-space:pre-wrap;padding:12px;border-radius:8px;background:#eef3f7;margin-top:14px}.small{font-size:12px}.scroll{max-height:350px;overflow:auto}
+  </style>
+</head>
+<body>
+<main>
+  <h1>旧アーカイブをサーバーへ復元</h1>
+  <p class="muted">社長アカウントでログイン済みの状態で使います。選んだJSONはこの画面から現場進捗管理サーバーへ送ります。公開サイトには登録データを置きません。</p>
+  <div id="auth" class="box">ログイン状態を確認しています…</div>
+  <div class="box warning">
+    <strong>取り込み内容</strong>
+    <p class="muted">新しいアーカイブ現場として登録し、日報も復元します。旧IDは記録として保持し、サーバー側で新しい一意IDを発行します。同じ現場名が既にDBにあれば二重登録を避けて自動でスキップします。既存の現場や日報は更新しません。</p>
+  </div>
+  <div class="box">
+    <label for="file"><strong>復元データJSONを選択</strong></label><br>
+    <input id="file" type="file" accept=".json,application/json">
+    <div id="preview" class="muted">JSONを選ぶと、件数と重複候補をここに表示します。</div>
+  </div>
+  <button id="import" disabled>表示内容を確認して復元</button>
+  <div id="status" role="status">準備中</div>
+</main>
+<script src="pilot-api.js"></script>
+<script>
+const api = new KanriPilotApi('https://kanri-api.kagunyan.com/public/api/index.php');
+let payload = null;
+const $ = id => document.getElementById(id);
+(async()=>{
+  try { const {user}=await api.me(); if(user.role!=='admin')throw new Error('社長（管理者）アカウントでログインしてください。'); $('auth').textContent=`ログイン中：${user.name}（管理者）`; $('status').textContent='JSONファイルを選んでください。'; }
+  catch(e){$('auth').textContent=e.message+'\n現場進捗管理アプリと同じURL上で、社長アカウントにログインしてから開いてください。';$('status').textContent='ログインを確認できません。';}
+})();
+$('file').addEventListener('change',async e=>{
+  $('import').disabled=true;payload=null;
+  const f=e.target.files[0];if(!f)return;
+  try{
+    payload=JSON.parse(await f.text());if(!Array.isArray(payload.projects))throw new Error('projects 配列がありません。');
+    const projects=payload.projects;const reports=projects.reduce((n,p)=>n+(p.reports||[]).length,0);const entries=projects.reduce((n,p)=>n+(p.reports||[]).reduce((a,r)=>a+(r.entries||[]).length,0),0);
+    const warnings=projects.filter(p=>p.declaredReportCount!==null&&p.declaredReportCount!==undefined&&p.declaredReportCount!==(p.reports||[]).length);
+    const existing=projects.filter(p=>p.activeNameMatch);
+    const rows=projects.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.originalId||'記録なし')}</td><td>${(p.reports||[]).length}${p.declaredReportCount!=null&&p.declaredReportCount!==(p.reports||[]).length?`（HTML表示 ${p.declaredReportCount}）`:''}</td><td>${p.activeNameMatch?'同名の現場あり':'新規候補'}</td></tr>`).join('');
+    $('preview').innerHTML=`<p><strong>${projects.length}現場候補／日報 ${reports}件／作業記録 ${entries}件</strong></p><p>同名現場候補：${existing.length}件（サーバー側でスキップ）</p>${warnings.length?`<p style="color:#9a5b00">件数注意：${warnings.map(p=>`${esc(p.name)}（HTML ${p.declaredReportCount}件、実データ ${(p.reports||[]).length}件）`).join('、')}</p>`:''}<div class="scroll"><table><thead><tr><th>現場</th><th>旧ID</th><th>日報欄</th><th>判定</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const me=await api.me();$('import').disabled=me.user.role!=='admin';$('status').textContent='内容を確認してから復元ボタンを押してください。';
+  }catch(err){$('preview').textContent='読み込みエラー：'+err.message;$('status').textContent='JSONを確認してください。';}
+});
+$('import').addEventListener('click',async()=>{
+  if(!payload||!confirm('表示されたアーカイブをサーバーへ復元します。続けますか？'))return;
+  $('import').disabled=true;$('status').textContent='復元しています…この画面を閉じないでください。';
+  try{
+    const result=await api.request('/admin/import-legacy-archives',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const r=result.result;$('status').textContent=`復元完了\n現場追加：${r.sitesAdded}件\n日報追加：${r.reportsAdded}件\n作業記録追加：${r.entriesAdded}件\n以前の取込済み：${r.alreadyImported}件\n同名現場のためスキップ：${r.nameConflicts.length}件${r.nameConflicts.length?'\n'+r.nameConflicts.map(x=>`・${x.name}（${x.sourceFile}）`).join('\n'):''}${r.countWarnings.length?'\n\n元HTMLの表示件数と保存内容に差がある日報：\n'+r.countWarnings.map(x=>`・${x.name}：HTML ${x.htmlCount}件／実データ ${x.importedCount}件`).join('\n'):''}`;
+  }catch(err){$('status').textContent='復元に失敗しました：'+err.message+'\n再実行しても、成功済みのファイルは二重登録されません。';$('import').disabled=false;}
+});
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+</script>
+</body>
+</html>

@@ -466,7 +466,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V23（社長タスク編集）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V24（アーカイブ日報編集）</div>
   </div>
 </div>
 
@@ -852,6 +852,23 @@ input,select,textarea,button{font-family:inherit}
       </div>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAdminTaskEdit()">キャンセル</button><button class="btn btn-green" onclick="saveAdminTaskEdit()">保存</button></div>
+  </div>
+</div>
+
+<!-- ===== ARCHIVE REPORT EDIT MODAL (社長のみ) ===== -->
+<div class="modal-overlay" id="archiveReportEditModal">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-head"><h2 id="archive-report-edit-title">📦 アーカイブ日報を編集</h2><button class="modal-close" onclick="closeArchiveReportEdit()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">日付</label>
+        <input id="archive-report-edit-date" class="form-input" type="date">
+      </div>
+      <div style="font-size:12px;font-weight:700;color:#1F4E79;margin:12px 0 6px;">作業内容</div>
+      <div id="archive-report-edit-rows"></div>
+      <button type="button" class="btn btn-white btn-sm" style="border:1.5px solid #90CDF4;color:#1F4E79;margin-top:8px;" onclick="addArchiveReportEditRow()">＋ 作業行を追加</button>
+    </div>
+    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeArchiveReportEdit()">キャンセル</button><button class="btn btn-green" onclick="saveArchiveReportEdit()">保存</button></div>
   </div>
 </div>
 
@@ -2455,18 +2472,65 @@ async function toggleArchiveReports(siteId){
   try{
     const result=await PILOT.reports(siteId);const reports=result.reports||[];
     if(!reports.length){box.innerHTML='<div style="padding:10px;color:#718096;font-size:12px;">日報はありません。</div>';box.dataset.loaded='1';return;}
+    const canEditArchiveReports=CURRENT_USER&&CURRENT_USER.role==='admin';
     box.innerHTML=reports.map(report=>`<div style="border-top:1px solid #E2E8F0;padding:9px 4px;font-size:12px;">
-      <strong style="color:#1F4E79;">${archiveEsc(report.date)}</strong>
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><strong style="color:#1F4E79;">${archiveEsc(report.date)}</strong>${canEditArchiveReports?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;padding:3px 8px;font-size:11px;" onclick="openArchiveReportEdit(${report.id})">✏️ 編集</button>`:''}</div>
       ${(report.entries||[]).map(entry=>`<div style="margin-top:4px;line-height:1.6;">・${archiveEsc(entry.content)}　${archiveEsc(entry.worker)}　${archiveEsc(entry.hours||0)}h</div>`).join('')}
     </div>`).join('');
     box.dataset.loaded='1';
   }catch(e){box.innerHTML=`<div style="padding:10px;color:#C53030;font-size:12px;">日報を読み込めませんでした：${archiveEsc(e.message)}</div>`;}
 }
+let archiveEditingReportId=null;
+function archiveEditRowHtml(entry={}){
+  return `<div class="archive-report-edit-row" style="display:grid;grid-template-columns:minmax(0,1fr) 100px 72px 32px;gap:6px;align-items:center;margin:6px 0;">
+    <input class="ar-edit-content form-input" value="${archiveEsc(entry.content||'')}" placeholder="作業内容" style="padding:7px 8px;min-width:0;">
+    <input class="ar-edit-worker form-input" value="${archiveEsc(entry.worker||'')}" placeholder="作業者" style="padding:7px 8px;min-width:0;">
+    <input class="ar-edit-hours form-input" value="${archiveEsc(entry.hours||'')}" type="number" min="0" max="24" step="0.5" placeholder="時間" style="padding:7px 6px;min-width:0;">
+    <button type="button" class="btn btn-sm" onclick="this.closest('.archive-report-edit-row').remove()" style="padding:6px;background:#FFF5F5;border:1px solid #FEB2B2;color:#C53030;">×</button>
+  </div>`;
+}
+function openArchiveReportEdit(reportId){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  const report=REPORTS.find(r=>r.id===reportId);if(!report){showToast('⚠️ 日報が見つかりません');return;}
+  archiveEditingReportId=reportId;
+  document.getElementById('archive-report-edit-title').textContent=`📦 アーカイブ日報を編集（${siteName(report.siteId)}）`;
+  document.getElementById('archive-report-edit-date').value=report.date||'';
+  document.getElementById('archive-report-edit-rows').innerHTML=(report.entries||[]).map(archiveEditRowHtml).join('')||archiveEditRowHtml();
+  document.getElementById('archiveReportEditModal').classList.add('show');
+}
+function addArchiveReportEditRow(){
+  document.getElementById('archive-report-edit-rows').insertAdjacentHTML('beforeend',archiveEditRowHtml());
+}
+function closeArchiveReportEdit(){
+  archiveEditingReportId=null;
+  document.getElementById('archiveReportEditModal').classList.remove('show');
+}
+async function saveArchiveReportEdit(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  const report=REPORTS.find(r=>r.id===archiveEditingReportId);if(!report)return;
+  const date=document.getElementById('archive-report-edit-date').value;
+  if(!date){showToast('⚠️ 日付を入力してください');return;}
+  const entries=[];
+  document.querySelectorAll('#archive-report-edit-rows .archive-report-edit-row').forEach(row=>{
+    const content=row.querySelector('.ar-edit-content').value.trim();
+    const worker=row.querySelector('.ar-edit-worker').value.trim();
+    const hours=parseFloat(row.querySelector('.ar-edit-hours').value)||0;
+    if(content||worker)entries.push({siteId:report.siteId,content,worker,hours});
+  });
+  if(!entries.length){showToast('⚠️ 作業内容を1件以上入力してください');return;}
+  try{
+    await PILOT.updateReport(report.id,{date,siteId:report.siteId,entries,version:report.version});
+    report.date=date;report.entries=entries;report.version+=1;
+    closeArchiveReportEdit();
+    await loadArchives();
+    showToast('✅ アーカイブ日報を更新しました');
+  }catch(e){showToast('❌ 日報を更新できません: '+e.message,3500);}
+}
 
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal'].forEach(id=>{
+['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal','adminTaskEditModal','archiveReportEditModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');

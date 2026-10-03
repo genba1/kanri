@@ -466,7 +466,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V27（アーカイブ台帳）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V28（旧A番号反映）</div>
   </div>
 </div>
 
@@ -568,7 +568,10 @@ input,select,textarea,button{font-family:inherit}
   <!-- ===== PAGE: アーカイブ ===== -->
   <div class="section-page" id="page-archives">
     <div class="report-form-card">
-      <div class="section-head" style="margin-bottom:12px;">📦 アーカイブ</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;">
+        <div class="section-head" style="margin:0;">📦 アーカイブ</div>
+        <button class="btn btn-white btn-sm" data-admin-only style="display:none;border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="applyLegacyArchiveCodes()">旧A番号を反映</button>
+      </div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
         <input class="form-input" id="archive-search" type="search" placeholder="現場名・住所で検索" style="flex:1;">
         <button class="btn btn-green btn-sm" onclick="loadArchives()">検索</button>
@@ -2454,6 +2457,17 @@ function switchTab(tab){
 
 function archiveEsc(value){
   return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+async function applyLegacyArchiveCodes(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  const ok=confirm('旧アーカイブのうち、元の番号が A260805 の形式で残っているものへ、A管理名を自動設定します。\n\n既に整理済みのA管理名、S請求書番号、売上金額は変更しません。\n\n実行しますか？');
+  if(!ok)return;
+  try{
+    const result=await PILOT.applyLegacyArchiveCodes();
+    const r=result.result||{};
+    await loadArchives();
+    showToast(`✅ 旧A番号を ${r.updated||0}件反映しました（既存・対象外 ${r.skipped||0}件）`,3500);
+  }catch(e){showToast('❌ 旧A番号を反映できません: '+e.message,3500);}
 }
 async function loadArchives(){
   const list=document.getElementById('archive-site-list');

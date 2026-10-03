@@ -61,6 +61,7 @@
     sites() { return this.request('/sites'); }
     site(id) { return this.request(`/sites/${encodeURIComponent(id)}`); }
     archives(query = '') { return this.request(`/archives${query ? `?q=${encodeURIComponent(query)}` : ''}`); }
+    applyLegacyArchiveCodes() { return this.request('/admin/apply-legacy-archive-codes', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' }); }
     reports(siteId = '') { return this.request(`/reports${siteId ? `?site_id=${encodeURIComponent(siteId)}` : ''}`); }
     tasks() { return this.request('/tasks'); }
     createTask(task) { return this.request('/tasks', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(task) }); }

@@ -71,6 +71,7 @@
     archiveSite(id, version, archiveSummary = '', estimateKnowledge = {}) {
       return this.request(`/sites/${encodeURIComponent(id)}/archive`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({version, archiveSummary, estimateKnowledge}) });
     }
+    updateArchiveLedger(id, ledger) { return this.request(`/sites/${encodeURIComponent(id)}/archive-ledger`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(ledger) }); }
     restoreSite(id, version) { return this.request(`/sites/${encodeURIComponent(id)}/restore`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({version}) }); }
     documents(siteId) { return this.request(`/sites/${encodeURIComponent(siteId)}/documents`); }
     async uploadDocument(siteId, file, metadata = {}) {

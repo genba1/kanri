@@ -466,7 +466,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V26（AIボタン統一）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V27（アーカイブ台帳）</div>
   </div>
 </div>
 
@@ -869,6 +869,30 @@ input,select,textarea,button{font-family:inherit}
       <button type="button" class="btn btn-white btn-sm" style="border:1.5px solid #90CDF4;color:#1F4E79;margin-top:8px;" onclick="addArchiveReportEditRow()">＋ 作業行を追加</button>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeArchiveReportEdit()">キャンセル</button><button class="btn btn-green" onclick="saveArchiveReportEdit()">保存</button></div>
+  </div>
+</div>
+
+<!-- ===== ARCHIVE LEDGER EDIT MODAL (社長のみ) ===== -->
+<div class="modal-overlay" id="archiveLedgerEditModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head"><h2 id="archive-ledger-edit-title">📦 アーカイブを整理</h2><button class="modal-close" onclick="closeArchiveLedgerEdit()">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:12px;line-height:1.65;color:#718096;margin-bottom:14px;">日付は別に表示・入力しません。A管理名とS請求書番号に含まれる6桁の日付を、請求書提出日・売上月として使います。</div>
+      <div class="form-group">
+        <label class="form-label">A管理名</label>
+        <input id="archive-ledger-code" class="form-input" placeholder="例：A260430植立お風呂工事">
+      </div>
+      <div class="form-group">
+        <label class="form-label">S請求書番号・管理名</label>
+        <input id="archive-ledger-invoice-code" class="form-input" placeholder="例：S260430植立お風呂工事">
+      </div>
+      <div class="form-group">
+        <label class="form-label">売上金額（税込）</label>
+        <input id="archive-ledger-sales" class="form-input" inputmode="decimal" placeholder="例：385000">
+      </div>
+      <div style="font-size:12px;color:#A05A00;line-height:1.6;">AとSの6桁日付は一致させます。まだ分からない項目は空欄のまま保存できます。</div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeArchiveLedgerEdit()">キャンセル</button><button class="btn btn-green" onclick="saveArchiveLedgerEdit()">保存</button></div>
   </div>
 </div>
 
@@ -2441,19 +2465,32 @@ async function loadArchives(){
     const query=document.getElementById('archive-search')?.value.trim()||'';
     const result=await PILOT.archives(query);
     const archives=result.sites||[];
+    ARCHIVES=archives;
     status.textContent=`${archives.length}件`;
     if(!archives.length){list.innerHTML='<div style="padding:18px;text-align:center;color:#718096;">該当するアーカイブはありません。</div>';return;}
     list.innerHTML=archives.map(site=>{
       const id=archiveEsc(site.id);
       const dates=[site.start,site.end].filter(Boolean).map(archiveEsc).join(' ～ ');
+      const isAdmin=CURRENT_USER&&CURRENT_USER.role==='admin';
+      const ledger=site.archiveCode
+        ? `<div style="font-size:13px;font-weight:700;color:#2F855A;margin-top:7px;word-break:break-word;">📁 ${archiveEsc(site.archiveCode)}</div>`
+        : `<div style="font-size:12px;font-weight:700;color:#A05A00;margin-top:7px;">⚠️ A管理名が未設定</div>`;
+      const invoiceParts=[];
+      if(site.invoiceCode) invoiceParts.push(`🧾 ${archiveEsc(site.invoiceCode)}`);
+      if(site.salesAmount!==null&&site.salesAmount!==undefined&&site.salesAmount!=='') invoiceParts.push(`売上 ${Number(site.salesAmount).toLocaleString('ja-JP')}円`);
       return `<article style="border:1px solid #D8E2EC;border-radius:10px;padding:13px;margin:10px 0;background:#fff;">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
           <div style="min-width:0;">
             <div style="font-size:15px;font-weight:700;color:#1F4E79;word-break:break-word;">${archiveEsc(site.name)}</div>
             <div style="font-size:12px;color:#5B6B7B;margin-top:5px;">${archiveEsc(site.status||'')} ${site.addr?`｜📍 ${archiveEsc(site.addr)}`:''}</div>
             <div style="font-size:12px;color:#718096;margin-top:3px;">${dates?`📅 ${dates}　`:''}${site.mgr?`担当：${archiveEsc(site.mgr)}`:''}</div>
+            ${ledger}
+            ${invoiceParts.length?`<div style="font-size:12px;color:#4A5568;margin-top:4px;word-break:break-word;">${invoiceParts.join('　｜　')}</div>`:''}
           </div>
-          <button class="btn btn-white btn-sm" onclick="toggleArchiveReports('${id}')">日報を見る</button>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:none;">
+            ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit('${id}')">✏️ 整理</button>`:''}
+            <button class="btn btn-white btn-sm" onclick="toggleArchiveReports('${id}')">日報を見る</button>
+          </div>
         </div>
         ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}
         <div id="archive-reports-${id}" style="margin-top:8px;"></div>
@@ -2463,6 +2500,36 @@ async function loadArchives(){
     status.textContent='アーカイブを読み込めませんでした。';
     list.innerHTML=`<div style="padding:12px;color:#C53030;">${archiveEsc(e.message)}</div>`;
   }
+}
+let ARCHIVES=[];
+let archiveEditingSiteId=null;
+function openArchiveLedgerEdit(siteId){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  const site=ARCHIVES.find(item=>item.id===siteId);
+  if(!site){showToast('⚠️ アーカイブが見つかりません');return;}
+  archiveEditingSiteId=siteId;
+  document.getElementById('archive-ledger-edit-title').textContent=`📦 アーカイブを整理（${site.name}）`;
+  document.getElementById('archive-ledger-code').value=site.archiveCode||'';
+  document.getElementById('archive-ledger-invoice-code').value=site.invoiceCode||'';
+  document.getElementById('archive-ledger-sales').value=site.salesAmount===null||site.salesAmount===undefined?'':site.salesAmount;
+  document.getElementById('archiveLedgerEditModal').classList.add('show');
+}
+function closeArchiveLedgerEdit(){
+  archiveEditingSiteId=null;
+  document.getElementById('archiveLedgerEditModal').classList.remove('show');
+}
+async function saveArchiveLedgerEdit(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  const site=ARCHIVES.find(item=>item.id===archiveEditingSiteId);if(!site)return;
+  const archiveCode=document.getElementById('archive-ledger-code').value.trim();
+  const invoiceCode=document.getElementById('archive-ledger-invoice-code').value.trim();
+  const salesAmount=document.getElementById('archive-ledger-sales').value.trim();
+  try{
+    await PILOT.updateArchiveLedger(site.id,{archiveCode,invoiceCode,salesAmount,version:site.version});
+    closeArchiveLedgerEdit();
+    await loadArchives();
+    showToast('✅ アーカイブ台帳を保存しました');
+  }catch(e){showToast('❌ 保存できません: '+e.message,3500);}
 }
 async function toggleArchiveReports(siteId){
   const box=document.getElementById(`archive-reports-${siteId}`);
@@ -2530,7 +2597,7 @@ async function saveArchiveReportEdit(){
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal','adminTaskEditModal','archiveReportEditModal'].forEach(id=>{
+['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal','adminTaskEditModal','archiveReportEditModal','archiveLedgerEditModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');

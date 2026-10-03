@@ -260,8 +260,7 @@ input,select,textarea,button{font-family:inherit}
   .top-bar-actions .save-indicator,
   .top-bar-actions .btn-ghost,
   .top-bar-actions .date-badge{display:none}
-  /* 社長専用ボタンは、admin-visible が付いた時だけ表示する。
-     inline style の display:none を !important が上書きしないようにする。 */
+  /* 社長専用ボタンは、admin-visible が付いた時だけ表示する。 */
   .top-bar-actions .mobile-ai-report-btn.admin-visible{display:inline-flex!important;align-items:center;white-space:nowrap;background:#FFF5F5;color:#C53030;border:1px solid #FEB2B2;padding:7px 9px;font-size:12px}
   .top-bar-actions .mobile-task-btn.admin-visible{display:inline-flex!important;align-items:center;white-space:nowrap;background:#F0F7FF;color:#1F4E79;border:1px solid #90CDF4;padding:7px 8px;font-size:12px}
   .pc-speech-input{display:none!important}
@@ -466,8 +465,8 @@ input,select,textarea,button{font-family:inherit}
     <button class="menu-btn" onclick="openSiteModal();closeMobileMenu()">🏢 現場追加</button>
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
-<div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-<div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V21（アーカイブ・権限修正）</div>
+    <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V22（DBアーカイブ）</div>
   </div>
 </div>
 
@@ -1585,6 +1584,30 @@ function confirmDeleteSite(siteId){
 // =========================================================
 // ARCHIVE
 // =========================================================
+// 新サーバー運用：端末にHTMLを書き出さず、現場と日報をDB上でアーカイブ状態へ移す。
+async function archiveSiteToDatabase(siteId){
+  const s=SITES.find(x=>x.id===siteId);
+  if(!s){showToast('⚠️ 現場が見つかりません');return;}
+  const reportCount=REPORTS.filter(r=>r.siteId===siteId).length;
+  const ok=confirm(
+    `「${s.name}」をアーカイブへ移動しますか？\n\n`+
+    `日報 ${reportCount}件を含め、すべてサーバーのデータベースに保存したまま、通常の現場一覧から外します。\n`+
+    `端末へのHTMLファイル保存は行いません。\n\n`+
+    `後から「📦 アーカイブ」で閲覧できます。`
+  );
+  if(!ok)return;
+  try{
+    await PILOT.archiveSite(siteId,s.version,'アプリからアーカイブ保存');
+    SITES=SITES.filter(x=>x.id!==siteId);
+    renderAll();
+    renderReportList();
+    showToast('✅ データベースのアーカイブへ移動しました',2600);
+  }catch(e){
+    showToast('❌ アーカイブできません: '+e.message,3500);
+  }
+}
+
+// 旧HTML書き出し処理。過去の互換用として残しているが、通常画面からは使用しない。
 async function archiveSite(siteId){
   const s = SITES.find(x=>x.id===siteId);
   if(!s){ showToast('⚠️ 現場が見つかりません'); return; }
@@ -1758,7 +1781,7 @@ function openDetail(siteId){
       <button class="btn btn-amber btn-sm" style="width:100%;" onclick="goToReportWithSite('${s.id}');closeDetail()">📋 日報入力へ</button>
     </div>
     <div style="margin-bottom:12px;">
-      <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSite('${s.id}');closeDetail()">📦 アーカイブ保存（完了現場の書き出し）</button>
+      <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSiteToDatabase('${s.id}');closeDetail()">📦 アーカイブへ移動</button>
     </div>
     ${projectCardHtml(s)}
     ${buildSiteReportHtml(siteId)}`;

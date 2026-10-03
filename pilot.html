@@ -466,7 +466,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V24（アーカイブ日報編集）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V26（AIボタン統一）</div>
   </div>
 </div>
 
@@ -503,7 +503,7 @@ input,select,textarea,button{font-family:inherit}
     <div class="report-form-card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;">
         <div class="section-head" style="margin-bottom:0;">📋 日報入力</div>
-        <button class="btn btn-sm" data-admin-only style="display:none;background:#2E75B6;color:white;border:none;white-space:nowrap;" onclick="openAiDailyReportModal()">🎙️ AIで下書き</button>
+        <button class="btn btn-sm" data-admin-only style="display:none;background:#FFF5F5;color:#C53030;border:1px solid #FEB2B2;white-space:nowrap;" onclick="openAiDailyReportModal()">🎙️ AIで下書き</button>
       </div>
       <input type="hidden" id="report-editing-id" value="">
       <div class="report-date-row">
@@ -583,7 +583,7 @@ input,select,textarea,button{font-family:inherit}
     <div class="report-form-card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;">
         <div class="section-head" style="margin:0;">🧭 社長タスク</div>
-        <button class="btn btn-sm" style="background:#2E75B6;color:white;border:none;white-space:nowrap;" onclick="openAiTaskModal()">🎙️ AIで候補作成</button>
+        <button class="btn btn-sm" style="background:#FFF5F5;color:#C53030;border:1px solid #FEB2B2;white-space:nowrap;" onclick="openAiTaskModal()">🎙️ AIで候補作成</button>
       </div>
       <div style="font-size:12px;line-height:1.6;color:#718096;margin-bottom:13px;">話した報告から、次に動くことと相手待ちだけを候補にします。保存するまでは登録されません。</div>
       <div id="admin-task-list"></div>

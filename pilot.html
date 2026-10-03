@@ -466,7 +466,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V22（DBアーカイブ）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V23（社長タスク編集）</div>
   </div>
 </div>
 
@@ -817,6 +817,41 @@ input,select,textarea,button{font-family:inherit}
       <div id="ai-task-result" style="display:none;margin-top:12px;"></div>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiTaskModal()">閉じる</button><button class="btn btn-green" id="ai-task-run" onclick="draftAiTasks()">タスク候補を作る</button></div>
+  </div>
+</div>
+
+<!-- ===== ADMIN TASK EDIT MODAL ===== -->
+<div class="modal-overlay" id="adminTaskEditModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head"><h2>🧭 社長タスクを編集</h2><button class="modal-close" onclick="closeAdminTaskEdit()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">タスク内容</label>
+        <textarea id="admin-task-edit-title" class="form-input" rows="3" style="resize:vertical;line-height:1.55;" placeholder="次にすること・確認すること"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">現場</label>
+          <select id="admin-task-edit-site" class="form-select"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">種類</label>
+          <select id="admin-task-edit-kind" class="form-select">
+            <option value="next">▶️ 次に動く</option>
+            <option value="waiting">⏳ 相手待ち</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">次の確認日</label>
+        <input id="admin-task-edit-due" class="form-input" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">補足・注意点</label>
+        <textarea id="admin-task-edit-note" class="form-input" rows="4" style="resize:vertical;line-height:1.55;" placeholder="連絡先、経緯、注意点など"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAdminTaskEdit()">キャンセル</button><button class="btn btn-green" onclick="saveAdminTaskEdit()">保存</button></div>
   </div>
 </div>
 
@@ -2019,6 +2054,45 @@ function taskDueText(task){
   if(isOverdue(task.dueDate))return `確認日：${task.dueDate}（期限超過）`;
   return `確認日：${task.dueDate}`;
 }
+let adminTaskEditId=null;
+function openAdminTaskEdit(id){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  const task=TASKS.find(x=>x.id===id);if(!task)return;
+  adminTaskEditId=id;
+  const siteSelect=document.getElementById('admin-task-edit-site');
+  siteSelect.innerHTML='<option value="">案件未特定</option>'+SITES.map(s=>`<option value="${cardEscape(s.id)}">${cardEscape(s.name)}</option>`).join('');
+  if(task.siteId&&!SITES.some(s=>s.id===task.siteId))siteSelect.innerHTML+=`<option value="${cardEscape(task.siteId)}">${cardEscape(siteName(task.siteId))}</option>`;
+  document.getElementById('admin-task-edit-title').value=task.title||'';
+  siteSelect.value=task.siteId||'';
+  document.getElementById('admin-task-edit-kind').value=task.kind||'next';
+  document.getElementById('admin-task-edit-due').value=task.dueDate||'';
+  document.getElementById('admin-task-edit-note').value=task.note||'';
+  document.getElementById('adminTaskEditModal').classList.add('show');
+}
+function closeAdminTaskEdit(){
+  adminTaskEditId=null;
+  document.getElementById('adminTaskEditModal').classList.remove('show');
+}
+async function saveAdminTaskEdit(){
+  const task=TASKS.find(x=>x.id===adminTaskEditId);if(!task)return;
+  const title=document.getElementById('admin-task-edit-title').value.trim();
+  if(!title){showToast('⚠️ タスク内容を入力してください');return;}
+  const payload={
+    siteId:document.getElementById('admin-task-edit-site').value,
+    title,
+    kind:document.getElementById('admin-task-edit-kind').value,
+    dueDate:document.getElementById('admin-task-edit-due').value,
+    status:task.status,
+    note:document.getElementById('admin-task-edit-note').value.trim(),
+    version:task.version
+  };
+  try{
+    const saved=await PILOT.updateTask(task.id,payload);
+    Object.assign(task,saved.task);
+    closeAdminTaskEdit();renderProjectCardTaskList();renderAdminTasks();renderAll();refreshOpenDetailTaskList(task.siteId);
+    showToast('✅ 社長タスクを更新しました');
+  }catch(e){showToast('❌ タスクを更新できません: '+e.message,3500);}
+}
 function renderAdminTasks(){
   const el=document.getElementById('admin-task-list');if(!el)return;
   if(!CURRENT_USER || CURRENT_USER.role!=='admin'){el.innerHTML='';return;}
@@ -2030,7 +2104,7 @@ function renderAdminTasks(){
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;"><div style="font-weight:700;font-size:14px;line-height:1.45;text-decoration:${done?'line-through':'none'};">${taskKindLabel(task.kind)}　${cardEscape(task.title)}</div>${done?'<span style="font-size:11px;color:#718096;white-space:nowrap;">完了</span>':'<span style="font-size:11px;color:#2E75B6;white-space:nowrap;">未完了</span>'}</div>
       <div style="font-size:12px;color:#4A5568;margin-top:6px;">🏗️ ${cardEscape(task.siteId?siteName(task.siteId):'案件未特定')}　｜　📅 ${cardEscape(taskDueText(task))}</div>
       ${task.note?`<div style="font-size:12px;color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(task.note)}</div>`:''}
-      ${done?'':`<button class="btn btn-sm" style="margin-top:8px;background:white;border:1px solid #9AE6B4;color:#276749;" onclick="completeAdminTask(${task.id})">✅ 完了にする</button>`}
+      ${done?'':`<div style="display:flex;gap:7px;margin-top:8px;"><button class="btn btn-sm" style="background:white;border:1px solid #90CDF4;color:#1F4E79;" onclick="openAdminTaskEdit(${task.id})">✏️ 編集</button><button class="btn btn-sm" style="background:white;border:1px solid #9AE6B4;color:#276749;" onclick="completeAdminTask(${task.id})">✅ 完了にする</button></div>`}
     </div>`;
   }).join('');
 }

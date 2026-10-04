@@ -62,6 +62,8 @@
     site(id) { return this.request(`/sites/${encodeURIComponent(id)}`); }
     archives(query = '') { return this.request(`/archives${query ? `?q=${encodeURIComponent(query)}` : ''}`); }
     applyLegacyArchiveCodes() { return this.request('/admin/apply-legacy-archive-codes', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' }); }
+    async previewInvoiceZip(file) { const form=new FormData();form.append('invoiceZip',file,file.name);return this.request('/admin/invoice-zip-preview',{method:'POST',body:form}); }
+    confirmInvoiceZip(token, choices) { return this.request('/admin/invoice-zip-confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,choices})}); }
     reports(siteId = '') { return this.request(`/reports${siteId ? `?site_id=${encodeURIComponent(siteId)}` : ''}`); }
     tasks() { return this.request('/tasks'); }
     createTask(task) { return this.request('/tasks', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(task) }); }
@@ -75,6 +77,7 @@
     updateArchiveLedger(id, ledger) { return this.request(`/sites/${encodeURIComponent(id)}/archive-ledger`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(ledger) }); }
     restoreSite(id, version) { return this.request(`/sites/${encodeURIComponent(id)}/restore`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({version}) }); }
     documents(siteId) { return this.request(`/sites/${encodeURIComponent(siteId)}/documents`); }
+    documentBlob(documentId) { return this.requestBlob(`/documents/${encodeURIComponent(documentId)}/file`); }
     async uploadDocument(siteId, file, metadata = {}) {
       const form = new FormData(); form.append('document', file, file.name);
       Object.entries(metadata).forEach(([key, value]) => { if (value !== undefined && value !== null) form.append(key, value); });

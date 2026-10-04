@@ -38,6 +38,7 @@ input,select,textarea,button{font-family:inherit}
 .btn:active{transform:translateY(0)}
 .btn-white{background:white;color:#1F4E79}
 .btn-white:hover{background:#EBF8FF}
+@media(max-width:640px){.archive-admin-tools{display:none!important}}
 .btn-ai{background:#FFF5F5;color:#C53030;border:1px solid #FEB2B2}
 .btn-ai:hover{background:#FED7D7}
 .report-photo-btn{background:#F0FFF4;color:#276749;border:1px solid #9AE6B4;padding:3px 8px;font-size:11px}
@@ -600,7 +601,7 @@ input,select,textarea,button{font-family:inherit}
     <div class="report-form-card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;">
         <div class="section-head" style="margin:0;">📦 アーカイブ</div>
-        <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
+        <div class="archive-admin-tools" style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
           <button class="btn btn-white btn-sm" data-admin-only style="display:none;border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="openInvoiceImportModal()">🧾 請求書ZIP取込</button>
           <button class="btn btn-white btn-sm" data-admin-only style="display:none;border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="applyLegacyArchiveCodes()">旧A番号を反映</button>
         </div>
@@ -1456,7 +1457,8 @@ function loadState() {
 async function loadServerState() {
   const [siteResult, reportResult] = await Promise.all([PILOT.sites(), PILOT.reports()]);
   SITES = siteResult.sites || [];
-  REPORTS = reportResult.reports || [];
+  const activeSiteIds=new Set(SITES.filter(site=>String(site.name||'').trim()).map(site=>site.id));
+  REPORTS = (reportResult.reports || []).filter(report=>activeSiteIds.has(report.siteId));
   TASKS = CURRENT_USER && CURRENT_USER.role === 'admin' ? ((await PILOT.tasks()).tasks || []) : [];
   nextReportId = Math.max(1, ...REPORTS.map(r => Number(r.id) + 1));
   DELETED_SITE_IDS = [];
@@ -2661,20 +2663,31 @@ function resetArchiveSearch(){
   const reset=document.getElementById('archive-search-reset');if(reset)reset.style.display='none';
   loadArchives();
 }
+let archiveLoadSequence=0;
+const archiveMobileView=window.matchMedia('(max-width:640px)');
+archiveMobileView.addEventListener('change',()=>{if(currentTab==='archives')loadArchives();});
 async function loadArchives(){
   const list=document.getElementById('archive-site-list');
   const status=document.getElementById('archive-list-status');
   if(!list||!status)return;
+  const requestSequence=++archiveLoadSequence;
+  const query=document.getElementById('archive-search')?.value.trim()||'';
+  const mobile=archiveMobileView.matches;
+  const reset=document.getElementById('archive-search-reset');
+  if(reset){reset.style.display=query?'inline-flex':'none';reset.textContent=mobile?'検索をクリア':'一覧に戻る';}
+  list.innerHTML='';ARCHIVES=[];ARCHIVE_REPORTS=[];
+  if(mobile&&!query){
+    status.textContent='現場名・住所などを入力して検索してください。';
+    return;
+  }
   status.textContent='アーカイブを読み込んでいます…';
-  list.innerHTML='';
   try{
-    const query=document.getElementById('archive-search')?.value.trim()||'';
-    const reset=document.getElementById('archive-search-reset');if(reset)reset.style.display=query?'inline-flex':'none';
     const result=await PILOT.archives(query);
+    if(requestSequence!==archiveLoadSequence)return;
     const archives=result.sites||[];
     ARCHIVES=archives;
     status.textContent=`${archives.length}件`;
-    if(!archives.length){list.innerHTML='<div style="padding:18px;text-align:center;color:#718096;">該当するアーカイブはありません。<br><button class="btn btn-white btn-sm" style="margin-top:10px;border:1px solid #CBD5E0;color:#4A5568;" onclick="resetArchiveSearch()">一覧に戻る</button></div>';return;}
+    if(!archives.length){list.innerHTML=`<div style="padding:18px;text-align:center;color:#718096;">該当するアーカイブはありません。<br><button class="btn btn-white btn-sm" style="margin-top:10px;border:1px solid #CBD5E0;color:#4A5568;" onclick="resetArchiveSearch()">${mobile?'検索をクリア':'一覧に戻る'}</button></div>`;return;}
     list.innerHTML=archives.map(site=>{
       const id=archiveEsc(site.id);
       const dates=[site.start,site.end].filter(Boolean).map(archiveEsc).join(' ～ ');
@@ -2707,6 +2720,7 @@ async function loadArchives(){
       </article>`;
     }).join('');
   }catch(e){
+    if(requestSequence!==archiveLoadSequence)return;
     status.textContent='アーカイブを読み込めませんでした。';
     list.innerHTML=`<div style="padding:12px;color:#C53030;">${archiveEsc(e.message)}</div>`;
   }
@@ -2726,6 +2740,7 @@ async function downloadArchiveDocument(documentId,name=''){
   try{const blob=await PILOT.documentBlob(documentId);const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;if(name)a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){showToast('❌ 書類を開けません: '+e.message,3500);}
 }
 let ARCHIVES=[];
+let ARCHIVE_REPORTS=[];
 let archiveEditingSiteId=null;
 function openArchiveLedgerEdit(siteId){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
@@ -2780,6 +2795,7 @@ async function toggleArchiveReports(siteId){
   box.innerHTML='<div style="padding:10px;color:#718096;font-size:12px;">日報を読み込んでいます…</div>';
   try{
     const result=await PILOT.reports(siteId);const reports=result.reports||[];
+    ARCHIVE_REPORTS=ARCHIVE_REPORTS.filter(report=>report.siteId!==siteId).concat(reports);
     if(!reports.length){box.innerHTML='<div style="padding:10px;color:#718096;font-size:12px;">日報はありません。</div>';box.dataset.loaded='1';return;}
     const canEditArchiveReports=CURRENT_USER&&CURRENT_USER.role==='admin';
     box.innerHTML=reports.map(report=>`<div style="border-top:1px solid #E2E8F0;padding:9px 4px;font-size:12px;">
@@ -2800,9 +2816,9 @@ function archiveEditRowHtml(entry={}){
 }
 function openArchiveReportEdit(reportId){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
-  const report=REPORTS.find(r=>r.id===reportId);if(!report){showToast('⚠️ 日報が見つかりません');return;}
+  const report=ARCHIVE_REPORTS.find(r=>r.id===reportId);if(!report){showToast('⚠️ 日報が見つかりません');return;}
   archiveEditingReportId=reportId;
-  document.getElementById('archive-report-edit-title').textContent=`📦 アーカイブ日報を編集（${siteName(report.siteId)}）`;
+  document.getElementById('archive-report-edit-title').textContent=`📦 アーカイブ日報を編集（${ARCHIVES.find(site=>site.id===report.siteId)?.name||'アーカイブ'}）`;
   document.getElementById('archive-report-edit-date').value=report.date||'';
   document.getElementById('archive-report-edit-rows').innerHTML=(report.entries||[]).map(archiveEditRowHtml).join('')||archiveEditRowHtml();
   document.getElementById('archiveReportEditModal').classList.add('show');
@@ -2816,7 +2832,7 @@ function closeArchiveReportEdit(){
 }
 async function saveArchiveReportEdit(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
-  const report=REPORTS.find(r=>r.id===archiveEditingReportId);if(!report)return;
+  const report=ARCHIVE_REPORTS.find(r=>r.id===archiveEditingReportId);if(!report)return;
   const date=document.getElementById('archive-report-edit-date').value;
   if(!date){showToast('⚠️ 日付を入力してください');return;}
   const entries=[];

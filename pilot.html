@@ -599,10 +599,11 @@ input,select,textarea,button{font-family:inherit}
           <button class="btn btn-white btn-sm" data-admin-only style="display:none;border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="applyLegacyArchiveCodes()">旧A番号を反映</button>
         </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-        <input class="form-input" id="archive-search" type="search" placeholder="現場名・住所で検索" style="flex:1;">
-        <button class="btn btn-green btn-sm" onclick="loadArchives()">検索</button>
-      </div>
+      <form style="display:flex;gap:8px;align-items:center;margin-bottom:12px;" onsubmit="event.preventDefault();loadArchives();">
+        <input class="form-input" id="archive-search" type="search" placeholder="現場名・住所で検索" style="flex:1;" oninput="archiveSearchInputChanged()">
+        <button class="btn btn-green btn-sm" type="submit">検索</button>
+        <button class="btn btn-white btn-sm" id="archive-search-reset" type="button" style="display:none;border:1px solid #CBD5E0;color:#4A5568;white-space:nowrap;" onclick="resetArchiveSearch()">一覧に戻る</button>
+      </form>
       <div id="archive-list-status" style="font-size:12px;color:#718096;margin-bottom:8px;"></div>
       <div id="archive-site-list"></div>
     </div>
@@ -2642,6 +2643,18 @@ async function confirmInvoiceImport(){
     if((r.errors||[]).length)showToast(`⚠️ ${r.errors.length}件は保存できませんでした。もう一度候補を確認してください。`,5000);
   }catch(e){showToast('❌ 請求書を保存できません: '+e.message,4000);}
 }
+function archiveSearchInputChanged(){
+  const input=document.getElementById('archive-search');
+  const reset=document.getElementById('archive-search-reset');
+  if(reset)reset.style.display=input&&input.value.trim()?'inline-flex':'none';
+  // 検索欄の×で文字を消した時は、そのまま通常のアーカイブ一覧へ戻す。
+  if(input&&!input.value.trim())loadArchives();
+}
+function resetArchiveSearch(){
+  const input=document.getElementById('archive-search');if(input)input.value='';
+  const reset=document.getElementById('archive-search-reset');if(reset)reset.style.display='none';
+  loadArchives();
+}
 async function loadArchives(){
   const list=document.getElementById('archive-site-list');
   const status=document.getElementById('archive-list-status');
@@ -2650,11 +2663,12 @@ async function loadArchives(){
   list.innerHTML='';
   try{
     const query=document.getElementById('archive-search')?.value.trim()||'';
+    const reset=document.getElementById('archive-search-reset');if(reset)reset.style.display=query?'inline-flex':'none';
     const result=await PILOT.archives(query);
     const archives=result.sites||[];
     ARCHIVES=archives;
     status.textContent=`${archives.length}件`;
-    if(!archives.length){list.innerHTML='<div style="padding:18px;text-align:center;color:#718096;">該当するアーカイブはありません。</div>';return;}
+    if(!archives.length){list.innerHTML='<div style="padding:18px;text-align:center;color:#718096;">該当するアーカイブはありません。<br><button class="btn btn-white btn-sm" style="margin-top:10px;border:1px solid #CBD5E0;color:#4A5568;" onclick="resetArchiveSearch()">一覧に戻る</button></div>';return;}
     list.innerHTML=archives.map(site=>{
       const id=archiveEsc(site.id);
       const dates=[site.start,site.end].filter(Boolean).map(archiveEsc).join(' ～ ');

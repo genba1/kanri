@@ -179,6 +179,30 @@ input,select,textarea,button{font-family:inherit}
 .modal-body{padding:18px 20px}
 .modal-foot{padding:14px 20px;border-top:1px solid #E2E8F0;display:flex;justify-content:flex-end;gap:10px;position:sticky;bottom:0;background:white}
 
+/* 請求書ZIPの照合は、数十件を続けて確認する作業のため専用の広い画面にする。 */
+.invoice-import-modal{align-items:center;padding:16px}
+.invoice-import-dialog{width:min(1280px,calc(100vw - 32px));max-width:none!important;height:94vh;max-height:94vh;overflow:hidden;display:flex;flex-direction:column}
+.invoice-import-dialog .modal-head,.invoice-import-dialog .modal-foot{flex:0 0 auto}
+.invoice-import-dialog .modal-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding-bottom:12px;overflow:hidden}
+.invoice-import-list{flex:1 1 auto;min-height:0;overflow:auto;padding:2px 2px 18px}
+.invoice-import-row{border:1px solid #C9DAEB;border-radius:10px;margin:10px 0;background:#fff;overflow:visible}
+.invoice-import-source{position:sticky;top:0;z-index:2;padding:11px 13px;background:#F4F9FE;border-bottom:1px solid #D7E6F3;border-radius:9px 9px 0 0;box-shadow:0 2px 4px rgba(49,104,151,.08)}
+.invoice-import-source-title{font-size:15px;font-weight:800;color:#1F3851;word-break:break-word}
+.invoice-import-source-note{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:5px;font-size:12px;color:#4A5568}
+.invoice-import-work{display:grid;grid-template-columns:minmax(280px,1fr) minmax(360px,1.15fr);gap:14px;padding:12px 13px}
+.invoice-import-current{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;font-size:13px;color:#4A5568;line-height:1.6}
+.invoice-import-current strong{display:block;color:#1F4E79;font-size:14px;margin-bottom:3px}
+.invoice-import-edit{margin-top:10px;padding-top:9px;border-top:1px dashed #CBD5E0}
+@media(max-width:700px){
+  .invoice-import-modal{padding:0;align-items:flex-end}
+  .invoice-import-dialog{width:100%;height:94vh;max-height:94vh;border-radius:16px 16px 0 0}
+  .invoice-import-dialog .modal-body{padding:13px 14px 8px}
+  .invoice-import-dialog .modal-head,.invoice-import-dialog .modal-foot{padding-left:14px;padding-right:14px}
+  .invoice-import-work{grid-template-columns:1fr;padding:10px}
+  .invoice-import-source{padding:10px}
+  .invoice-import-source-title{font-size:14px}
+}
+
 /* Form elements */
 .form-group{margin-bottom:14px}
 .form-label{display:block;font-size:12px;font-weight:700;color:#4A5568;margin-bottom:5px}
@@ -935,8 +959,8 @@ input,select,textarea,button{font-family:inherit}
 </div>
 
 <!-- ===== INVOICE ZIP IMPORT MODAL (社長のみ) ===== -->
-<div class="modal-overlay" id="invoiceImportModal">
-  <div class="modal" style="max-width:920px;">
+<div class="modal-overlay invoice-import-modal" id="invoiceImportModal">
+  <div class="modal invoice-import-dialog">
     <div class="modal-head"><h2>🧾 請求書ZIP取込</h2><button class="modal-close" onclick="closeInvoiceImportModal()">✕</button></div>
     <div class="modal-body">
       <div style="font-size:12px;line-height:1.65;color:#718096;margin-bottom:12px;">ZIP内のS請求書を読み、A管理名の日付・現場名から候補を作ります。まだ保存は行いません。</div>
@@ -945,7 +969,7 @@ input,select,textarea,button{font-family:inherit}
         <button class="btn btn-green" style="margin-top:10px;" onclick="previewInvoiceImport()">候補を確認する</button>
       </div>
       <div id="invoice-import-status" style="font-size:13px;color:#4A5568;margin:12px 0;"></div>
-      <div id="invoice-import-list" style="max-height:52vh;overflow:auto;"></div>
+      <div id="invoice-import-list" class="invoice-import-list"></div>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeInvoiceImportModal()">キャンセル</button><button class="btn btn-green" id="invoice-import-confirm" style="display:none;" onclick="confirmInvoiceImport()">選択分を採用して保存</button></div>
   </div>
@@ -2539,27 +2563,50 @@ function closeInvoiceImportModal(){
 function invoiceImportRow(entry){
   const options=['<option value="">紐づけない・後で確認</option>'].concat((entry.candidates||[]).map(c=>`<option value="${archiveEsc(c.siteId)}" ${entry.proposedSiteId===c.siteId?'selected':''}>${archiveEsc(c.archiveCode||'A未設定')}｜${archiveEsc(c.siteName)}（一致 ${Math.round((c.score||0)*100)}%）</option>`)).join('');
   const auto=entry.proposedSiteId?'<span style="color:#2F855A;font-weight:700;">自動候補</span>':'<span style="color:#A05A00;font-weight:700;">要確認</span>';
-  return `<article class="invoice-import-row" data-key="${archiveEsc(entry.key)}" style="border:1px solid #D8E2EC;border-radius:9px;padding:10px;margin:8px 0;">
-    <div style="font-size:13px;font-weight:700;word-break:break-word;">🧾 ${archiveEsc(entry.originalName)}</div>
-    <div style="font-size:12px;margin:5px 0;color:#4A5568;">${auto}　${(entry.candidates||[]).length?`同日候補 ${(entry.candidates||[]).length}件`:'同日候補なし'}</div>
-    <select class="form-select ii-site" style="font-size:12px;padding:7px;" onchange="invoiceImportSelectionChanged(this)">${options}</select>
-    <details style="margin-top:7px;">
-      <summary style="font-size:12px;color:#1F4E79;cursor:pointer;">管理名を確認・修正</summary>
-      <label style="display:flex;gap:5px;align-items:center;font-size:12px;margin:8px 0;"><input type="checkbox" class="ii-linked" checked> A/S名称を連動する</label>
-      <div style="display:grid;grid-template-columns:1fr;gap:6px;">
-        <input class="form-input ii-project" value="${archiveEsc(entry.projectName)}" placeholder="現場名" oninput="syncInvoiceImportNames(this)" style="padding:7px;font-size:12px;">
-        <input class="form-input ii-a" value="${archiveEsc(entry.archiveCode)}" placeholder="A管理名" style="padding:7px;font-size:12px;">
-        <input class="form-input ii-s" value="${archiveEsc(entry.invoiceCode)}" placeholder="S請求書管理名" style="padding:7px;font-size:12px;">
+  const candidateInfo=(entry.candidates||[]).length?`同日候補 ${(entry.candidates||[]).length}件`:'同日候補なし';
+  return `<article class="invoice-import-row" data-key="${archiveEsc(entry.key)}">
+    <div class="invoice-import-source">
+      <div class="invoice-import-source-title">🧾 元の請求書：${archiveEsc(entry.originalName)}</div>
+      <div class="invoice-import-source-note">${auto}<span>${candidateInfo}</span><span>請求日：${archiveEsc(entry.sDate||'不明')}</span></div>
+    </div>
+    <div class="invoice-import-work">
+      <div>
+        <label class="form-label">紐づけるアーカイブ</label>
+        <select class="form-select ii-site" onchange="invoiceImportSelectionChanged(this)">${options}</select>
+        <div style="font-size:12px;color:#718096;line-height:1.55;margin-top:7px;">候補が違う場合は「後で確認」のままにして保存しません。</div>
       </div>
-    </details>
+      <div class="invoice-import-current">
+        <strong>保存される管理名</strong>
+        <div class="ii-preview-project">現場名：${archiveEsc(entry.projectName||'未設定')}</div>
+        <div class="ii-preview-a">A管理名：${archiveEsc(entry.archiveCode||'未設定')}</div>
+        <div class="ii-preview-s">S請求書番号：${archiveEsc(entry.invoiceCode||'未設定')}</div>
+        <details class="invoice-import-edit">
+          <summary style="font-size:12px;color:#1F4E79;cursor:pointer;font-weight:700;">管理名を確認・修正</summary>
+          <label style="display:flex;gap:5px;align-items:center;font-size:12px;margin:8px 0;"><input type="checkbox" class="ii-linked" checked> A/S名称を連動する</label>
+          <div style="display:grid;grid-template-columns:1fr;gap:6px;">
+            <input class="form-input ii-project" value="${archiveEsc(entry.projectName)}" placeholder="現場名" oninput="syncInvoiceImportNames(this)" style="padding:7px;font-size:12px;">
+            <input class="form-input ii-a" value="${archiveEsc(entry.archiveCode)}" placeholder="A管理名" oninput="updateInvoiceImportPreview(this)" style="padding:7px;font-size:12px;">
+            <input class="form-input ii-s" value="${archiveEsc(entry.invoiceCode)}" placeholder="S請求書管理名" oninput="updateInvoiceImportPreview(this)" style="padding:7px;font-size:12px;">
+          </div>
+        </details>
+      </div>
+    </div>
   </article>`;
 }
+function updateInvoiceImportPreview(input){
+  const row=input.closest('.invoice-import-row');if(!row)return;
+  row.querySelector('.ii-preview-project').textContent=`現場名：${row.querySelector('.ii-project').value.trim()||'未設定'}`;
+  row.querySelector('.ii-preview-a').textContent=`A管理名：${row.querySelector('.ii-a').value.trim()||'未設定'}`;
+  row.querySelector('.ii-preview-s').textContent=`S請求書番号：${row.querySelector('.ii-s').value.trim()||'未設定'}`;
+}
 function syncInvoiceImportNames(input){
-  const row=input.closest('.invoice-import-row');if(!row||!row.querySelector('.ii-linked').checked)return;
+  const row=input.closest('.invoice-import-row');if(!row)return;
+  if(!row.querySelector('.ii-linked').checked){updateInvoiceImportPreview(input);return;}
   const project=input.value.trim();const s=row.querySelector('.ii-s').value.trim();const dateMatch=s.match(/^S(\d{6})/);
   if(!dateMatch)return;
   row.querySelector('.ii-s').value=`S${dateMatch[1]}${project}`;
   row.querySelector('.ii-a').value=`A${dateMatch[1]}${project}`;
+  updateInvoiceImportPreview(input);
 }
 function invoiceImportSelectionChanged(select){
   const row=select.closest('.invoice-import-row');if(!row)return;
@@ -2567,6 +2614,7 @@ function invoiceImportSelectionChanged(select){
   if(chosen&&row.querySelector('.ii-linked').checked){
     const project=row.querySelector('.ii-project').value.trim();const match=row.querySelector('.ii-s').value.match(/^S(\d{6})/);if(match){row.querySelector('.ii-a').value=`A${match[1]}${project}`;}
   }
+  updateInvoiceImportPreview(select);
 }
 async function previewInvoiceImport(){
   const file=document.getElementById('invoice-import-file').files[0];if(!file){showToast('⚠️ 請求書ZIPを選択してください');return;}

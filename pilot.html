@@ -466,7 +466,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V29（アーカイブ内容編集）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V31（請求書ZIP・書類閲覧）</div>
   </div>
 </div>
 
@@ -570,7 +570,10 @@ input,select,textarea,button{font-family:inherit}
     <div class="report-form-card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;">
         <div class="section-head" style="margin:0;">📦 アーカイブ</div>
-        <button class="btn btn-white btn-sm" data-admin-only style="display:none;border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="applyLegacyArchiveCodes()">旧A番号を反映</button>
+        <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn btn-white btn-sm" data-admin-only style="display:none;border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="openInvoiceImportModal()">🧾 請求書ZIP取込</button>
+          <button class="btn btn-white btn-sm" data-admin-only style="display:none;border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="applyLegacyArchiveCodes()">旧A番号を反映</button>
+        </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
         <input class="form-input" id="archive-search" type="search" placeholder="現場名・住所で検索" style="flex:1;">
@@ -928,6 +931,23 @@ input,select,textarea,button{font-family:inherit}
       <div style="font-size:12px;color:#A05A00;line-height:1.6;">AとSの6桁日付は一致させます。まだ分からない項目は空欄のまま保存できます。</div>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeArchiveLedgerEdit()">キャンセル</button><button class="btn btn-green" onclick="saveArchiveLedgerEdit()">保存</button></div>
+  </div>
+</div>
+
+<!-- ===== INVOICE ZIP IMPORT MODAL (社長のみ) ===== -->
+<div class="modal-overlay" id="invoiceImportModal">
+  <div class="modal" style="max-width:920px;">
+    <div class="modal-head"><h2>🧾 請求書ZIP取込</h2><button class="modal-close" onclick="closeInvoiceImportModal()">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:12px;line-height:1.65;color:#718096;margin-bottom:12px;">ZIP内のS請求書を読み、A管理名の日付・現場名から候補を作ります。まだ保存は行いません。</div>
+      <div id="invoice-import-start">
+        <input id="invoice-import-file" class="form-input" type="file" accept=".zip,application/zip" style="padding:8px;">
+        <button class="btn btn-green" style="margin-top:10px;" onclick="previewInvoiceImport()">候補を確認する</button>
+      </div>
+      <div id="invoice-import-status" style="font-size:13px;color:#4A5568;margin:12px 0;"></div>
+      <div id="invoice-import-list" style="max-height:52vh;overflow:auto;"></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeInvoiceImportModal()">キャンセル</button><button class="btn btn-green" id="invoice-import-confirm" style="display:none;" onclick="confirmInvoiceImport()">選択分を採用して保存</button></div>
   </div>
 </div>
 
@@ -2501,6 +2521,79 @@ async function applyLegacyArchiveCodes(){
     showToast(`✅ 旧A番号を ${r.updated||0}件反映しました（既存・対象外 ${r.skipped||0}件）`,3500);
   }catch(e){showToast('❌ 旧A番号を反映できません: '+e.message,3500);}
 }
+let invoiceImportToken='';
+let invoiceImportEntries=[];
+function openInvoiceImportModal(){
+  if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  invoiceImportToken='';invoiceImportEntries=[];
+  document.getElementById('invoice-import-file').value='';
+  document.getElementById('invoice-import-status').textContent='';
+  document.getElementById('invoice-import-list').innerHTML='';
+  document.getElementById('invoice-import-confirm').style.display='none';
+  document.getElementById('invoiceImportModal').classList.add('show');
+}
+function closeInvoiceImportModal(){
+  invoiceImportToken='';invoiceImportEntries=[];
+  document.getElementById('invoiceImportModal').classList.remove('show');
+}
+function invoiceImportRow(entry){
+  const options=['<option value="">紐づけない・後で確認</option>'].concat((entry.candidates||[]).map(c=>`<option value="${archiveEsc(c.siteId)}" ${entry.proposedSiteId===c.siteId?'selected':''}>${archiveEsc(c.archiveCode||'A未設定')}｜${archiveEsc(c.siteName)}（一致 ${Math.round((c.score||0)*100)}%）</option>`)).join('');
+  const auto=entry.proposedSiteId?'<span style="color:#2F855A;font-weight:700;">自動候補</span>':'<span style="color:#A05A00;font-weight:700;">要確認</span>';
+  return `<article class="invoice-import-row" data-key="${archiveEsc(entry.key)}" style="border:1px solid #D8E2EC;border-radius:9px;padding:10px;margin:8px 0;">
+    <div style="font-size:13px;font-weight:700;word-break:break-word;">🧾 ${archiveEsc(entry.originalName)}</div>
+    <div style="font-size:12px;margin:5px 0;color:#4A5568;">${auto}　${(entry.candidates||[]).length?`同日候補 ${(entry.candidates||[]).length}件`:'同日候補なし'}</div>
+    <select class="form-select ii-site" style="font-size:12px;padding:7px;" onchange="invoiceImportSelectionChanged(this)">${options}</select>
+    <details style="margin-top:7px;">
+      <summary style="font-size:12px;color:#1F4E79;cursor:pointer;">管理名を確認・修正</summary>
+      <label style="display:flex;gap:5px;align-items:center;font-size:12px;margin:8px 0;"><input type="checkbox" class="ii-linked" checked> A/S名称を連動する</label>
+      <div style="display:grid;grid-template-columns:1fr;gap:6px;">
+        <input class="form-input ii-project" value="${archiveEsc(entry.projectName)}" placeholder="現場名" oninput="syncInvoiceImportNames(this)" style="padding:7px;font-size:12px;">
+        <input class="form-input ii-a" value="${archiveEsc(entry.archiveCode)}" placeholder="A管理名" style="padding:7px;font-size:12px;">
+        <input class="form-input ii-s" value="${archiveEsc(entry.invoiceCode)}" placeholder="S請求書管理名" style="padding:7px;font-size:12px;">
+      </div>
+    </details>
+  </article>`;
+}
+function syncInvoiceImportNames(input){
+  const row=input.closest('.invoice-import-row');if(!row||!row.querySelector('.ii-linked').checked)return;
+  const project=input.value.trim();const s=row.querySelector('.ii-s').value.trim();const dateMatch=s.match(/^S(\d{6})/);
+  if(!dateMatch)return;
+  row.querySelector('.ii-s').value=`S${dateMatch[1]}${project}`;
+  row.querySelector('.ii-a').value=`A${dateMatch[1]}${project}`;
+}
+function invoiceImportSelectionChanged(select){
+  const row=select.closest('.invoice-import-row');if(!row)return;
+  const chosen=invoiceImportEntries.find(e=>String(e.key)===row.dataset.key)?.candidates?.find(c=>c.siteId===select.value);
+  if(chosen&&row.querySelector('.ii-linked').checked){
+    const project=row.querySelector('.ii-project').value.trim();const match=row.querySelector('.ii-s').value.match(/^S(\d{6})/);if(match){row.querySelector('.ii-a').value=`A${match[1]}${project}`;}
+  }
+}
+async function previewInvoiceImport(){
+  const file=document.getElementById('invoice-import-file').files[0];if(!file){showToast('⚠️ 請求書ZIPを選択してください');return;}
+  const status=document.getElementById('invoice-import-status');status.textContent='ZIPを読み込み、候補を作成しています…';
+  try{
+    const result=await PILOT.previewInvoiceZip(file);invoiceImportToken=result.token;invoiceImportEntries=result.entries||[];
+    const auto=invoiceImportEntries.filter(e=>e.proposedSiteId).length;
+    status.textContent=`請求書 ${invoiceImportEntries.length}件。自動候補 ${auto}件、確認が必要なものは候補を選んでください。`;
+    document.getElementById('invoice-import-list').innerHTML=invoiceImportEntries.map(invoiceImportRow).join('');
+    document.getElementById('invoice-import-confirm').style.display='inline-flex';
+  }catch(e){status.textContent='';showToast('❌ 候補を作成できません: '+e.message,4000);}
+}
+async function confirmInvoiceImport(){
+  if(!invoiceImportToken)return;
+  const choices=[];document.querySelectorAll('#invoice-import-list .invoice-import-row').forEach(row=>{
+    const siteId=row.querySelector('.ii-site').value;if(!siteId)return;
+    choices.push({key:row.dataset.key,siteId,projectName:row.querySelector('.ii-project').value.trim(),archiveCode:row.querySelector('.ii-a').value.trim(),invoiceCode:row.querySelector('.ii-s').value.trim()});
+  });
+  if(!choices.length){showToast('⚠️ 紐づける請求書を1件以上選んでください');return;}
+  if(!confirm(`${choices.length}件の請求書を保存し、A・S・現場名を更新します。\n元の請求書ファイル名は変更しません。\n\n実行しますか？`))return;
+  try{
+    const result=await PILOT.confirmInvoiceZip(invoiceImportToken,choices);const r=result.result||{};
+    closeInvoiceImportModal();await loadArchives();
+    showToast(`✅ ${r.linked||0}件を紐づけ、${r.filesSaved||0}件の請求書を保存しました`,4000);
+    if((r.errors||[]).length)showToast(`⚠️ ${r.errors.length}件は保存できませんでした。もう一度候補を確認してください。`,5000);
+  }catch(e){showToast('❌ 請求書を保存できません: '+e.message,4000);}
+}
 async function loadArchives(){
   const list=document.getElementById('archive-site-list');
   const status=document.getElementById('archive-list-status');
@@ -2537,16 +2630,32 @@ async function loadArchives(){
           <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:none;">
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit('${id}')">✏️ 整理</button>`:''}
             <button class="btn btn-white btn-sm" onclick="toggleArchiveReports('${id}')">日報を見る</button>
+            <button class="btn btn-white btn-sm" onclick="toggleArchiveDocuments('${id}')">🧾 書類</button>
           </div>
         </div>
         ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}
         <div id="archive-reports-${id}" style="margin-top:8px;"></div>
+        <div id="archive-documents-${id}" style="margin-top:8px;"></div>
       </article>`;
     }).join('');
   }catch(e){
     status.textContent='アーカイブを読み込めませんでした。';
     list.innerHTML=`<div style="padding:12px;color:#C53030;">${archiveEsc(e.message)}</div>`;
   }
+}
+async function toggleArchiveDocuments(siteId){
+  const box=document.getElementById(`archive-documents-${siteId}`);if(!box)return;
+  if(box.dataset.loaded==='1'){box.innerHTML='';box.dataset.loaded='0';return;}
+  box.innerHTML='<div style="padding:10px;color:#718096;font-size:12px;">書類を読み込んでいます…</div>';
+  try{
+    const result=await PILOT.documents(siteId);const docs=result.documents||[];
+    if(!docs.length){box.innerHTML='<div style="padding:10px;color:#718096;font-size:12px;">保存されている書類はありません。</div>';box.dataset.loaded='1';return;}
+    box.innerHTML=docs.map(doc=>`<div style="border-top:1px solid #E2E8F0;padding:8px 3px;font-size:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;"><div style="min-width:0;word-break:break-word;">${doc.document_type==='invoice'?'🧾 請求書':'📎 書類'}<br><span style="color:#4A5568;">${archiveEsc(doc.original_name||doc.title||'書類')}</span></div><button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="downloadArchiveDocument(${doc.id})">開く</button></div>`).join('');
+    box.dataset.loaded='1';
+  }catch(e){box.innerHTML=`<div style="padding:10px;color:#C53030;font-size:12px;">書類を読み込めませんでした：${archiveEsc(e.message)}</div>`;}
+}
+async function downloadArchiveDocument(documentId,name=''){
+  try{const blob=await PILOT.documentBlob(documentId);const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;if(name)a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){showToast('❌ 書類を開けません: '+e.message,3500);}
 }
 let ARCHIVES=[];
 let archiveEditingSiteId=null;
@@ -2662,7 +2771,7 @@ async function saveArchiveReportEdit(){
 // =========================================================
 // CLOSE MODALS ON OVERLAY CLICK
 // =========================================================
-['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal','adminTaskEditModal','archiveReportEditModal','archiveLedgerEditModal'].forEach(id=>{
+['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal','adminTaskEditModal','archiveReportEditModal','archiveLedgerEditModal','invoiceImportModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
     if(e.target===this)this.classList.remove('show');

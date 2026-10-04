@@ -2698,7 +2698,7 @@ async function toggleArchiveDocuments(siteId){
   try{
     const result=await PILOT.documents(siteId);const docs=result.documents||[];
     if(!docs.length){box.innerHTML='<div style="padding:10px;color:#718096;font-size:12px;">保存されている書類はありません。</div>';box.dataset.loaded='1';return;}
-    box.innerHTML=docs.map(doc=>`<div style="border-top:1px solid #E2E8F0;padding:8px 3px;font-size:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;"><div style="min-width:0;word-break:break-word;">${doc.document_type==='invoice'?'🧾 請求書':'📎 書類'}<br><span style="color:#4A5568;">${archiveEsc(doc.original_name||doc.title||'書類')}</span></div><button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="downloadArchiveDocument(${doc.id})">開く</button></div>`).join('');
+    box.innerHTML=docs.map(doc=>{const fileName=doc.original_name||doc.title||'書類';return `<div style="border-top:1px solid #E2E8F0;padding:8px 3px;font-size:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;"><div style="min-width:0;word-break:break-word;">${doc.document_type==='invoice'?'🧾 請求書':'📎 書類'}<br><span style="color:#4A5568;">${archiveEsc(fileName)}</span></div><button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" data-document-id="${doc.id}" data-document-name="${archiveEsc(fileName)}" onclick="downloadArchiveDocument(Number(this.dataset.documentId),this.dataset.documentName)">開く</button></div>`;}).join('');
     box.dataset.loaded='1';
   }catch(e){box.innerHTML=`<div style="padding:10px;color:#C53030;font-size:12px;">書類を読み込めませんでした：${archiveEsc(e.message)}</div>`;}
 }

@@ -498,7 +498,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V45（共通の社長タスク）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V46（社長タスクの並べ替え）</div>
   </div>
 </div>
 
@@ -657,10 +657,16 @@ input,select,textarea,button{font-family:inherit}
   <div class="section-page" id="page-tasks">
     <div class="report-form-card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;">
-        <div class="section-head" style="margin:0;">🧭 社長タスク</div>
+        <div class="section-head" style="margin:0;white-space:nowrap;flex-shrink:0;">🧭 社長タスク</div>
         <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;"><button class="btn btn-green btn-sm" onclick="openAdminTaskNew()">＋ タスクを追加</button><button class="btn btn-sm" style="background:#FFF5F5;color:#C53030;border:1px solid #FEB2B2;white-space:nowrap;" onclick="openAiTaskModal()">🎙️ AIで候補作成</button></div>
       </div>
       <div style="font-size:12px;line-height:1.6;color:#718096;margin-bottom:13px;">保険の契約など、現場に紐づけない共通タスクも登録できます。「タスクを追加」で直接入力するか、音声からAIで候補を作り、確認して保存してください。</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <button class="btn btn-sm" id="task-order-start" onclick="startTaskOrder()">↕ 並べ替え</button>
+        <button class="btn btn-green btn-sm" id="task-order-save" style="display:none" onclick="saveTaskOrder()">順番を保存</button>
+        <button class="btn btn-sm" id="task-order-cancel" style="display:none" onclick="cancelTaskOrder()">キャンセル</button>
+        <span id="task-order-help" style="font-size:12px;color:#718096;" role="status">重要なタスクを上へ並べられます。</span>
+      </div>
       <div id="admin-task-list"></div>
     </div>
   </div>
@@ -2307,18 +2313,80 @@ async function saveAdminTaskEdit(){
   finally{adminTaskSaving=false;controls.forEach(e=>e.disabled=false);}
   if(success)closeAdminTaskEdit();
 }
+let taskOrderDraft=null,taskOrderSaving=false,taskOrderPointer=null;
+function sortedAdminTasks(){
+  return TASKS.filter(taskIsOpen).sort((a,b)=>{
+    const ap=Number.isInteger(a.sortPosition)?a.sortPosition:Infinity,bp=Number.isInteger(b.sortPosition)?b.sortPosition:Infinity;
+    return (ap===bp?0:ap<bp?-1:1)||(a.dueDate||'9999-12-31').localeCompare(b.dueDate||'9999-12-31')||b.id-a.id;
+  });
+}
+function startTaskOrder(){
+  if(taskOrderSaving||!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  if(completingAdminTasks.size||adminTaskSaving){showToast('保存完了後に並べ替えてください');return;}
+  taskOrderDraft=sortedAdminTasks().map(t=>({id:t.id,version:t.version}));renderAdminTasks();
+}
+function cancelTaskOrder(){if(taskOrderSaving)return;taskOrderDraft=null;taskOrderPointer=null;renderAdminTasks();}
+function moveTaskOrder(id,targetId){
+  if(!taskOrderDraft||taskOrderSaving)return;
+  const from=taskOrderDraft.findIndex(t=>t.id===id),to=taskOrderDraft.findIndex(t=>t.id===targetId);
+  if(from<0||to<0||from===to)return;
+  const [item]=taskOrderDraft.splice(from,1);taskOrderDraft.splice(to,0,item);renderAdminTasks();
+}
+function stepTaskOrder(id,delta){
+  if(!taskOrderDraft)return;
+  const i=taskOrderDraft.findIndex(t=>t.id===id),target=taskOrderDraft[i+delta];if(target)moveTaskOrder(id,target.id);
+}
+function beginTaskOrderDrag(event,id){
+  if(!taskOrderDraft||taskOrderSaving||event.button!==0)return;
+  event.preventDefault();taskOrderPointer={id,pointerId:event.pointerId};
+  document.getElementById('admin-task-list').setPointerCapture(event.pointerId);
+}
+document.addEventListener('pointermove',event=>{
+  if(!taskOrderPointer||taskOrderPointer.pointerId!==event.pointerId)return;
+  event.preventDefault();
+  const row=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-order-task]');
+  if(row)moveTaskOrder(taskOrderPointer.id,Number(row.dataset.orderTask));
+  if(event.clientY<80)window.scrollBy(0,-18);else if(event.clientY>innerHeight-80)window.scrollBy(0,18);
+},{passive:false});
+for(const type of ['pointerup','pointercancel'])document.addEventListener(type,event=>{if(taskOrderPointer?.pointerId===event.pointerId)taskOrderPointer=null;});
+async function saveTaskOrder(){
+  if(!taskOrderDraft||taskOrderSaving)return;
+  taskOrderPointer=null;taskOrderSaving=true;renderAdminTasks();
+  try {
+    const data=await PILOT.request('/tasks/reorder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:taskOrderDraft})});
+    TASKS=data.tasks;taskOrderDraft=null;showToast('✅ タスクの順番を保存しました');
+  } catch(e) {
+    showToast('❌ 順番を保存できません: '+e.message,5000);
+    if(e.status===409){try{TASKS=(await PILOT.tasks()).tasks;taskOrderDraft=null;}catch(ignore){}}
+  } finally {taskOrderSaving=false;renderAll();}
+}
+function renderTaskOrderControls(count){
+  const editing=!!taskOrderDraft;
+  const start=document.getElementById('task-order-start'),save=document.getElementById('task-order-save'),cancel=document.getElementById('task-order-cancel');
+  start.style.display=editing?'none':'';start.disabled=count<2;
+  save.style.display=cancel.style.display=editing?'':'none';save.disabled=cancel.disabled=taskOrderSaving;
+  save.textContent=taskOrderSaving?'保存中…':'順番を保存';
+  document.getElementById('task-order-help').textContent=editing?'左の ↕ をドラッグ、または ↑ ↓ で移動して「順番を保存」。':'重要なタスクを上へ並べられます。';
+}
 function renderAdminTasks(){
   const el=document.getElementById('admin-task-list');if(!el)return;
   if(!CURRENT_USER || CURRENT_USER.role!=='admin'){el.innerHTML='';return;}
-  const tasks=TASKS.filter(taskIsOpen).sort((a,b)=>(a.dueDate||'9999-12-31').localeCompare(b.dueDate||'9999-12-31') || b.id-a.id);
+  const tasks=taskOrderDraft?taskOrderDraft.map(x=>TASKS.find(t=>t.id===x.id)).filter(Boolean):sortedAdminTasks();
+  renderTaskOrderControls(tasks.length);
   if(!tasks.length){el.innerHTML='<div style="text-align:center;padding:25px 8px;color:#718096;font-size:13px;">タスクはまだありません。報告を話して、必要なものだけ追加してください。</div>';return;}
-  el.innerHTML=tasks.map(task=>{
+  el.innerHTML=tasks.map((task,index)=>{
     const done=!taskIsOpen(task);const wait=task.kind==='waiting';const border=done?'#CBD5E0':wait?'#ED8936':'#2E75B6';
-    return `<div style="border-left:4px solid ${border};border-radius:8px;background:${done?'#F7FAFC':wait?'#FFF9E6':'#F7FBFF'};padding:11px 12px;margin-bottom:9px;opacity:${done?'.62':'1'};">
+    return `<div data-order-task="${task.id}" style="border-left:4px solid ${border};border-radius:8px;background:${done?'#F7FAFC':wait?'#FFF9E6':'#F7FBFF'};padding:11px 12px;margin-bottom:9px;opacity:${done?'.62':'1'};">
+      ${taskOrderDraft?`<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px;">
+        <button class="btn btn-sm" aria-label="${cardEscape(task.title)}をドラッグして移動" style="touch-action:none;cursor:grab;min-width:44px;min-height:40px;background:white;border:1px solid #CBD5E0;" onpointerdown="beginTaskOrderDrag(event,${task.id})" ${taskOrderSaving?'disabled':''}>↕</button>
+        <span style="font-size:12px;color:#718096;">${index+1}番目</span>
+        <button class="btn btn-sm" aria-label="${cardEscape(task.title)}を上へ" onclick="stepTaskOrder(${task.id},-1)" ${taskOrderSaving||index===0?'disabled':''}>↑</button>
+        <button class="btn btn-sm" aria-label="${cardEscape(task.title)}を下へ" onclick="stepTaskOrder(${task.id},1)" ${taskOrderSaving||index===tasks.length-1?'disabled':''}>↓</button>
+      </div>`:''}
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;"><div style="font-weight:700;font-size:14px;line-height:1.45;text-decoration:${done?'line-through':'none'};">${taskKindLabel(task.kind)}　${cardEscape(task.title)}</div>${done?'<span style="font-size:11px;color:#718096;white-space:nowrap;">完了</span>':'<span style="font-size:11px;color:#2E75B6;white-space:nowrap;">未完了</span>'}</div>
       <div style="font-size:12px;color:#4A5568;margin-top:6px;">🏗️ ${cardEscape(task.siteId?siteName(task.siteId):'共通タスク（現場に紐づけない）')}　｜　📅 ${cardEscape(taskDueText(task))}</div>
       ${task.note?`<div style="font-size:12px;color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(task.note)}</div>`:''}
-      ${done?'':`<div style="display:flex;gap:7px;margin-top:8px;"><button class="btn btn-sm" style="background:white;border:1px solid #90CDF4;color:#1F4E79;" onclick="openAdminTaskEdit(${task.id})">✏️ 編集</button><button class="btn btn-sm" style="background:white;border:1px solid #9AE6B4;color:#276749;" data-complete-task="${task.id}" onclick="completeAdminTask(${task.id})">✅ 完了にする</button></div>`}
+      ${done||taskOrderDraft?'':`<div style="display:flex;gap:7px;margin-top:8px;"><button class="btn btn-sm" style="background:white;border:1px solid #90CDF4;color:#1F4E79;" onclick="openAdminTaskEdit(${task.id})">✏️ 編集</button><button class="btn btn-sm" style="background:white;border:1px solid #9AE6B4;color:#276749;" data-complete-task="${task.id}" onclick="completeAdminTask(${task.id})">✅ 完了にする</button></div>`}
     </div>`;
   }).join('');
 }

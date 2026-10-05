@@ -420,6 +420,7 @@ input,select,textarea,button{font-family:inherit}
   .report-entry .remove-btn{grid-column:2;justify-self:end;margin-top:-30px}
 }
 </style>
+<link rel="stylesheet" href="estimate.css?v=43">
 </head>
 <body>
 
@@ -497,7 +498,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V31（請求書ZIP・書類閲覧）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V43（請求書の個別添付）</div>
   </div>
 </div>
 
@@ -513,6 +514,7 @@ input,select,textarea,button{font-family:inherit}
     <button class="pc-tab-btn active" id="pctab-sites" onclick="switchTab('sites')">🏢 現場一覧</button>
     <button class="pc-tab-btn" id="pctab-report" onclick="switchTab('report')">📋 日報</button>
     <button class="pc-tab-btn" id="pctab-schedule" onclick="switchTab('schedule')">📅 工程</button>
+    <button class="pc-tab-btn" id="pctab-estimates" onclick="switchTab('estimates')">🧾 見積作成</button>
     <button class="pc-tab-btn" id="pctab-archives" onclick="switchTab('archives')">📦 アーカイブ</button>
     <button class="pc-tab-btn" id="pctab-tasks" data-admin-only style="display:none;" onclick="switchTab('tasks')">🧭 社長タスク</button>
   </div>
@@ -601,6 +603,7 @@ input,select,textarea,button{font-family:inherit}
     <div class="report-form-card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;">
         <div class="section-head" style="margin:0;">📦 アーカイブ</div>
+        <button class="btn btn-green btn-sm" onclick="switchTab('estimates')">🧾 見積作成へ</button>
         <div class="archive-admin-tools" style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
           <button class="btn btn-white btn-sm" data-admin-only style="display:none;border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="openInvoiceImportModal()">🧾 請求書ZIP取込</button>
           <button class="btn btn-white btn-sm" data-admin-only style="display:none;border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" onclick="applyLegacyArchiveCodes()">旧A番号を反映</button>
@@ -615,6 +618,40 @@ input,select,textarea,button{font-family:inherit}
       <div id="archive-site-list"></div>
     </div>
   </div>
+
+  <div class="section-page" id="page-estimates">
+    <div class="report-form-card">
+      <div class="est-top"><div><div class="section-head" style="margin:0">🧾 見積を作る <small>試作版</small></div><p class="est-muted">過去の請求明細を探して、今回の見積へ追加できます。</p></div><div class="est-actions"><button class="btn est-ai btn-sm" data-admin-only data-est-voice style="display:none" onclick="EstimateUI.openVoice()">🎙️ 音声で見積候補</button><button class="btn btn-white btn-sm" onclick="EstimateUI.openSaved()">保存済み見積</button><button class="btn btn-white btn-sm" onclick="EstimateUI.newDraft()">＋ 新しい見積</button></div></div>
+      <div class="est-layout">
+        <aside class="est-search-panel">
+          <h3>① 過去の明細を探す</h3><p id="est-reference-status" class="est-muted">読込中…</p>
+          <form onsubmit="event.preventDefault();EstimateUI.search(1)"><div class="est-actions"><input id="est-query" class="form-input" type="search" placeholder="例：足場、給湯、こどもセンター" maxlength="100"><button class="btn btn-green btn-sm">検索</button></div></form>
+          <p class="est-muted">工事名・明細・備考を部分検索。空白で区切ると絞り込めます。</p>
+          <details data-admin-only style="display:none"><summary>過去の明細を取り込む</summary><p class="est-muted">同梱の「読取データ.json」を選んでください。既に取り込んだ請求書は重複登録しません。</p><input id="est-import-file" type="file" accept=".json,application/json"><button id="est-import-button" class="btn btn-white btn-sm" onclick="EstimateUI.importData()">明細を登録</button><p id="est-import-status" class="est-muted" role="status"></p></details>
+          <p id="est-search-status" class="est-muted" role="status">検索すると明細が表示されます。</p><div id="est-results"></div><div id="est-pagination" class="est-actions"></div>
+        </aside>
+        <section class="est-edit-panel">
+          <h3>② 今回の見積を編集する</h3>
+          <div class="est-pack-bar"><div><strong>工事パックから始める</strong><p class="est-muted">必要な工事項目をまとめて追加し、今回の数量と金額を入れます。</p></div><div class="est-actions"><button class="btn btn-green btn-sm" onclick="EstimateUI.openPacks()">工事パックを選ぶ</button><button class="btn btn-white btn-sm" onclick="EstimateUI.savePackForm()">今の明細をパックに保存</button></div></div>
+          <div class="est-meta">
+            <label>宛名<input class="form-input" id="est-client" maxlength="255" placeholder="〇〇 様" oninput="EstimateUI.metaChanged()"></label>
+            <label>工事名<input class="form-input" id="est-title" maxlength="255" placeholder="外壁塗装工事" oninput="EstimateUI.metaChanged()"></label>
+            <label>見積日<input class="form-input" id="est-date" type="date" onchange="EstimateUI.metaChanged()"></label>
+            <label>見積番号<input class="form-input" id="est-number" maxlength="100" placeholder="任意" oninput="EstimateUI.metaChanged()"></label>
+            <label>有効期限<input class="form-input" id="est-validity" maxlength="255" oninput="EstimateUI.metaChanged()"></label>
+            <label>消費税<select class="form-input" id="est-taxRate" onchange="EstimateUI.metaChanged()"><option value="10">10％</option><option value="8">8％</option><option value="0">0％</option></select></label>
+          </div>
+          <div class="est-table-wrap"><table class="est-table"><thead><tr><th>工事項目・備考</th><th>数量</th><th>単位</th><th>単価</th><th>金額</th><th>操作</th></tr></thead><tbody id="est-lines"></tbody></table></div>
+          <div class="est-actions" style="margin-top:10px"><button class="btn btn-white btn-sm" onclick="EstimateUI.addBlank()">＋ 明細を手入力</button><span class="est-muted">計算方法は行ごとに選べます。</span></div>
+          <label class="est-note-label">見積全体の備考<textarea class="form-input" id="est-note" rows="3" maxlength="5000" oninput="EstimateUI.metaChanged()" placeholder="工事条件・お支払条件など"></textarea></label>
+          <div id="est-totals" class="est-totals"></div>
+          <div class="est-actions"><button id="est-save" class="btn btn-green" onclick="EstimateUI.save()">下書きを保存</button><button class="btn btn-white" onclick="EstimateUI.preview()">A4横でプレビュー</button><button class="btn btn-white btn-sm" onclick="EstimateUI.history()">保存履歴</button></div>
+          <p id="est-save-status" class="est-muted" role="status">新しい見積です。</p>
+        </section>
+      </div>
+    </div>
+  </div>
+  <dialog id="est-dialog" class="est-dialog"><div class="est-actions" style="justify-content:space-between"><h3 id="est-dialog-title"></h3><button class="btn btn-white btn-sm" onclick="document.getElementById('est-dialog').close()">閉じる</button></div><div id="est-dialog-body"></div></dialog>
 
   <!-- ===== PAGE: 社長タスク（管理者のみ） ===== -->
   <div class="section-page" id="page-tasks">
@@ -963,6 +1000,24 @@ input,select,textarea,button{font-family:inherit}
       <div style="font-size:12px;color:#A05A00;line-height:1.6;">AとSの6桁日付は一致させます。まだ分からない項目は空欄のまま保存できます。</div>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeArchiveLedgerEdit()">キャンセル</button><button class="btn btn-green" onclick="saveArchiveLedgerEdit()">保存</button></div>
+  </div>
+</div>
+
+<!-- Direct invoice attachment to one archive. -->
+<div class="modal-overlay" id="archiveInvoiceUploadModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head"><h2>🧾 請求書を添付</h2><button class="modal-close" id="archive-invoice-close" onclick="closeArchiveInvoiceUpload()">✕</button></div>
+    <div class="modal-body">
+      <div id="archive-invoice-target" style="font-weight:700;word-break:break-word;margin-bottom:14px;"></div>
+      <label class="form-label" for="archive-invoice-file">請求書ファイル</label>
+      <input id="archive-invoice-file" class="form-input" type="file" accept=".xlsx,.xlsm,.xls,.pdf,.jpg,.jpeg,.png" style="width:100%;padding:9px;">
+      <p style="font-size:12px;color:#718096;line-height:1.7;">Excel・PDF・JPEG・PNG／1ファイル20MB以下。ZIPにする必要はありません。</p>
+      <label class="form-label" for="archive-invoice-number">請求書番号・管理名（任意）</label>
+      <input id="archive-invoice-number" class="form-input" maxlength="100" placeholder="例：S261005大塚邸-外壁塗装工事" style="width:100%;">
+      <p style="font-size:12px;color:#718096;line-height:1.7;">ファイルをこの案件へ保存します。A・S管理名や売上金額の変更は、案件の「整理」から行ってください。請求書の明細は自動では取り込みません。</p>
+      <p id="archive-invoice-status" role="status" aria-live="polite" style="font-size:13px;white-space:pre-line;"></p>
+    </div>
+    <div class="modal-foot"><button class="btn btn-white" id="archive-invoice-cancel" onclick="closeArchiveInvoiceUpload()">キャンセル</button><button class="btn btn-green" id="archive-invoice-save" onclick="saveArchiveInvoiceUpload()">この案件へ保存</button></div>
   </div>
 </div>
 
@@ -1388,6 +1443,7 @@ async function doLogin() {
 async function doLogout() {
   if (!confirm('ログアウトしますか？')) return;
   await PILOT.logout();
+  EstimateUI.resetSession();
   location.reload();
 }
 
@@ -2526,7 +2582,7 @@ let currentTab = 'sites';
 function switchTab(tab){
   if(tab==='tasks' && (!CURRENT_USER || CURRENT_USER.role!=='admin')) tab='sites';
   currentTab = tab;
-  ['sites','report','schedule','archives','tasks'].forEach(p=>{
+  ['sites','report','schedule','archives','estimates','tasks'].forEach(p=>{
     document.getElementById('page-'+p).classList.toggle('mob-active', p===tab);
     const bnavBtn = document.getElementById('bnav-'+p);
     if(bnavBtn) bnavBtn.classList.toggle('active', p===tab);
@@ -2536,6 +2592,7 @@ function switchTab(tab){
   if(tab==='report') { initReportForm(); renderReportList(); }
   else if(tab==='schedule') { renderSchedule(); }
   else if(tab==='archives') { loadArchives(); }
+  else if(tab==='estimates') { EstimateUI.open(); }
   else if(tab==='tasks') { renderAdminTasks(); }
   else { window.scrollTo({top:0,behavior:'smooth'}); }
 }
@@ -2712,6 +2769,7 @@ async function loadArchives(){
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit('${id}')">✏️ 整理</button>`:''}
             <button class="btn btn-white btn-sm" onclick="toggleArchiveReports('${id}')">日報を見る</button>
             <button class="btn btn-white btn-sm" onclick="toggleArchiveDocuments('${id}')">🧾 書類</button>
+            ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload('${id}')">＋ 請求書を添付</button>`:''}
           </div>
         </div>
         ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}
@@ -2725,6 +2783,52 @@ async function loadArchives(){
     list.innerHTML=`<div style="padding:12px;color:#C53030;">${archiveEsc(e.message)}</div>`;
   }
 }
+let archiveInvoiceUploadSiteId=null;
+let archiveInvoiceUploadBusy=false;
+function openArchiveInvoiceUpload(siteId){
+  if(archiveInvoiceUploadBusy||!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  const site=ARCHIVES.find(s=>s.id===siteId);if(!site){showToast('⚠️ アーカイブが見つかりません');return;}
+  archiveInvoiceUploadSiteId=siteId;
+  document.getElementById('archive-invoice-target').textContent='添付先：'+site.name;
+  document.getElementById('archive-invoice-file').value='';
+  document.getElementById('archive-invoice-number').value=(site.invoiceCode||'').slice(0,100);
+  document.getElementById('archive-invoice-status').textContent='';
+  document.getElementById('archiveInvoiceUploadModal').classList.add('show');
+}
+function closeArchiveInvoiceUpload(){
+  if(archiveInvoiceUploadBusy)return;
+  archiveInvoiceUploadSiteId=null;
+  document.getElementById('archive-invoice-file').value='';
+  document.getElementById('archiveInvoiceUploadModal').classList.remove('show');
+}
+async function saveArchiveInvoiceUpload(){
+  if(archiveInvoiceUploadBusy||!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  const site=ARCHIVES.find(s=>s.id===archiveInvoiceUploadSiteId);
+  const status=document.getElementById('archive-invoice-status');
+  const file=document.getElementById('archive-invoice-file').files[0];
+  function error(text){status.style.color='#C53030';status.textContent=text;}
+  if(!site)return error('添付先を確認できません。画面を閉じて案件を選び直してください。');
+  if(!file)return error('請求書ファイルを選んでください。');
+  if(!/\.(xlsx|xlsm|xls|pdf|jpe?g|png)$/i.test(file.name))return error('Excel・PDF・JPEG・PNGのファイルを選んでください。');
+  if(file.size===0)return error('空のファイルは保存できません。');
+  if(file.size>20*1024*1024)return error('ファイルは20MB以下にしてください。');
+  const siteId=site.id,number=document.getElementById('archive-invoice-number').value.trim();
+  const controls=['archive-invoice-file','archive-invoice-number','archive-invoice-save','archive-invoice-cancel','archive-invoice-close'];
+  archiveInvoiceUploadBusy=true;controls.forEach(id=>document.getElementById(id).disabled=true);
+  status.style.color='#718096';status.textContent='請求書を保存しています…';
+  let saved=false;
+  try{
+    await PILOT.uploadDocument(siteId,file,{documentType:'invoice',documentNumber:number,title:site.name});
+    saved=true;
+  }catch(e){error('保存できませんでした：'+e.message);}
+  finally{archiveInvoiceUploadBusy=false;controls.forEach(id=>document.getElementById(id).disabled=false);}
+  if(!saved)return;
+  closeArchiveInvoiceUpload();
+  const box=document.getElementById('archive-documents-'+siteId);
+  if(box){box.dataset.loaded='0';await toggleArchiveDocuments(siteId);}
+  showToast('✅ この案件へ請求書を保存しました。A・S管理名は「整理」で確認できます。',4500);
+}
+
 async function toggleArchiveDocuments(siteId){
   const box=document.getElementById(`archive-documents-${siteId}`);if(!box)return;
   if(box.dataset.loaded==='1'){box.innerHTML='';box.dataset.loaded='0';return;}
@@ -3232,5 +3336,6 @@ function renderAll(){
   }
 })();
 </script>
+<script src="estimate.js?v=43"></script>
 </body>
 </html>

@@ -983,7 +983,7 @@ input,select,textarea,button{font-family:inherit}
   <div class="modal" style="max-width:620px;">
     <div class="modal-head"><h2 id="archive-ledger-edit-title">📦 アーカイブを整理</h2><button class="modal-close" onclick="closeArchiveLedgerEdit()">✕</button></div>
     <div class="modal-body">
-      <div style="font-size:12px;line-height:1.65;color:#718096;margin-bottom:14px;">日付は別に表示・入力しません。A管理名とS請求書番号に含まれる6桁の日付を、請求書提出日・売上月として使います。</div>
+      <div style="font-size:12px;line-height:1.65;color:#718096;margin-bottom:14px;">日付は別に表示・入力しません。A管理名に含まれる6桁の日付を、請求書提出日・売上月として使います。</div>
       <div class="form-group">
         <label class="form-label">A管理名</label>
         <input id="archive-ledger-code" class="form-input" placeholder="例：A260430植立お風呂工事">
@@ -1013,10 +1013,6 @@ input,select,textarea,button{font-family:inherit}
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">S請求書番号・管理名</label>
-        <input id="archive-ledger-invoice-code" class="form-input" placeholder="例：S260430植立お風呂工事">
-      </div>
-      <div class="form-group">
         <label class="form-label">売上金額（税込）</label>
         <input id="archive-ledger-sales" class="form-input" inputmode="decimal" placeholder="例：385000">
       </div>
@@ -1039,7 +1035,6 @@ input,select,textarea,button{font-family:inherit}
       <p id="archive-move-description" style="font-size:12px;color:#718096;line-height:1.7;"></p>
       <div id="archive-move-admin-fields">
         <div class="form-group"><label class="form-label" for="archive-move-a">A管理名（任意）</label><input class="form-input" id="archive-move-a" maxlength="255" placeholder="例：A260930鮨丹甫-LAN配線工事"></div>
-        <div class="form-group"><label class="form-label" for="archive-move-s">S請求書管理名（任意）</label><input class="form-input" id="archive-move-s" maxlength="255" placeholder="例：S260930鮨丹甫-LAN配線工事"><button type="button" class="btn btn-sm" style="margin-top:6px;" onclick="copyArchiveMoveCode()">A管理名からSを入力</button><div style="font-size:11px;color:#718096;margin-top:5px;">AとSの日付6桁は揃えてください。番号のみでも入力できます。</div></div>
         <div class="form-group"><label class="form-label" for="archive-move-sales">売上金額（税込・任意）</label><input class="form-input" id="archive-move-sales" inputmode="decimal" placeholder="例：385000"></div>
         <div class="form-group"><label class="form-label" for="archive-move-file">請求書を添付（任意）</label><input class="form-input" id="archive-move-file" type="file" accept=".xlsx,.xlsm,.xls,.pdf,.jpg,.jpeg,.png" style="padding:9px;width:100%;"><div style="font-size:11px;color:#718096;line-height:1.7;margin-top:6px;">Excel・PDF・JPEG・PNG／1ファイル20MB以下。まだ請求書がない場合は、添付せず移動できます。</div></div>
       </div>
@@ -1057,9 +1052,7 @@ input,select,textarea,button{font-family:inherit}
       <label class="form-label" for="archive-invoice-file">請求書ファイル</label>
       <input id="archive-invoice-file" class="form-input" type="file" accept=".xlsx,.xlsm,.xls,.pdf,.jpg,.jpeg,.png" style="width:100%;padding:9px;">
       <p style="font-size:12px;color:#718096;line-height:1.7;">Excel・PDF・JPEG・PNG／1ファイル20MB以下。ZIPにする必要はありません。</p>
-      <label class="form-label" for="archive-invoice-number">請求書番号・管理名（任意）</label>
-      <input id="archive-invoice-number" class="form-input" maxlength="100" placeholder="例：S261005大塚邸-外壁塗装工事" style="width:100%;">
-      <p style="font-size:12px;color:#718096;line-height:1.7;">ファイルをこの案件へ保存します。A・S管理名や売上金額の変更は、案件の「整理」から行ってください。請求書の明細は自動では取り込みません。</p>
+      <p style="font-size:12px;color:#718096;line-height:1.7;">ファイルをこの案件へ保存します。A管理名や売上金額の変更は、案件の「整理」から行ってください。請求書の明細は自動では取り込みません。</p>
       <p id="archive-invoice-status" role="status" aria-live="polite" style="font-size:13px;white-space:pre-line;"></p>
     </div>
     <div class="modal-foot"><button class="btn btn-white" id="archive-invoice-cancel" onclick="closeArchiveInvoiceUpload()">キャンセル</button><button class="btn btn-green" id="archive-invoice-save" onclick="saveArchiveInvoiceUpload()">この案件へ保存</button></div>
@@ -1910,19 +1903,12 @@ function archiveSiteToDatabase(siteId){
   document.getElementById('archive-move-description').textContent=`日報 ${REPORTS.filter(r=>r.siteId===siteId).length}件をサーバーに残したまま、通常の現場一覧から外します。管理名・添付は空欄でも移動できます。端末へのHTML保存は行いません。`;
   document.getElementById('archive-move-admin-fields').style.display=CURRENT_USER?.role==='admin'?'':'none';
   document.getElementById('archive-move-a').value=site.archiveCode||'';
-  document.getElementById('archive-move-s').value=site.invoiceCode||'';
   document.getElementById('archive-move-sales').value=site.salesAmount??'';
   document.getElementById('archive-move-file').value='';
   document.getElementById('archive-move-status').textContent='';
   document.getElementById('archiveMoveModal').classList.add('show');
 }
 function closeArchiveMove(){if(archiveMoveBusy)return;archiveMoveSiteId=null;document.getElementById('archive-move-file').value='';document.getElementById('archiveMoveModal').classList.remove('show');}
-function copyArchiveMoveCode(){
-  const code=document.getElementById('archive-move-a').value.trim();
-  if(!/^A\d{6}/.test(code)){showToast('⚠️ 先にA管理名を入力してください');return;}
-  const input=document.getElementById('archive-move-s');if(input.value.trim()&&input.value.trim()!=='S'+code.slice(1)){showToast('⚠️ S管理名は入力済みです。必要なら直接修正してください');return;}
-  input.value='S'+code.slice(1);
-}
 async function saveArchiveMove(){
   if(archiveMoveBusy)return;
   const site=SITES.find(s=>s.id===archiveMoveSiteId);if(!site)return;
@@ -1930,11 +1916,9 @@ async function saveArchiveMove(){
   const status=document.getElementById('archive-move-status');
   const data={version:site.version,archiveSummary:site.archiveSummary||'アプリからアーカイブ保存'};
   if(isAdmin){
-    const archiveCode=document.getElementById('archive-move-a').value.trim(),invoiceCode=document.getElementById('archive-move-s').value.trim(),salesAmount=document.getElementById('archive-move-sales').value.trim();
+    const archiveCode=document.getElementById('archive-move-a').value.trim(),salesAmount=document.getElementById('archive-move-sales').value.trim();
     if(archiveCode&&!/^A\d{6}/.test(archiveCode)){status.textContent='A管理名は A260930現場名 の形式で入力してください。';return;}
-    if(invoiceCode&&!/^S\d{6}/.test(invoiceCode)){status.textContent='S管理名は S260930現場名 の形式で入力してください。';return;}
-    if(archiveCode&&invoiceCode&&archiveCode.slice(1,7)!==invoiceCode.slice(1,7)){status.textContent='A管理名とS管理名の日付6桁を揃えてください。';return;}
-    data.archiveLedger={archiveCode,invoiceCode,salesAmount};
+    data.archiveLedger={archiveCode,salesAmount};
   }
   if(file&&(file.size>20*1024*1024||! /\.(xlsx|xlsm|xls|pdf|jpg|jpeg|png)$/i.test(file.name))){status.textContent='請求書はExcel・PDF・JPEG・PNG、20MB以下を選んでください。';return;}
   const controls=Array.from(document.querySelectorAll('#archiveMoveModal input,#archiveMoveModal button'));
@@ -2884,11 +2868,11 @@ function invoiceImportRow(entry){
         <div class="ii-preview-s">S請求書番号：${archiveEsc(entry.invoiceCode||'未設定')}</div>
         <details class="invoice-import-edit">
           <summary style="font-size:12px;color:#1F4E79;cursor:pointer;font-weight:700;">管理名を確認・修正</summary>
-          <label style="display:flex;gap:5px;align-items:center;font-size:12px;margin:8px 0;"><input type="checkbox" class="ii-linked" checked> A/S名称を連動する</label>
+          <label style="display:flex;gap:5px;align-items:center;font-size:12px;margin:8px 0;"><input type="checkbox" class="ii-linked" checked> 現場名をA管理名に反映する</label>
           <div style="display:grid;grid-template-columns:1fr;gap:6px;">
             <input class="form-input ii-project" value="${archiveEsc(entry.projectName)}" placeholder="現場名" oninput="syncInvoiceImportNames(this)" style="padding:7px;font-size:12px;">
             <input class="form-input ii-a" value="${archiveEsc(entry.archiveCode)}" placeholder="A管理名" oninput="updateInvoiceImportPreview(this)" style="padding:7px;font-size:12px;">
-            <input class="form-input ii-s" value="${archiveEsc(entry.invoiceCode)}" placeholder="S請求書管理名" oninput="updateInvoiceImportPreview(this)" style="padding:7px;font-size:12px;">
+            <span class="ii-s" data-code="${archiveEsc(entry.invoiceCode)}" style="display:none;"></span>
           </div>
         </details>
       </div>
@@ -2899,14 +2883,13 @@ function updateInvoiceImportPreview(input){
   const row=input.closest('.invoice-import-row');if(!row)return;
   row.querySelector('.ii-preview-project').textContent=`現場名：${row.querySelector('.ii-project').value.trim()||'未設定'}`;
   row.querySelector('.ii-preview-a').textContent=`A管理名：${row.querySelector('.ii-a').value.trim()||'未設定'}`;
-  row.querySelector('.ii-preview-s').textContent=`S請求書番号：${row.querySelector('.ii-s').value.trim()||'未設定'}`;
+  row.querySelector('.ii-preview-s').textContent=`S請求書番号：${row.querySelector('.ii-s').dataset.code||'未設定'}`;
 }
 function syncInvoiceImportNames(input){
   const row=input.closest('.invoice-import-row');if(!row)return;
   if(!row.querySelector('.ii-linked').checked){updateInvoiceImportPreview(input);return;}
-  const project=input.value.trim();const s=row.querySelector('.ii-s').value.trim();const dateMatch=s.match(/^S(\d{6})/);
+  const project=input.value.trim();const s=row.querySelector('.ii-s').dataset.code;const dateMatch=s.match(/^S(\d{6})/);
   if(!dateMatch)return;
-  row.querySelector('.ii-s').value=`S${dateMatch[1]}${project}`;
   row.querySelector('.ii-a').value=`A${dateMatch[1]}${project}`;
   updateInvoiceImportPreview(input);
 }
@@ -2914,7 +2897,7 @@ function invoiceImportSelectionChanged(select){
   const row=select.closest('.invoice-import-row');if(!row)return;
   const chosen=invoiceImportEntries.find(e=>String(e.key)===row.dataset.key)?.candidates?.find(c=>c.siteId===select.value);
   if(chosen&&row.querySelector('.ii-linked').checked){
-    const project=row.querySelector('.ii-project').value.trim();const match=row.querySelector('.ii-s').value.match(/^S(\d{6})/);if(match){row.querySelector('.ii-a').value=`A${match[1]}${project}`;}
+    const project=row.querySelector('.ii-project').value.trim();const match=row.querySelector('.ii-s').dataset.code.match(/^S(\d{6})/);if(match){row.querySelector('.ii-a').value=`A${match[1]}${project}`;}
   }
   updateInvoiceImportPreview(select);
 }
@@ -2933,7 +2916,7 @@ async function confirmInvoiceImport(){
   if(!invoiceImportToken)return;
   const choices=[];document.querySelectorAll('#invoice-import-list .invoice-import-row').forEach(row=>{
     const siteId=row.querySelector('.ii-site').value;if(!siteId)return;
-    choices.push({key:row.dataset.key,siteId,projectName:row.querySelector('.ii-project').value.trim(),archiveCode:row.querySelector('.ii-a').value.trim(),invoiceCode:row.querySelector('.ii-s').value.trim()});
+    choices.push({key:row.dataset.key,siteId,projectName:row.querySelector('.ii-project').value.trim(),archiveCode:row.querySelector('.ii-a').value.trim(),invoiceCode:row.querySelector('.ii-s').dataset.code});
   });
   if(!choices.length){showToast('⚠️ 紐づける請求書を1件以上選んでください');return;}
   if(!confirm(`${choices.length}件の請求書を保存し、A・S・現場名を更新します。\n元の請求書ファイル名は変更しません。\n\n実行しますか？`))return;
@@ -3031,7 +3014,6 @@ function openArchiveInvoiceUpload(siteId){
   archiveInvoiceUploadSiteId=siteId;
   document.getElementById('archive-invoice-target').textContent='添付先：'+site.name;
   document.getElementById('archive-invoice-file').value='';
-  document.getElementById('archive-invoice-number').value=(site.invoiceCode||'').slice(0,100);
   document.getElementById('archive-invoice-status').textContent='';
   document.getElementById('archiveInvoiceUploadModal').classList.add('show');
 }
@@ -3052,13 +3034,13 @@ async function saveArchiveInvoiceUpload(){
   if(!/\.(xlsx|xlsm|xls|pdf|jpe?g|png)$/i.test(file.name))return error('Excel・PDF・JPEG・PNGのファイルを選んでください。');
   if(file.size===0)return error('空のファイルは保存できません。');
   if(file.size>20*1024*1024)return error('ファイルは20MB以下にしてください。');
-  const siteId=site.id,number=document.getElementById('archive-invoice-number').value.trim();
-  const controls=['archive-invoice-file','archive-invoice-number','archive-invoice-save','archive-invoice-cancel','archive-invoice-close'];
+  const siteId=site.id;
+  const controls=['archive-invoice-file','archive-invoice-save','archive-invoice-cancel','archive-invoice-close'];
   archiveInvoiceUploadBusy=true;controls.forEach(id=>document.getElementById(id).disabled=true);
   status.style.color='#718096';status.textContent='請求書を保存しています…';
   let saved=false;
   try{
-    await PILOT.uploadDocument(siteId,file,{documentType:'invoice',documentNumber:number,title:site.name});
+    await PILOT.uploadDocument(siteId,file,{documentType:'invoice',title:site.name});
     saved=true;
   }catch(e){error('保存できませんでした：'+e.message);}
   finally{archiveInvoiceUploadBusy=false;controls.forEach(id=>document.getElementById(id).disabled=false);}
@@ -3066,7 +3048,7 @@ async function saveArchiveInvoiceUpload(){
   closeArchiveInvoiceUpload();
   const box=document.getElementById('archive-documents-'+siteId);
   if(box)await toggleArchiveDocuments(siteId);
-  showToast('✅ この案件へ請求書を保存しました。A・S管理名は「整理」で確認できます。',4500);
+  showToast('✅ この案件へ請求書を保存しました。A管理名は「整理」で確認できます。',4500);
 }
 
 function archiveSalesText(amount){
@@ -3117,7 +3099,6 @@ function openArchiveLedgerEdit(siteId){
   document.getElementById('archive-ledger-addr').value=site.addr||'';
   document.getElementById('archive-ledger-start').value=site.start||'';
   document.getElementById('archive-ledger-end').value=site.end||'';
-  document.getElementById('archive-ledger-invoice-code').value=site.invoiceCode||'';
   document.getElementById('archive-ledger-sales').value=site.salesAmount===null||site.salesAmount===undefined?'':site.salesAmount;
   document.getElementById('archive-ledger-note').value=site.note||'';
   document.getElementById('archiveLedgerEditModal').classList.add('show');
@@ -3130,13 +3111,12 @@ async function saveArchiveLedgerEdit(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
   const site=ARCHIVES.find(item=>item.id===archiveEditingSiteId);if(!site)return;
   const archiveCode=document.getElementById('archive-ledger-code').value.trim();
-  const invoiceCode=document.getElementById('archive-ledger-invoice-code').value.trim();
   const salesAmount=document.getElementById('archive-ledger-sales').value.trim();
   const name=document.getElementById('archive-ledger-name').value.trim();
   if(!name){showToast('⚠️ 現場名を入力してください');return;}
   try{
     await PILOT.updateArchiveLedger(site.id,{
-      archiveCode,invoiceCode,salesAmount,name,
+      archiveCode,salesAmount,name,
       mgr:document.getElementById('archive-ledger-mgr').value.trim(),
       addr:document.getElementById('archive-ledger-addr').value.trim(),
       start:document.getElementById('archive-ledger-start').value,

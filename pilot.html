@@ -498,7 +498,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V46（社長タスクの並べ替え）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V47（よく使う現場・住所の登録）</div>
   </div>
 </div>
 
@@ -783,11 +783,23 @@ input,select,textarea,button{font-family:inherit}
         <label class="form-label">現場名 *</label>
         <input class="form-input" id="s-name" placeholder="例: ○○邸改修工事">
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">所在地</label>
-          <input class="form-input" id="s-addr" placeholder="例: 明石市">
-        </div>
+      <div class="form-group">
+        <label class="form-label" for="s-address-preset">よく使う現場・住所から選ぶ</label>
+        <select class="form-select" id="s-address-preset" onchange="selectAddressPreset()">
+          <option value="">直接入力（または登録から選ぶ）</option>
+        </select>
+        <div id="s-address-preset-status" role="status" style="font-size:12px;color:#718096;margin-top:5px;"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="s-addr">所在地（直接入力・修正できます）</label>
+        <input class="form-input" id="s-addr" maxlength="1000" placeholder="例: 明石市上ノ丸…" oninput="document.getElementById('s-address-preset').value=''">
+        <details id="s-address-register" style="margin-top:8px;padding:9px 11px;background:#F7FAFC;border-radius:8px;">
+          <summary style="cursor:pointer;font-size:12px;color:#2E75B6;font-weight:700;">＋ この住所をよく使う現場として登録</summary>
+          <label class="form-label" for="s-address-label" style="margin-top:10px;">登録名</label>
+          <input class="form-input" id="s-address-label" maxlength="255" placeholder="例: 稲爪保育園、会社、○○様宅">
+          <button type="button" class="btn btn-green btn-sm" id="s-address-register-button" style="margin-top:8px;" onclick="registerAddressPreset()">住所を登録</button>
+          <div style="font-size:11px;color:#718096;line-height:1.6;margin-top:6px;">所在地欄の住所を登録し、社内で共有します。案件の保存は下の保存ボタンで行います。</div>
+        </details>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -1724,6 +1736,53 @@ function renderSites(){
 // =========================================================
 // SITE MODAL
 // =========================================================
+let ADDRESS_PRESETS=[],addressPresetSession=0,addressPresetLoadId=0,addressPresetSaving=false;
+function renderAddressPresets(selected=''){
+  const select=document.getElementById('s-address-preset');
+  select.innerHTML='<option value="">直接入力（または登録から選ぶ）</option>';
+  for(const preset of ADDRESS_PRESETS){const option=document.createElement('option');option.value=String(preset.id);option.textContent=preset.label+' ｜ '+preset.address;select.appendChild(option);}
+  select.value=String(selected);select.disabled=false;
+}
+async function loadAddressPresets(session){
+  const requestId=++addressPresetLoadId;
+  renderAddressPresets();
+  const status=document.getElementById('s-address-preset-status');status.textContent='登録住所を読み込み中…';
+  try {
+    const data=await PILOT.request('/address-presets');
+    if(session!==addressPresetSession||requestId!==addressPresetLoadId)return;
+    ADDRESS_PRESETS=Array.isArray(data.presets)?data.presets:[];
+    const selected=document.getElementById('s-address-preset').value;renderAddressPresets(selected);
+    status.textContent=ADDRESS_PRESETS.length?'選ぶと所在地欄に住所が入ります。':'まだ登録がありません。住所を直接入力し、下から登録できます。';
+  } catch(e) {
+    if(session!==addressPresetSession||requestId!==addressPresetLoadId)return;
+    status.textContent='登録住所を読み込めません。所在地は直接入力して保存できます。';
+  }
+}
+function selectAddressPreset(){
+  const id=Number(document.getElementById('s-address-preset').value);
+  const preset=ADDRESS_PRESETS.find(p=>p.id===id);if(!preset)return;
+  document.getElementById('s-addr').value=preset.address;
+}
+async function registerAddressPreset(){
+  if(addressPresetSaving)return;
+  const label=document.getElementById('s-address-label').value.trim(),address=document.getElementById('s-addr').value.trim();
+  if(!label||!address){showToast('⚠️ 登録名と所在地の両方を入力してください');return;}
+  const session=addressPresetSession,button=document.getElementById('s-address-register-button');
+  addressPresetSaving=true;button.disabled=true;button.textContent='登録中…';
+  try {
+    const data=await PILOT.request('/address-presets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,address})});
+    if(session!==addressPresetSession)return;
+    addressPresetLoadId++;
+    if(!ADDRESS_PRESETS.some(p=>p.id===data.preset.id))ADDRESS_PRESETS.push(data.preset);
+    ADDRESS_PRESETS.sort((a,b)=>a.label.localeCompare(b.label,'ja')||a.id-b.id);
+    renderAddressPresets(document.getElementById('s-addr').value.trim()===address?data.preset.id:'');
+    document.getElementById('s-address-register').open=false;document.getElementById('s-address-label').value='';
+    document.getElementById('s-address-preset-status').textContent='登録済みの住所から選べます。';
+    showToast(data.alreadyExists?'✅ この現場・住所は登録済みです':'✅ よく使う現場・住所を登録しました');
+  } catch(e) {if(session===addressPresetSession)showToast('❌ 住所を登録できません: '+e.message,4500);}
+  finally{addressPresetSaving=false;button.disabled=false;button.textContent='住所を登録';}
+}
+
 function openSiteModal(siteId){
   const isEdit=!!siteId;
   document.getElementById('siteModalTitle').textContent=isEdit?'現場編集':'現場追加';
@@ -1748,10 +1807,14 @@ function openSiteModal(siteId){
     document.getElementById('s-end').value='';
     document.getElementById('s-status').value='工事中';
   }
+  document.getElementById('s-address-label').value='';
+  document.getElementById('s-address-register').open=false;
+  document.getElementById('s-address-register-button').disabled=addressPresetSaving;
   document.getElementById('siteModal').classList.add('show');
+  loadAddressPresets(++addressPresetSession);
 }
 
-function closeSiteModal(){ document.getElementById('siteModal').classList.remove('show'); }
+function closeSiteModal(){ addressPresetSession++;document.getElementById('siteModal').classList.remove('show'); }
 
 
 async function saveSite(){

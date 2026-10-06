@@ -498,7 +498,7 @@ input,select,textarea,button{font-family:inherit}
     <div style="height:1px;background:#EDF2F7;margin:8px 0;"></div>
     <button class="menu-btn" onclick="doLogout()" style="color:#E53E3E;">🔒 ログアウト</button>
     <div style="margin-top:14px;font-size:12px;color:#718096;" id="currentDateMobile"></div>
-    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V47（よく使う現場・住所の登録）</div>
+    <div style="margin-top:4px;font-size:11px;color:#94a3b8;">アプリ版：V48（移動時の管理名・請求書登録）</div>
   </div>
 </div>
 
@@ -1023,6 +1023,24 @@ input,select,textarea,button{font-family:inherit}
 </div>
 
 <!-- Direct invoice attachment to one archive. -->
+<div class="modal-overlay" id="archiveMoveModal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head"><h2>📦 アーカイブへ移動</h2><button class="modal-close" onclick="closeArchiveMove()">✕</button></div>
+    <div class="modal-body">
+      <div id="archive-move-target" style="font-weight:700;word-break:break-word;margin-bottom:10px;"></div>
+      <p id="archive-move-description" style="font-size:12px;color:#718096;line-height:1.7;"></p>
+      <div id="archive-move-admin-fields">
+        <div class="form-group"><label class="form-label" for="archive-move-a">A管理名（任意）</label><input class="form-input" id="archive-move-a" maxlength="255" placeholder="例：A260930鮨丹甫-LAN配線工事"></div>
+        <div class="form-group"><label class="form-label" for="archive-move-s">S請求書管理名（任意）</label><input class="form-input" id="archive-move-s" maxlength="255" placeholder="例：S260930鮨丹甫-LAN配線工事"><button type="button" class="btn btn-sm" style="margin-top:6px;" onclick="copyArchiveMoveCode()">A管理名からSを入力</button><div style="font-size:11px;color:#718096;margin-top:5px;">AとSの日付6桁は揃えてください。番号のみでも入力できます。</div></div>
+        <div class="form-group"><label class="form-label" for="archive-move-sales">売上金額（税込・任意）</label><input class="form-input" id="archive-move-sales" inputmode="decimal" placeholder="例：385000"></div>
+        <div class="form-group"><label class="form-label" for="archive-move-file">請求書を添付（任意）</label><input class="form-input" id="archive-move-file" type="file" accept=".xlsx,.xlsm,.xls,.pdf,.jpg,.jpeg,.png" style="padding:9px;width:100%;"><div style="font-size:11px;color:#718096;line-height:1.7;margin-top:6px;">Excel・PDF・JPEG・PNG／1ファイル20MB以下。まだ請求書がない場合は、添付せず移動できます。</div></div>
+      </div>
+      <p id="archive-move-status" role="status" aria-live="polite" style="font-size:13px;color:#C53030;white-space:pre-line;"></p>
+    </div>
+    <div class="modal-foot"><button class="btn btn-white" onclick="closeArchiveMove()">キャンセル</button><button class="btn btn-green" id="archive-move-save" onclick="saveArchiveMove()">保存してアーカイブへ移動</button></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="archiveInvoiceUploadModal">
   <div class="modal" style="max-width:620px;">
     <div class="modal-head"><h2>🧾 請求書を添付</h2><button class="modal-close" id="archive-invoice-close" onclick="closeArchiveInvoiceUpload()">✕</button></div>
@@ -1875,26 +1893,57 @@ function confirmDeleteSite(siteId){
 // ARCHIVE
 // =========================================================
 // 新サーバー運用：端末にHTMLを書き出さず、現場と日報をDB上でアーカイブ状態へ移す。
-async function archiveSiteToDatabase(siteId){
-  const s=SITES.find(x=>x.id===siteId);
-  if(!s){showToast('⚠️ 現場が見つかりません');return;}
-  const reportCount=REPORTS.filter(r=>r.siteId===siteId).length;
-  const ok=confirm(
-    `「${s.name}」をアーカイブへ移動しますか？\n\n`+
-    `日報 ${reportCount}件を含め、すべてサーバーのデータベースに保存したまま、通常の現場一覧から外します。\n`+
-    `端末へのHTMLファイル保存は行いません。\n\n`+
-    `後から「📦 アーカイブ」で閲覧できます。`
-  );
-  if(!ok)return;
-  try{
-    await PILOT.archiveSite(siteId,s.version,'アプリからアーカイブ保存');
-    SITES=SITES.filter(x=>x.id!==siteId);
-    renderAll();
-    renderReportList();
-    showToast('✅ データベースのアーカイブへ移動しました',2600);
-  }catch(e){
-    showToast('❌ アーカイブできません: '+e.message,3500);
+let archiveMoveSiteId=null,archiveMoveBusy=false;
+function archiveSiteToDatabase(siteId){
+  if(archiveMoveBusy)return;
+  const site=SITES.find(s=>s.id===siteId);if(!site){showToast('⚠️ 現場が見つかりません');return;}
+  archiveMoveSiteId=siteId;
+  document.getElementById('archive-move-target').textContent=site.name;
+  document.getElementById('archive-move-description').textContent=`日報 ${REPORTS.filter(r=>r.siteId===siteId).length}件をサーバーに残したまま、通常の現場一覧から外します。管理名・添付は空欄でも移動できます。端末へのHTML保存は行いません。`;
+  document.getElementById('archive-move-admin-fields').style.display=CURRENT_USER?.role==='admin'?'':'none';
+  document.getElementById('archive-move-a').value=site.archiveCode||'';
+  document.getElementById('archive-move-s').value=site.invoiceCode||'';
+  document.getElementById('archive-move-sales').value=site.salesAmount??'';
+  document.getElementById('archive-move-file').value='';
+  document.getElementById('archive-move-status').textContent='';
+  document.getElementById('archiveMoveModal').classList.add('show');
+}
+function closeArchiveMove(){if(archiveMoveBusy)return;archiveMoveSiteId=null;document.getElementById('archive-move-file').value='';document.getElementById('archiveMoveModal').classList.remove('show');}
+function copyArchiveMoveCode(){
+  const code=document.getElementById('archive-move-a').value.trim();
+  if(!/^A\d{6}/.test(code)){showToast('⚠️ 先にA管理名を入力してください');return;}
+  const input=document.getElementById('archive-move-s');if(input.value.trim()&&input.value.trim()!=='S'+code.slice(1)){showToast('⚠️ S管理名は入力済みです。必要なら直接修正してください');return;}
+  input.value='S'+code.slice(1);
+}
+async function saveArchiveMove(){
+  if(archiveMoveBusy)return;
+  const site=SITES.find(s=>s.id===archiveMoveSiteId);if(!site)return;
+  const isAdmin=CURRENT_USER?.role==='admin',file=isAdmin?document.getElementById('archive-move-file').files[0]:null;
+  const status=document.getElementById('archive-move-status');
+  const data={version:site.version,archiveSummary:site.archiveSummary||'アプリからアーカイブ保存'};
+  if(isAdmin){
+    const archiveCode=document.getElementById('archive-move-a').value.trim(),invoiceCode=document.getElementById('archive-move-s').value.trim(),salesAmount=document.getElementById('archive-move-sales').value.trim();
+    if(archiveCode&&!/^A\d{6}/.test(archiveCode)){status.textContent='A管理名は A260930現場名 の形式で入力してください。';return;}
+    if(invoiceCode&&!/^S\d{6}/.test(invoiceCode)){status.textContent='S管理名は S260930現場名 の形式で入力してください。';return;}
+    if(archiveCode&&invoiceCode&&archiveCode.slice(1,7)!==invoiceCode.slice(1,7)){status.textContent='A管理名とS管理名の日付6桁を揃えてください。';return;}
+    data.archiveLedger={archiveCode,invoiceCode,salesAmount};
   }
+  if(file&&(file.size>20*1024*1024||! /\.(xlsx|xlsm|xls|pdf|jpg|jpeg|png)$/i.test(file.name))){status.textContent='請求書はExcel・PDF・JPEG・PNG、20MB以下を選んでください。';return;}
+  const controls=Array.from(document.querySelectorAll('#archiveMoveModal input,#archiveMoveModal button'));
+  archiveMoveBusy=true;controls.forEach(e=>e.disabled=true);status.style.color='#4A5568';status.textContent=file?'管理名・請求書を保存して移動しています…':'アーカイブへ移動しています…';
+  let success=false;
+  try {
+    let options;
+    if(file){const form=new FormData();form.append('archiveData',JSON.stringify(data));form.append('document',file);options={method:'POST',body:form};}
+    else options={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)};
+    const saved=await PILOT.request(`/sites/${encodeURIComponent(site.id)}/archive`,options);
+    SITES=SITES.filter(s=>s.id!==site.id);
+    if(saved.site){const idx=ARCHIVES.findIndex(s=>s.id===site.id);if(idx<0)ARCHIVES.push(saved.site);else ARCHIVES[idx]=saved.site;}
+    success=true;renderAll();renderReportList();
+    showToast(file?'✅ 管理名・請求書を保存してアーカイブへ移動しました':'✅ アーカイブへ移動しました',3500);
+  } catch(e) {status.style.color='#C53030';status.textContent='保存を完了できませんでした：'+e.message+'\n入力と選択したファイルは残っています。';}
+  finally{archiveMoveBusy=false;controls.forEach(e=>e.disabled=false);}
+  if(success){closeArchiveMove();}
 }
 
 // 旧HTML書き出し処理。過去の互換用として残しているが、通常画面からは使用しない。
@@ -2947,13 +2996,12 @@ async function loadArchives(){
           <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:none;">
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit('${id}')">✏️ 整理</button>`:''}
             <button class="btn btn-white btn-sm" onclick="toggleArchiveReports('${id}')">日報を見る</button>
-            <button class="btn btn-white btn-sm" onclick="toggleArchiveDocuments('${id}')">🧾 書類</button>
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload('${id}')">＋ 請求書を添付</button>`:''}
           </div>
         </div>
         ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}
         <div id="archive-reports-${id}" style="margin-top:8px;"></div>
-        <div id="archive-documents-${id}" style="margin-top:8px;"></div>
+        <div id="archive-documents-${id}" style="margin-top:8px;">${archiveDocumentsHtml(site.id,site.documents)}</div>
       </article>`;
     }).join('');
   }catch(e){
@@ -3004,20 +3052,30 @@ async function saveArchiveInvoiceUpload(){
   if(!saved)return;
   closeArchiveInvoiceUpload();
   const box=document.getElementById('archive-documents-'+siteId);
-  if(box){box.dataset.loaded='0';await toggleArchiveDocuments(siteId);}
+  if(box)await toggleArchiveDocuments(siteId);
   showToast('✅ この案件へ請求書を保存しました。A・S管理名は「整理」で確認できます。',4500);
 }
 
+function archiveDocumentsHtml(siteId,docs){
+  if(!Array.isArray(docs))return `<div style="border-top:1px solid #E2E8F0;padding-top:10px;font-size:12px;color:#A05A00;">書類の有無を確認できません。 <button class="btn btn-white btn-sm" data-site-id="${archiveEsc(siteId)}" onclick="toggleArchiveDocuments(this.dataset.siteId)">書類を確認</button></div>`;
+  const badge=docs.length?`<span style="display:inline-block;border-radius:5px;background:#E6FFFA;color:#276749;padding:4px 8px;font-weight:700;">📎 書類あり（${docs.length}件）</span>`:`<span style="display:inline-block;border-radius:5px;background:#EDF2F7;color:#5B6B7B;padding:4px 8px;">書類なし</span>`;
+  return `<div style="border-top:1px solid #E2E8F0;padding-top:10px;font-size:12px;">${badge}</div>`+docs.map(doc=>{
+    const fileName=doc.original_name||doc.title||'書類';
+    return `<div style="padding:8px 3px;font-size:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;"><div style="min-width:0;overflow-wrap:anywhere;">${doc.document_type==='invoice'?'🧾 請求書':'📎 書類'}<br><span style="color:#4A5568;">${archiveEsc(fileName)}</span></div><button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;flex:none;" data-document-id="${archiveEsc(doc.id)}" data-document-name="${archiveEsc(fileName)}" onclick="downloadArchiveDocument(Number(this.dataset.documentId),this.dataset.documentName)">書類を開く</button></div>`;
+  }).join('');
+}
 async function toggleArchiveDocuments(siteId){
   const box=document.getElementById(`archive-documents-${siteId}`);if(!box)return;
-  if(box.dataset.loaded==='1'){box.innerHTML='';box.dataset.loaded='0';return;}
+  if(box.dataset.loading==='1')return;
+  box.dataset.loading='1';
   box.innerHTML='<div style="padding:10px;color:#718096;font-size:12px;">書類を読み込んでいます…</div>';
   try{
-    const result=await PILOT.documents(siteId);const docs=result.documents||[];
-    if(!docs.length){box.innerHTML='<div style="padding:10px;color:#718096;font-size:12px;">保存されている書類はありません。</div>';box.dataset.loaded='1';return;}
-    box.innerHTML=docs.map(doc=>{const fileName=doc.original_name||doc.title||'書類';return `<div style="border-top:1px solid #E2E8F0;padding:8px 3px;font-size:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;"><div style="min-width:0;word-break:break-word;">${doc.document_type==='invoice'?'🧾 請求書':'📎 書類'}<br><span style="color:#4A5568;">${archiveEsc(fileName)}</span></div><button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;" data-document-id="${doc.id}" data-document-name="${archiveEsc(fileName)}" onclick="downloadArchiveDocument(Number(this.dataset.documentId),this.dataset.documentName)">開く</button></div>`;}).join('');
-    box.dataset.loaded='1';
-  }catch(e){box.innerHTML=`<div style="padding:10px;color:#C53030;font-size:12px;">書類を読み込めませんでした：${archiveEsc(e.message)}</div>`;}
+    const result=await PILOT.documents(siteId);const docs=result.documents;
+    if(!Array.isArray(docs))throw new Error('書類データを確認できません。');
+    const site=ARCHIVES.find(s=>s.id===siteId);if(site){site.documents=docs;site.documentCount=docs.length;}
+    box.innerHTML=archiveDocumentsHtml(siteId,docs);
+  }catch(e){box.innerHTML=archiveDocumentsHtml(siteId,null)+`<div style="color:#C53030;font-size:12px;margin-top:6px;">${archiveEsc(e.message)}</div>`;}
+  finally{box.dataset.loading='0';}
 }
 async function downloadArchiveDocument(documentId,name=''){
   try{const blob=await PILOT.documentBlob(documentId);const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;if(name)a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){showToast('❌ 書類を開けません: '+e.message,3500);}

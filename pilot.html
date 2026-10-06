@@ -419,6 +419,18 @@ input,select,textarea,button{font-family:inherit}
   .report-entry-header{display:none}
   .report-entry .remove-btn{grid-column:2;justify-self:end;margin-top:-30px}
 }
+
+.archive-row{border:1px solid #D8E2EC;border-radius:7px;margin:5px 0;background:#fff;}
+.archive-row>summary{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;list-style:none;font-size:13px;}
+.archive-row>summary::-webkit-details-marker{display:none;}
+.archive-row>summary:focus-visible{outline:2px solid #3182CE;outline-offset:2px;}
+.archive-row-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#2F855A;}
+.archive-row-invoice{flex:none;font-size:11px;white-space:nowrap;}
+.archive-row-sales{flex:none;width:115px;text-align:right;white-space:nowrap;color:#4A5568;font-variant-numeric:tabular-nums;}
+.archive-row-arrow{flex:none;color:#718096;}
+.archive-row[open] .archive-row-arrow{transform:rotate(90deg);}
+.archive-row-body{border-top:1px solid #E2E8F0;padding:12px;}
+@media(max-width:600px){.archive-row>summary{gap:5px;padding:10px 7px;font-size:12px;}.archive-row-invoice{font-size:10px;}.archive-row-sales{width:88px;font-size:11px;}}
 </style>
 <link rel="stylesheet" href="estimate.css?v=45">
 </head>
@@ -981,10 +993,6 @@ input,select,textarea,button{font-family:inherit}
         <input id="archive-ledger-name" class="form-input" placeholder="例：植立お風呂工事">
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">状態</label>
-          <input id="archive-ledger-status" class="form-input" placeholder="例：完了請求">
-        </div>
         <div class="form-group">
           <label class="form-label">担当</label>
           <input id="archive-ledger-mgr" class="form-input" placeholder="例：山川">
@@ -2983,26 +2991,31 @@ async function loadArchives(){
       const invoiceParts=[];
       if(site.invoiceCode) invoiceParts.push(`🧾 ${archiveEsc(site.invoiceCode)}`);
       if(site.salesAmount!==null&&site.salesAmount!==undefined&&site.salesAmount!=='') invoiceParts.push(`売上 ${Number(site.salesAmount).toLocaleString('ja-JP')}円`);
-      return `<article style="border:1px solid #D8E2EC;border-radius:10px;padding:13px;margin:10px 0;background:#fff;">
-        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
-          <div style="min-width:0;">
-            <div style="font-size:16px;font-weight:700;color:${site.archiveCode?'#2F855A':'#1F4E79'};word-break:break-word;">${site.archiveCode?'📁 ':''}${archiveEsc(heading)}</div>
-            ${nameLine}
-            <div style="font-size:12px;color:#5B6B7B;margin-top:5px;">${archiveEsc(site.status||'')} ${site.addr?`｜📍 ${archiveEsc(site.addr)}`:''}</div>
-            <div style="font-size:12px;color:#718096;margin-top:3px;">${dates?`📅 ${dates}　`:''}${site.mgr?`担当：${archiveEsc(site.mgr)}`:''}</div>
-            ${ledger}
-            ${invoiceParts.length?`<div style="font-size:12px;color:#4A5568;margin-top:4px;word-break:break-word;">${invoiceParts.join('　｜　')}</div>`:''}
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:none;">
+      const sales=archiveSalesText(site.salesAmount);
+      return `<details class="archive-row">
+        <summary title="${archiveEsc(heading)}">
+          <span class="archive-row-title">📁 ${archiveEsc(heading)}</span>
+          <span id="archive-invoice-mark-${id}" class="archive-row-invoice">${archiveInvoiceMarkHtml(site.documents)}</span>
+          <span class="archive-row-sales">${archiveEsc(sales)}</span>
+          <span class="archive-row-arrow" aria-hidden="true">▸</span>
+        </summary>
+        <div class="archive-row-body">
+          <div style="font-size:15px;font-weight:700;overflow-wrap:anywhere;">${archiveEsc(heading)}</div>
+          ${nameLine}
+          ${site.addr?`<div style="font-size:12px;color:#5B6B7B;margin-top:5px;overflow-wrap:anywhere;">📍 ${archiveEsc(site.addr)}</div>`:''}
+          <div style="font-size:12px;color:#718096;margin-top:3px;">${dates?`📅 ${dates}　`:''}${site.mgr?`担当：${archiveEsc(site.mgr)}`:''}</div>
+          ${ledger}
+          ${invoiceParts.length?`<div style="font-size:12px;color:#4A5568;margin-top:4px;overflow-wrap:anywhere;">${invoiceParts.join('　｜　')}</div>`:''}
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit('${id}')">✏️ 整理</button>`:''}
             <button class="btn btn-white btn-sm" onclick="toggleArchiveReports('${id}')">日報を見る</button>
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload('${id}')">＋ 請求書を添付</button>`:''}
           </div>
+          ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}
+          <div id="archive-reports-${id}" style="margin-top:8px;"></div>
+          <div id="archive-documents-${id}" style="margin-top:8px;">${archiveDocumentsHtml(site.id,site.documents)}</div>
         </div>
-        ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}
-        <div id="archive-reports-${id}" style="margin-top:8px;"></div>
-        <div id="archive-documents-${id}" style="margin-top:8px;">${archiveDocumentsHtml(site.id,site.documents)}</div>
-      </article>`;
+      </details>`;
     }).join('');
   }catch(e){
     if(requestSequence!==archiveLoadSequence)return;
@@ -3056,6 +3069,14 @@ async function saveArchiveInvoiceUpload(){
   showToast('✅ この案件へ請求書を保存しました。A・S管理名は「整理」で確認できます。',4500);
 }
 
+function archiveSalesText(amount){
+  if(amount===null||amount===undefined||amount==='')return '売上 未登録';
+  const value=Number(amount);return Number.isFinite(value)?'売上 '+value.toLocaleString('ja-JP')+'円':'売上 未登録';
+}
+function archiveInvoiceMarkHtml(docs){
+  if(!Array.isArray(docs))return '<span style="color:#A05A00;" title="請求書の有無を確認できません">🧾 不明</span>';
+  return docs.some(doc=>doc.document_type==='invoice')?'<span style="color:#276749;" title="請求書が添付されています">🧾 あり</span>':'<span style="color:#718096;" title="請求書は添付されていません">🧾 なし</span>';
+}
 function archiveDocumentsHtml(siteId,docs){
   if(!Array.isArray(docs))return `<div style="border-top:1px solid #E2E8F0;padding-top:10px;font-size:12px;color:#A05A00;">書類の有無を確認できません。 <button class="btn btn-white btn-sm" data-site-id="${archiveEsc(siteId)}" onclick="toggleArchiveDocuments(this.dataset.siteId)">書類を確認</button></div>`;
   const badge=docs.length?`<span style="display:inline-block;border-radius:5px;background:#E6FFFA;color:#276749;padding:4px 8px;font-weight:700;">📎 書類あり（${docs.length}件）</span>`:`<span style="display:inline-block;border-radius:5px;background:#EDF2F7;color:#5B6B7B;padding:4px 8px;">書類なし</span>`;
@@ -3074,7 +3095,8 @@ async function toggleArchiveDocuments(siteId){
     if(!Array.isArray(docs))throw new Error('書類データを確認できません。');
     const site=ARCHIVES.find(s=>s.id===siteId);if(site){site.documents=docs;site.documentCount=docs.length;}
     box.innerHTML=archiveDocumentsHtml(siteId,docs);
-  }catch(e){box.innerHTML=archiveDocumentsHtml(siteId,null)+`<div style="color:#C53030;font-size:12px;margin-top:6px;">${archiveEsc(e.message)}</div>`;}
+    const mark=document.getElementById(`archive-invoice-mark-${siteId}`);if(mark)mark.innerHTML=archiveInvoiceMarkHtml(docs);
+  }catch(e){const mark=document.getElementById(`archive-invoice-mark-${siteId}`);if(mark)mark.innerHTML=archiveInvoiceMarkHtml(null);box.innerHTML=archiveDocumentsHtml(siteId,null)+`<div style="color:#C53030;font-size:12px;margin-top:6px;">${archiveEsc(e.message)}</div>`;}
   finally{box.dataset.loading='0';}
 }
 async function downloadArchiveDocument(documentId,name=''){
@@ -3091,7 +3113,6 @@ function openArchiveLedgerEdit(siteId){
   document.getElementById('archive-ledger-edit-title').textContent=`📦 アーカイブを整理（${site.name}）`;
   document.getElementById('archive-ledger-code').value=site.archiveCode||'';
   document.getElementById('archive-ledger-name').value=site.name||'';
-  document.getElementById('archive-ledger-status').value=site.status||'';
   document.getElementById('archive-ledger-mgr').value=site.mgr||'';
   document.getElementById('archive-ledger-addr').value=site.addr||'';
   document.getElementById('archive-ledger-start').value=site.start||'';
@@ -3116,7 +3137,6 @@ async function saveArchiveLedgerEdit(){
   try{
     await PILOT.updateArchiveLedger(site.id,{
       archiveCode,invoiceCode,salesAmount,name,
-      status:document.getElementById('archive-ledger-status').value.trim(),
       mgr:document.getElementById('archive-ledger-mgr').value.trim(),
       addr:document.getElementById('archive-ledger-addr').value.trim(),
       start:document.getElementById('archive-ledger-start').value,

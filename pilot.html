@@ -1900,7 +1900,7 @@ function archiveSiteToDatabase(siteId){
   const site=SITES.find(s=>s.id===siteId);if(!site){showToast('⚠️ 現場が見つかりません');return;}
   archiveMoveSiteId=siteId;
   document.getElementById('archive-move-target').textContent=site.name;
-  document.getElementById('archive-move-description').textContent=`日報 ${REPORTS.filter(r=>r.siteId===siteId).length}件をサーバーに残したまま、通常の現場一覧から外します。管理名・添付は空欄でも移動できます。端末へのHTML保存は行いません。`;
+  document.getElementById('archive-move-description').textContent=`日報 ${REPORTS.filter(r=>r.siteId===siteId).length}件をこの案件の履歴として保存します。移動後は通常の現場一覧・日報一覧から外れ、アーカイブの案件から日報を確認できます。管理名・添付は空欄でも移動できます。`;
   document.getElementById('archive-move-admin-fields').style.display=CURRENT_USER?.role==='admin'?'':'none';
   document.getElementById('archive-move-a').value=site.archiveCode||'';
   document.getElementById('archive-move-sales').value=site.salesAmount??'';
@@ -1930,6 +1930,7 @@ async function saveArchiveMove(){
     else options={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)};
     const saved=await PILOT.request(`/sites/${encodeURIComponent(site.id)}/archive`,options);
     SITES=SITES.filter(s=>s.id!==site.id);
+    REPORTS=REPORTS.filter(report=>report.siteId!==site.id);
     if(saved.site){const idx=ARCHIVES.findIndex(s=>s.id===site.id);if(idx<0)ARCHIVES.push(saved.site);else ARCHIVES[idx]=saved.site;}
     success=true;renderAll();renderReportList();
     showToast(file?'✅ 管理名・請求書を保存してアーカイブへ移動しました':'✅ アーカイブへ移動しました',3500);
@@ -3471,11 +3472,13 @@ function buildSiteReportHtml(siteId) {
 function renderReportList() {
   const el = document.getElementById('report-list-container');
   if (!el) return;
-  if (REPORTS.length === 0) {
+  const activeSiteIds=new Set(SITES.filter(site=>String(site.name||'').trim()).map(site=>site.id));
+  const visibleReports=REPORTS.filter(report=>activeSiteIds.has(report.siteId));
+  if (visibleReports.length === 0) {
     el.innerHTML = '<div style="color:#718096;font-size:13px;padding:8px 0;">日報はまだありません</div>';
     return;
   }
-  el.innerHTML = REPORTS.map(r => {
+  el.innerHTML = visibleReports.map(r => {
     const reportSite = SITES.find(s=>s.id===r.siteId);
     const rows = r.entries.map(e => {
       const sn = reportSite || SITES.find(s=>s.id===e.siteId);

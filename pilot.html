@@ -526,8 +526,8 @@ input,select,textarea,button{font-family:inherit}
     <button class="pc-tab-btn active" id="pctab-sites" onclick="switchTab('sites')">🏢 現場一覧</button>
     <button class="pc-tab-btn" id="pctab-report" onclick="switchTab('report')">📋 日報</button>
     <button class="pc-tab-btn" id="pctab-schedule" onclick="switchTab('schedule')">📅 工程</button>
-    <button class="pc-tab-btn" id="pctab-estimates" onclick="switchTab('estimates')">🧾 見積作成</button>
     <button class="pc-tab-btn" id="pctab-archives" onclick="switchTab('archives')">📦 アーカイブ</button>
+    <button class="pc-tab-btn" id="pctab-estimates" onclick="switchTab('estimates')">🧾 見積作成</button>
     <button class="pc-tab-btn" id="pctab-tasks" data-admin-only style="display:none;" onclick="switchTab('tasks')">🧭 社長タスク</button>
   </div>
 
@@ -800,11 +800,12 @@ input,select,textarea,button{font-family:inherit}
         <select class="form-select" id="s-address-preset" onchange="selectAddressPreset()">
           <option value="">直接入力（または登録から選ぶ）</option>
         </select>
+        <button type="button" class="btn btn-red btn-sm" id="s-address-delete-button" style="margin-top:7px;" disabled onclick="deleteAddressPreset()">選択した登録住所を削除</button>
         <div id="s-address-preset-status" role="status" style="font-size:12px;color:#718096;margin-top:5px;"></div>
       </div>
       <div class="form-group">
         <label class="form-label" for="s-addr">所在地（直接入力・修正できます）</label>
-        <input class="form-input" id="s-addr" maxlength="1000" placeholder="例: 明石市上ノ丸…" oninput="document.getElementById('s-address-preset').value=''">
+        <input class="form-input" id="s-addr" maxlength="1000" placeholder="例: 明石市上ノ丸…" oninput="document.getElementById('s-address-preset').value='';updateAddressPresetDeleteButton()">
         <details id="s-address-register" style="margin-top:8px;padding:9px 11px;background:#F7FAFC;border-radius:8px;">
           <summary style="cursor:pointer;font-size:12px;color:#2E75B6;font-weight:700;">＋ この住所をよく使う現場として登録</summary>
           <label class="form-label" for="s-address-label" style="margin-top:10px;">登録名</label>
@@ -1755,12 +1756,12 @@ function renderSites(){
 // =========================================================
 // SITE MODAL
 // =========================================================
-let ADDRESS_PRESETS=[],addressPresetSession=0,addressPresetLoadId=0,addressPresetSaving=false;
+let ADDRESS_PRESETS=[],addressPresetSession=0,addressPresetLoadId=0,addressPresetSaving=false,addressPresetDeleting=false;
 function renderAddressPresets(selected=''){
   const select=document.getElementById('s-address-preset');
   select.innerHTML='<option value="">直接入力（または登録から選ぶ）</option>';
   for(const preset of ADDRESS_PRESETS){const option=document.createElement('option');option.value=String(preset.id);option.textContent=preset.label+' ｜ '+preset.address;select.appendChild(option);}
-  select.value=String(selected);select.disabled=false;
+  select.value=String(selected);select.disabled=false;updateAddressPresetDeleteButton();
 }
 async function loadAddressPresets(session){
   const requestId=++addressPresetLoadId;
@@ -1778,16 +1779,43 @@ async function loadAddressPresets(session){
   }
 }
 function selectAddressPreset(){
+  updateAddressPresetDeleteButton();
   const id=Number(document.getElementById('s-address-preset').value);
   const preset=ADDRESS_PRESETS.find(p=>p.id===id);if(!preset)return;
   document.getElementById('s-addr').value=preset.address;
 }
+function updateAddressPresetDeleteButton(){
+  const button=document.getElementById('s-address-delete-button');if(!button)return;
+  button.disabled=addressPresetSaving||addressPresetDeleting||!document.getElementById('s-address-preset').value;
+  button.textContent=addressPresetDeleting?'削除中…':'選択した登録住所を削除';
+}
+async function deleteAddressPreset(){
+  if(addressPresetSaving||addressPresetDeleting)return;
+  const id=Number(document.getElementById('s-address-preset').value);
+  const preset=ADDRESS_PRESETS.find(p=>p.id===id);if(!preset)return;
+  if(!confirm(`登録住所を削除しますか？\n\n${preset.label}\n${preset.address}\n\n社内共通の選択候補から削除します。案件に入力済みの住所は残ります。`))return;
+  const session=addressPresetSession;
+  addressPresetDeleting=true;updateAddressPresetDeleteButton();
+  document.getElementById('s-address-register-button').disabled=true;
+  try{
+    await PILOT.request('/address-presets/'+encodeURIComponent(id),{method:'DELETE'});
+    if(session!==addressPresetSession)return;
+    addressPresetLoadId++;
+    ADDRESS_PRESETS=ADDRESS_PRESETS.filter(p=>p.id!==id);
+    const selected=document.getElementById('s-address-preset').value;
+    renderAddressPresets(selected===String(id)?'':selected);
+    document.getElementById('s-address-preset-status').textContent='登録住所を削除しました。所在地欄の住所は残っています。';
+    showToast('✅ 登録住所を削除しました');
+  }catch(e){if(session===addressPresetSession)showToast('❌ 登録住所を削除できません: '+e.message,4500);}
+  finally{addressPresetDeleting=false;document.getElementById('s-address-register-button').disabled=addressPresetSaving;updateAddressPresetDeleteButton();}
+}
+
 async function registerAddressPreset(){
-  if(addressPresetSaving)return;
+  if(addressPresetSaving||addressPresetDeleting)return;
   const label=document.getElementById('s-address-label').value.trim(),address=document.getElementById('s-addr').value.trim();
   if(!label||!address){showToast('⚠️ 登録名と所在地の両方を入力してください');return;}
   const session=addressPresetSession,button=document.getElementById('s-address-register-button');
-  addressPresetSaving=true;button.disabled=true;button.textContent='登録中…';
+  addressPresetSaving=true;button.disabled=true;button.textContent='登録中…';updateAddressPresetDeleteButton();
   try {
     const data=await PILOT.request('/address-presets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,address})});
     if(session!==addressPresetSession)return;
@@ -1799,7 +1827,7 @@ async function registerAddressPreset(){
     document.getElementById('s-address-preset-status').textContent='登録済みの住所から選べます。';
     showToast(data.alreadyExists?'✅ この現場・住所は登録済みです':'✅ よく使う現場・住所を登録しました');
   } catch(e) {if(session===addressPresetSession)showToast('❌ 住所を登録できません: '+e.message,4500);}
-  finally{addressPresetSaving=false;button.disabled=false;button.textContent='住所を登録';}
+  finally{addressPresetSaving=false;button.disabled=false;button.textContent='住所を登録';updateAddressPresetDeleteButton();}
 }
 
 function openSiteModal(siteId){
@@ -1828,7 +1856,7 @@ function openSiteModal(siteId){
   }
   document.getElementById('s-address-label').value='';
   document.getElementById('s-address-register').open=false;
-  document.getElementById('s-address-register-button').disabled=addressPresetSaving;
+  document.getElementById('s-address-register-button').disabled=addressPresetSaving||addressPresetDeleting;
   document.getElementById('siteModal').classList.add('show');
   loadAddressPresets(++addressPresetSession);
 }

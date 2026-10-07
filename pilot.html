@@ -1902,11 +1902,14 @@ function archiveSiteToDatabase(siteId){
   document.getElementById('archive-move-target').textContent=site.name;
   document.getElementById('archive-move-description').textContent=`日報 ${REPORTS.filter(r=>r.siteId===siteId).length}件をこの案件の履歴として保存します。移動後は通常の現場一覧・日報一覧から外れ、アーカイブの案件から日報を確認できます。管理名・添付は空欄でも移動できます。`;
   document.getElementById('archive-move-admin-fields').style.display=CURRENT_USER?.role==='admin'?'':'none';
-  document.getElementById('archive-move-a').value=site.archiveCode||'';
+  document.getElementById('archive-move-a').value=site.archiveCode||('A'+site.name);
   document.getElementById('archive-move-sales').value=site.salesAmount??'';
   document.getElementById('archive-move-file').value='';
   document.getElementById('archive-move-status').textContent='';
   document.getElementById('archiveMoveModal').classList.add('show');
+  if(!site.archiveCode&&CURRENT_USER?.role==='admin'){
+    const input=document.getElementById('archive-move-a');input.focus();input.setSelectionRange(1,1);
+  }
 }
 function closeArchiveMove(){if(archiveMoveBusy)return;archiveMoveSiteId=null;document.getElementById('archive-move-file').value='';document.getElementById('archiveMoveModal').classList.remove('show');}
 async function saveArchiveMove(){

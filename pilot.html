@@ -2391,11 +2391,11 @@ function renderAiTaskDrafts(targetId=aiTaskDraftTargetId){
   result.innerHTML=`${heading}<div style="font-size:13px;color:#4A5568;margin-bottom:6px;">必要なものだけ追加してください。</div>${aiTaskDrafts.map(aiTaskDraftHtml).join('')}`;
 }
 async function draftTasksForSource(source,targetId,forcedSiteId=''){
-  const result=document.getElementById(targetId);if(!source||!result)return;
-  aiTaskSourceText=source;aiTaskDraftTargetId=targetId;
+  const result=document.getElementById(targetId);if(!source||!result)return {ok:false,count:0};
+  aiTaskSourceText=source;aiTaskDraftTargetId=targetId;aiTaskDrafts=[];
   result.innerHTML='<div style="font-size:12px;color:#718096;margin:12px 0 4px;">🧭 同じ報告から社長タスク候補を整理しています…</div>';
-  try{const data=await PILOT.createTaskDraft(source);aiTaskDrafts=(data.drafts||[]).map(x=>({...x,siteId:forcedSiteId||x.siteId,saved:false}));renderAiTaskDrafts(targetId);}
-  catch(e){result.innerHTML=`<div style="color:#C53030;font-size:12px;margin-top:10px;">タスク候補を作成できません: ${cardEscape(e.message)}</div>`;}
+  try{const data=await PILOT.createTaskDraft(source);if(!Array.isArray(data?.drafts))throw new Error('AIの候補データの形式が正しくありません。');aiTaskDrafts=data.drafts.map(x=>({...x,siteId:forcedSiteId||x.siteId,saved:false}));renderAiTaskDrafts(targetId);return {ok:true,count:aiTaskDrafts.length};}
+  catch(e){aiTaskDrafts=[];result.innerHTML=`<div style="color:#C53030;font-size:12px;margin-top:10px;">タスク候補を作成できません: ${cardEscape(e.message)}</div>`;return {ok:false,count:0};}
 }
 async function draftAiTasks(){
   if(activeSpeechRecognition?.targetId==='ai-task-source'){showToast('録音・文字起こしが終わってから操作してください。',3500);return;}
@@ -2583,8 +2583,9 @@ async function draftProjectCard() {
   const source = document.getElementById('card-source').value.trim();
   if (!source) { showToast('⚠️ 報告内容を入力してください'); return; }
   try {
-    await draftTasksForSource(source,'card-task-drafts',projectCardSiteId);
-    showToast('✨ AIがタスク候補を作成しました。必要なものだけ追加してください。', 3000);
+    const outcome=await draftTasksForSource(source,'card-task-drafts',projectCardSiteId);
+    if(!outcome.ok){showToast('❌ タスク候補を作成できませんでした。候補欄のエラーを確認してください。',4000);return;}
+    showToast(outcome.count?`✨ タスク候補を${outcome.count}件作成しました。必要なものだけ追加してください。`:'今回の報告から追加するタスク候補はありませんでした。', 3500);
   } catch(e) { showToast('❌ AI整理できません: ' + e.message, 3500); }
 }
 function refreshOpenDetailTaskList(siteId=null){

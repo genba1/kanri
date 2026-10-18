@@ -884,7 +884,7 @@ input,select,textarea,button{font-family:inherit}
   <div class="modal" style="max-width:620px;">
     <div class="modal-head"><h2>🎙️ AIに報告</h2><button class="modal-close" onclick="closeAiReportModal()">✕</button></div>
     <div class="modal-body">
-      <div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#744210;">スマホではキーボードの🎙️で話して入力できます。AIは下書きを作るだけで、内容を確認するまで保存しません。</div>
+      <div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#744210;">音声入力ボタンで録音し、停止するとAIが文字起こしします。音声はサーバー経由でOpenAIへ送信します（API従量課金）。文字を確認してから下書きを作ってください。</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <button type="button" class="btn btn-sm" id="ai-report-mode-card" onclick="selectAiReportMode('card')">🧭 案件カードへ記入</button>
         <button type="button" class="btn btn-sm" id="ai-report-mode-daily" onclick="selectAiReportMode('daily')">📋 日報へ記入</button>
@@ -903,7 +903,7 @@ input,select,textarea,button{font-family:inherit}
   <div class="modal" style="max-width:620px;">
     <div class="modal-head"><h2>🎙️ AIで日報下書き</h2><button class="modal-close" onclick="closeAiDailyReportModal()">✕</button></div>
     <div class="modal-body">
-      <p style="font-size:13px;color:#4A5568;line-height:1.6;margin:0 0 10px;">現場名・作業内容・作業者・時間を、そのまま話して入力してください。AIが日報の行に分けます。</p>
+      <p style="font-size:13px;color:#4A5568;line-height:1.6;margin:0 0 10px;">音声入力を開始し、現場名・作業内容・作業者・時間を話してください。停止後にAIが文字起こしします（最大3分）。音声はサーバー経由でOpenAIへ送信し、API利用料がかかります。文字を確認してから下書きを作ってください。</p>
       <textarea id="ai-daily-report-source" class="form-input" rows="7" style="resize:vertical;line-height:1.65;" placeholder="例：朝霧堂で、今日は山川と留美が9時から15時まで、洗面所の解体と配管の仕込みをした。"></textarea>
       <button type="button" class="btn btn-sm pc-speech-input" id="ai-daily-report-source-mic" onclick="toggleSpeechInput('ai-daily-report-source','ai-daily-report-source-mic')">🎙️ 音声入力を開始</button>
       <div id="ai-daily-report-result" style="display:none;margin-top:12px;"></div>
@@ -1607,45 +1607,75 @@ function showToast(msg,dur=2200){
 }
 
 let activeSpeechRecognition=null;
-let activeSpeechTargetId='';
-let activeSpeechButtonId='';
-function resetSpeechButton(){
-  const button=document.getElementById(activeSpeechButtonId);
-  if(button){button.textContent='🎙️ 音声入力を開始';button.classList.remove('is-listening');}
-  activeSpeechRecognition=null;activeSpeechTargetId='';activeSpeechButtonId='';
+const speechRetries=new Map();
+function speechButton(state,label,disabled=false){
+  const b=document.getElementById(state.buttonId);
+  if(b){b.textContent=label;b.disabled=disabled;b.classList.toggle('is-listening',state.phase==='recording');}
+}
+function speechCleanup(state){
+  clearTimeout(state.timer);
+  if(state.stream)state.stream.getTracks().forEach(t=>t.stop());
 }
 function stopSpeechInputFor(targetId){
-  if(activeSpeechRecognition&&activeSpeechTargetId===targetId)activeSpeechRecognition.stop();
+  speechRetries.delete(targetId);
+  const state=activeSpeechRecognition;
+  if(!state||state.targetId!==targetId)return;
+  state.cancelled=true;
+  if(state.recorder&&state.recorder.state!=='inactive')state.recorder.stop();
+  speechCleanup(state);speechButton(state,'🎙️ 音声入力を開始');
+  activeSpeechRecognition=null;
 }
-function toggleSpeechInput(targetId,buttonId){
+async function transcribeSpeech(state){
+  state.phase='uploading';speechButton(state,'文字起こし中…',true);
+  try{
+    const form=new FormData();
+    const ext=state.blob.type.includes('mp4')?'mp4':state.blob.type.includes('ogg')?'ogg':'webm';
+    form.append('audio',state.blob,'report.'+ext);
+    const result=await PILOT.request('/ai/transcribe',{method:'POST',body:form});
+    if(state.cancelled)return;
+    if(typeof result.text!=='string'||!result.text.trim())throw new Error('声を聞き取れませんでした。もう一度録音してください。');
+    const target=document.getElementById(state.targetId);
+    if(target){target.value=(target.value.trim()?target.value.trim()+'\n':'')+result.text.trim();target.dispatchEvent(new Event('input',{bubbles:true}));}
+    speechRetries.delete(state.targetId);
+    speechButton(state,'🎙️ 音声入力を開始');
+    showToast('文字起こししました。現場名・数字を確認してから下書きを作ってください。',5000);
+  }catch(e){
+    if(!state.cancelled){speechRetries.set(state.targetId,state);speechButton(state,'↻ 録音を再送信');showToast('文字起こしできませんでした：'+e.message+' 入力済みの文章は残っています。',6500);}
+  }finally{if(activeSpeechRecognition===state)activeSpeechRecognition=null;}
+}
+async function toggleSpeechInput(targetId,buttonId){
   if(activeSpeechRecognition){
-    if(activeSpeechTargetId===targetId){activeSpeechRecognition.stop();return;}
-    activeSpeechRecognition.stop();resetSpeechButton();
+    const state=activeSpeechRecognition;
+    if(state.targetId===targetId&&state.phase==='recording'){state.recorder.stop();return;}
+    showToast('今の録音・文字起こしが終わってから操作してください。',3500);return;
   }
-  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!Recognition){showToast('⚠️ このブラウザでは音声入力に対応していません。パソコンではChromeをご利用ください。',4200);return;}
-  const target=document.getElementById(targetId);const button=document.getElementById(buttonId);
-  if(!target||!button)return;
-  const recognition=new Recognition();
-  const before=target.value.trim();let finalText='';
-  recognition.lang='ja-JP';recognition.continuous=true;recognition.interimResults=true;
-  activeSpeechRecognition=recognition;activeSpeechTargetId=targetId;activeSpeechButtonId=buttonId;
-  recognition.onstart=()=>{button.textContent='⏹️ 音声入力を停止';button.classList.add('is-listening');showToast('🎙️ 音声入力中です。話し終えたら「停止」を押してください。',3000);};
-  recognition.onresult=(event)=>{
-    let interimText='';
-    for(let i=event.resultIndex;i<event.results.length;i++){
-      const text=event.results[i][0].transcript;
-      if(event.results[i].isFinal)finalText+=text;else interimText+=text;
-    }
-    target.value=(before?(before+'\n'):'')+finalText+interimText;
-    target.focus();
-  };
-  recognition.onerror=(event)=>{
-    if(event.error==='not-allowed'||event.error==='service-not-allowed')showToast('⚠️ マイクの使用が許可されていません。ブラウザのアドレス欄からマイクを許可してください。',5000);
-    else if(event.error!=='aborted'&&event.error!=='no-speech')showToast('⚠️ 音声入力を続けられませんでした: '+event.error,3500);
-  };
-  recognition.onend=()=>{if(activeSpeechRecognition===recognition)resetSpeechButton();};
-  try{recognition.start();}catch(e){resetSpeechButton();showToast('⚠️ 音声入力を開始できませんでした。',3500);}
+  if(speechRetries.has(targetId)){
+    const state=speechRetries.get(targetId);state.cancelled=false;activeSpeechRecognition=state;await transcribeSpeech(state);return;
+  }
+  if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){
+    showToast('このブラウザでは録音できません。キーボードの音声入力か直接入力をご利用ください。',5000);return;
+  }
+  const state={targetId,buttonId,phase:'permission',cancelled:false,chunks:[],bytes:0};
+  activeSpeechRecognition=state;speechButton(state,'マイクを準備中…',true);
+  try{
+    state.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
+    if(state.cancelled){speechCleanup(state);return;}
+    const mime=['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg;codecs=opus'].find(t=>MediaRecorder.isTypeSupported(t));
+    if(!mime)throw new Error('対応する録音形式がありません。キーボードの音声入力をご利用ください。');
+    state.recorder=new MediaRecorder(state.stream,{mimeType:mime});
+    state.recorder.ondataavailable=e=>{if(e.data.size){state.chunks.push(e.data);state.bytes+=e.data.size;if(state.bytes>8*1024*1024&&state.recorder.state==='recording')state.recorder.stop();}};
+    state.recorder.onerror=()=>{state.cancelled=true;speechCleanup(state);speechButton(state,'🎙️ 音声入力を開始');if(activeSpeechRecognition===state)activeSpeechRecognition=null;showToast('録音が中断されました。入力済みの文章は残っています。',5000);};
+    state.recorder.onstop=async()=>{
+      speechCleanup(state);
+      if(state.cancelled)return;
+      state.blob=new Blob(state.chunks,{type:state.recorder.mimeType});state.chunks=[];
+      if(!state.blob.size||state.blob.size>10*1024*1024){speechButton(state,'🎙️ 音声入力を開始');if(activeSpeechRecognition===state)activeSpeechRecognition=null;showToast('録音が空か、容量が大きすぎます。短く録り直してください。',5000);return;}
+      await transcribeSpeech(state);
+    };
+    state.recorder.start(1000);state.phase='recording';speechButton(state,'⏹️ 録音を停止して文字起こし');
+    state.timer=setTimeout(()=>{if(state.recorder.state==='recording'){showToast('3分になったので録音を停止して文字起こしします。',4000);state.recorder.stop();}},180000);
+    showToast('録音中です。話し終えたら停止してください（最大3分）。',4000);
+  }catch(e){speechCleanup(state);if(!state.cancelled){speechButton(state,'🎙️ 音声入力を開始');showToast(e.name==='NotAllowedError'?'マイクを使用できません。ブラウザのマイク許可をご確認ください。':'録音を開始できませんでした：'+e.message,5500);}if(activeSpeechRecognition===state)activeSpeechRecognition=null;}
 }
 
 function bytesLabel(bytes){ return `${(bytes / 1024 / 1024).toFixed(bytes >= 1024 * 1024 ? 1 : 2)}MB`; }
@@ -2239,6 +2269,7 @@ function aiReportCandidateButton(siteId, note){
   return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="continueAiReport('${siteId}')">🏗️ ${cardEscape(name)}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
 }
 async function routeAiReport(){
+  if(activeSpeechRecognition?.targetId==='ai-report-source'){showToast('録音・文字起こしが終わってから操作してください。',3500);return;}
   const source=document.getElementById('ai-report-source').value.trim();
   if(!source){showToast('⚠️ 報告内容を入力してください');return;}
   const button=document.getElementById('ai-report-run'); const result=document.getElementById('ai-report-result');
@@ -2294,6 +2325,7 @@ function aiDailyCandidateButton(siteId, note){
   return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="applyAiDailyReportDraft('${siteId}')">🏗️ ${cardEscape(siteName(siteId))}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
 }
 async function draftAiDailyReport(){
+  if(activeSpeechRecognition?.targetId==='ai-daily-report-source'){showToast('録音・文字起こしが終わってから操作してください。',3500);return;}
   const source=document.getElementById('ai-daily-report-source').value.trim();
   if(!source){showToast('⚠️ 報告内容を入力してください');return;}
   const button=document.getElementById('ai-daily-report-run');const result=document.getElementById('ai-daily-report-result');
@@ -2366,6 +2398,7 @@ async function draftTasksForSource(source,targetId,forcedSiteId=''){
   catch(e){result.innerHTML=`<div style="color:#C53030;font-size:12px;margin-top:10px;">タスク候補を作成できません: ${cardEscape(e.message)}</div>`;}
 }
 async function draftAiTasks(){
+  if(activeSpeechRecognition?.targetId==='ai-task-source'){showToast('録音・文字起こしが終わってから操作してください。',3500);return;}
   const source=document.getElementById('ai-task-source').value.trim();if(!source){showToast('⚠️ 報告内容を入力してください');return;}
   const button=document.getElementById('ai-task-run');const result=document.getElementById('ai-task-result');button.disabled=true;button.textContent='AIが候補を整理中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">次に動くこと・相手待ちを整理しています…</div>';
   try{await draftTasksForSource(source,'ai-task-result');}
@@ -2423,6 +2456,7 @@ function closeAdminTaskEdit(){
   document.getElementById('adminTaskEditModal').classList.remove('show');
 }
 async function saveAdminTaskEdit(){
+  if(activeSpeechRecognition?.targetId==='admin-task-edit-title'){showToast('録音・文字起こしが終わってから操作してください。',3500);return;}
   if(adminTaskSaving||!CURRENT_USER||CURRENT_USER.role!=='admin')return;
   const creating=adminTaskIsNew;const task=TASKS.find(x=>x.id===adminTaskEditId);if(!creating&&!task)return;
   const title=document.getElementById('admin-task-edit-title').value.trim();
@@ -2545,6 +2579,7 @@ async function completeAdminTask(id){
   finally{completingAdminTasks.delete(id);renderPendingTaskButtons();}
 }
 async function draftProjectCard() {
+  if(activeSpeechRecognition?.targetId==='card-source'){showToast('録音・文字起こしが終わってから操作してください。',3500);return;}
   const source = document.getElementById('card-source').value.trim();
   if (!source) { showToast('⚠️ 報告内容を入力してください'); return; }
   try {

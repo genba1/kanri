@@ -257,6 +257,7 @@ input,select,textarea,button{font-family:inherit}
 .mobile-ai-report-btn{display:none!important}
 .mobile-task-btn{display:none!important}
 .pc-speech-input{margin:6px 0 2px;background:#F0F7FF;color:#1F4E79;border:1px solid #90CDF4}
+#aiReportModal #ai-report-source-mic[hidden]{display:none!important}
 .pc-speech-input.is-listening{background:#C53030;color:white;border-color:#C53030}
 .mobile-menu-panel{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.5);z-index:95}
 .mobile-menu-panel.show{display:block}
@@ -295,6 +296,8 @@ input,select,textarea,button{font-family:inherit}
   .top-bar-actions .mobile-ai-report-btn.admin-visible{display:inline-flex!important;align-items:center;white-space:nowrap;background:#FFF5F5;color:#C53030;border:1px solid #FEB2B2;padding:7px 9px;font-size:12px}
   .top-bar-actions .mobile-task-btn.admin-visible{display:inline-flex!important;align-items:center;white-space:nowrap;background:#F0F7FF;color:#1F4E79;border:1px solid #90CDF4;padding:7px 8px;font-size:12px}
   .pc-speech-input{display:none!important}
+  #aiReportModal .pc-speech-input{display:inline-flex!important}
+  #aiReportModal .pc-speech-input[hidden]{display:none!important}
   .mobile-menu-btn{display:block}
   .pc-tabs{display:none}
 
@@ -884,15 +887,16 @@ input,select,textarea,button{font-family:inherit}
   <div class="modal" style="max-width:620px;">
     <div class="modal-head"><h2>🎙️ AIに報告</h2><button class="modal-close" onclick="closeAiReportModal()">✕</button></div>
     <div class="modal-body">
-      <div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#744210;">音声入力ボタンで録音し、停止するとAIが文字起こしします。音声はサーバー経由でOpenAIへ送信します（API従量課金）。文字を確認してから下書きを作ってください。</div>
+      <div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#744210;">音声入力ボタンで録音し、停止するとAIが文字起こしします。音声はサーバー経由でOpenAIへ送信します（API従量課金）。「日報へ記入」では、回答を停止後に確認し、次の質問へ進みます。最後の登録ボタンを押すまで保存されません。</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <button type="button" class="btn btn-sm" style="grid-column:1/-1" id="ai-report-mode-conversation" onclick="selectAiReportMode('conversation')">💬 会話で日報・タスクをまとめる</button>
         <button type="button" class="btn btn-sm" id="ai-report-mode-card" onclick="selectAiReportMode('card')">🧭 案件カードへ記入</button>
         <button type="button" class="btn btn-sm" id="ai-report-mode-daily" onclick="selectAiReportMode('daily')">📋 日報へ記入</button>
       </div>
       <div id="ai-report-mode-help" style="font-size:12px;color:#4A5568;margin:0 0 10px;"></div>
-      <textarea id="ai-report-source" class="form-input" style="width:100%;min-height:130px;box-sizing:border-box;resize:vertical;" placeholder="例：朝霧堂の確認申請は、横山氏から検査機関の回答待ち。壁量修正は提出済み。"></textarea>
+      <div id="ai-daily-interview" style="display:none;margin-bottom:12px;"></div>
       <button type="button" class="btn btn-sm pc-speech-input" id="ai-report-source-mic" onclick="toggleSpeechInput('ai-report-source','ai-report-source-mic')">🎙️ 音声入力を開始</button>
+      <textarea id="ai-report-source" class="form-input" style="width:100%;min-height:130px;box-sizing:border-box;resize:vertical;" placeholder="例：朝霧堂の確認申請は、横山氏から検査機関の回答待ち。壁量修正は提出済み。"></textarea>
       <div id="ai-report-result" style="display:none;margin-top:14px;"></div>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeAiReportModal()">閉じる</button><button class="btn btn-green" id="ai-report-run" onclick="routeAiReport()">AIに案件を探してもらう</button></div>
@@ -1612,6 +1616,7 @@ const speechRetries=new Map();
 function speechButton(state,label,disabled=false){
   const b=document.getElementById(state.buttonId);
   if(b){b.textContent=label;b.disabled=disabled;b.classList.toggle('is-listening',state.phase==='recording');}
+  if(state.targetId==='ai-report-source'&&aiReportMode==='daily'&&dailyInterview)dailyInterviewControls();
 }
 function speechCleanup(state){
   clearTimeout(state.timer);
@@ -1627,6 +1632,7 @@ function stopSpeechInputFor(targetId){
   activeSpeechRecognition=null;
 }
 async function transcribeSpeech(state){
+  let interviewAnswerReady=false;
   state.phase='uploading';speechButton(state,'文字起こし中…',true);
   try{
     const form=new FormData();
@@ -1639,12 +1645,19 @@ async function transcribeSpeech(state){
     if(target){target.value=(target.value.trim()?target.value.trim()+'\n':'')+result.text.trim();target.dispatchEvent(new Event('input',{bubbles:true}));}
     speechRetries.delete(state.targetId);
     speechButton(state,'🎙️ 音声入力を開始');
-    showToast('文字起こししました。現場名・数字を確認してから下書きを作ってください。',5000);
+    interviewAnswerReady=state.targetId==='ai-report-source'&&aiReportMode==='daily'&&!!dailyInterview;
+    if(!interviewAnswerReady)showToast('文字起こししました。現場名・数字を確認してから下書きを作ってください。',5000);
   }catch(e){
     if(!state.cancelled){speechRetries.set(state.targetId,state);speechButton(state,'↻ 録音を再送信');showToast('文字起こしできませんでした：'+e.message+' 入力済みの文章は残っています。',6500);}
   }finally{if(activeSpeechRecognition===state)activeSpeechRecognition=null;}
+  if(interviewAnswerReady&&!state.cancelled&&document.getElementById('aiReportModal').classList.contains('show'))await answerDailyInterview();
+  if(aiReportMode==='daily'&&dailyInterview)dailyInterviewControls();
 }
 async function toggleSpeechInput(targetId,buttonId){
+  if(targetId==='ai-report-source'&&aiReportMode==='daily'){
+    if(dailyInterviewBusy||dailyInterview?.complete||dailyInterview?.pending)return;
+    stopDailyInterviewVoice();
+  }
   if(activeSpeechRecognition){
     const state=activeSpeechRecognition;
     if(state.targetId===targetId&&state.phase==='recording'){state.recorder.stop();return;}
@@ -2239,6 +2252,108 @@ function renderProjectCardTaskList(){
   el.innerHTML=projectCardSiteId?`<div style="font-size:12px;font-weight:700;color:#1F4E79;margin-top:14px;">この現場の未完了タスク</div>${projectTaskRowsHtml(projectCardSiteId,true)}`:'';
 }
 // V58 会話中は未保存の下書きを保持。登録再試行は同じ送信番号と内容を使用する。
+// V59 日報の聞き取り。質問・録音・確認は保存から独立させる。
+const DAILY_INTERVIEW_FIELDS=[
+  {key:'date',label:'日付',question:'作業した日付を教えてください。今日、昨日、10月18日、のように答えてください。',hint:'例：昨日、10月18日'},
+  {key:'siteId',label:'現場名',question:'現場名を教えてください。',hint:'例：みな福の店舗工事'},
+  {key:'content',label:'作業内容',question:'行った作業内容を教えてください。',hint:'例：厨房機器を搬入しました'},
+  {key:'worker',label:'作業員',question:'作業員の名前を教えてください。不明なら、わからない、と答えてください。',hint:'例：吉川と山川'},
+  {key:'hours',label:'作業時間',question:'作業時間を教えてください。2時間、1時間半、のように答えてください。',hint:'例：2時間、1時間半'}
+];
+let dailyInterview=null,dailyInterviewBusy=false,dailyInterviewUtterance=null;
+function stopDailyInterviewVoice(){
+  if(dailyInterviewUtterance&&window.speechSynthesis){window.speechSynthesis.cancel();dailyInterviewUtterance=null;}
+}
+function readDailyInterviewQuestion(){
+  if(aiReportMode!=='daily'||!dailyInterview||dailyInterviewBusy||activeSpeechRecognition)return;
+  const text=dailyInterview.saved?'日報を登録しました。':dailyInterview.complete?'日報の内容を画面にまとめました。違うところは訂正できます。よろしければ、この内容で登録、ボタンを押してください。':(dailyInterview.error||DAILY_INTERVIEW_FIELDS[dailyInterview.index].question);
+  stopDailyInterviewVoice();
+  const status=document.getElementById('ai-daily-voice-status');
+  if(!window.speechSynthesis||typeof SpeechSynthesisUtterance==='undefined'){status.textContent='音声読み上げに対応していません。画面の質問を確認してください。';return;}
+  try{
+    const utterance=new SpeechSynthesisUtterance(text);dailyInterviewUtterance=utterance;utterance.lang='ja-JP';utterance.rate=0.95;
+    const voice=window.speechSynthesis.getVoices().find(v=>/^ja/i.test(v.lang));if(voice)utterance.voice=voice;
+    utterance.onerror=()=>{if(dailyInterviewUtterance===utterance)status.textContent='音声が出ない場合は「質問をもう一度読む」を押すか、画面の質問を確認してください。';};
+    status.textContent='音声が出ない場合は「質問をもう一度読む」を押してください。';
+    window.speechSynthesis.speak(utterance);
+  }catch(e){status.textContent='質問は画面でも確認できます。';}
+}
+function dailyInterviewControls(){
+  const d=dailyInterview;if(!d)return;
+  const recording=!!activeSpeechRecognition&&activeSpeechRecognition.targetId==='ai-report-source';
+  const locked=dailyInterviewBusy||!!d.pending;
+  ['ai-report-mode-conversation','ai-report-mode-card','ai-report-mode-daily'].forEach(id=>document.getElementById(id).disabled=locked||recording);
+  const input=document.getElementById('ai-report-source');input.disabled=locked||d.complete||d.saved;input.style.display=d.complete||d.saved?'none':'';
+  document.getElementById('ai-report-source-mic').disabled=locked||d.complete||d.saved;document.getElementById('ai-report-source-mic').hidden=d.complete||d.saved;
+  const run=document.getElementById('ai-report-run');run.style.display=d.complete||d.saved?'none':'';run.disabled=locked||recording||d.complete||d.saved;run.textContent=dailyInterviewBusy?'回答を確認中…':'回答して次へ';
+  document.querySelectorAll('[data-daily-interview-control]').forEach(button=>button.disabled=dailyInterviewBusy||recording||!!d.pending||(d.saved&&button.textContent==='訂正'));
+  const save=document.getElementById('ai-daily-interview-save');if(save)save.disabled=dailyInterviewBusy||recording;
+}
+function renderDailyInterview(){
+  const d=dailyInterview;if(!d)return;
+  const box=document.getElementById('ai-daily-interview');box.style.display='block';
+  const escape=v=>cardEscape(String(v??''));
+  const labels=d.values;
+  const summary=DAILY_INTERVIEW_FIELDS.filter(f=>Object.prototype.hasOwnProperty.call(labels,f.key)).map((f,index)=>{
+    const value=f.key==='siteId'?siteName(labels[f.key]):f.key==='hours'?labels.hours+'時間':(labels[f.key]||'未指定');
+    return `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #E2E8F0;"><div style="min-width:0;overflow-wrap:anywhere;"><strong>${f.label}：</strong>${escape(value)}</div><button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="editDailyInterview(${DAILY_INTERVIEW_FIELDS.indexOf(f)})">訂正</button></div>`;
+  }).join('');
+  box.innerHTML=`<div style="padding:12px;background:#EBF8FF;border:1px solid #90CDF4;border-radius:8px;margin-bottom:10px;"><strong>${d.saved?'日報を登録しました':d.complete?'登録前の確認':`${d.index+1} / 5　${DAILY_INTERVIEW_FIELDS[d.index].label}`}</strong><p id="ai-daily-question" role="status" style="margin:8px 0;line-height:1.7;">${escape(d.saved?'次の日報は「新しい日報」から始められます。':d.complete?'この内容で登録してよいですか。違うところは「訂正」で直してください。':(d.error||DAILY_INTERVIEW_FIELDS[d.index].question))}</p><button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="readDailyInterviewQuestion()">🔊 質問をもう一度読む</button><div id="ai-daily-voice-status" style="font-size:11px;margin-top:5px;color:#4A5568;">質問は音声と文字で確認できます。</div></div>${summary?`<div style="font-size:13px;margin-bottom:10px;">${summary}</div>`:''}${d.pending?'<p style="color:#C53030;">登録結果を確認できていません。内容は変えず、同じ内容で再送してください。</p>':''}${d.complete&&!d.saved?`<button type="button" class="btn btn-green" id="ai-daily-interview-save" onclick="commitDailyInterview()">${d.pending?'同じ内容で登録結果を確認・再送':'この内容で登録'}</button>`:''}<button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="resetDailyInterview()">新しい日報</button>`;
+  document.getElementById('ai-report-source').placeholder=d.complete?'登録前の内容を確認してください':DAILY_INTERVIEW_FIELDS[d.index].hint;
+  dailyInterviewControls();
+}
+function startDailyInterview(){
+  if(!dailyInterview)dailyInterview={index:0,values:{},answers:{},complete:false,editing:false,pending:null,error:'',saved:false};
+  document.getElementById('ai-report-result').style.display='none';renderDailyInterview();readDailyInterviewQuestion();
+}
+function resetDailyInterview(){
+  if(dailyInterviewBusy||dailyInterview?.pending||activeSpeechRecognition)return;
+  if(dailyInterview&&!dailyInterview.saved&&Object.keys(dailyInterview.values).length&&!confirm('未保存の日報を破棄して、新しい日報を始めますか？'))return;
+  dailyInterview=null;document.getElementById('ai-report-source').value='';startDailyInterview();
+}
+function editDailyInterview(index){
+  const d=dailyInterview;if(!d||dailyInterviewBusy||d.pending||d.saved||activeSpeechRecognition)return;
+  d.index=index;d.complete=false;d.editing=true;d.error='';
+  document.getElementById('ai-report-source').value=d.answers[DAILY_INTERVIEW_FIELDS[index].key]||'';
+  renderDailyInterview();readDailyInterviewQuestion();
+}
+async function answerDailyInterview(){
+  const d=dailyInterview;if(!d||dailyInterviewBusy||d.pending||d.complete||d.saved||activeSpeechRecognition)return;
+  const input=document.getElementById('ai-report-source'),message=input.value.trim();if(!message){showToast('質問への回答を入力するか、音声で答えてください。');return;}
+  stopDailyInterviewVoice();dailyInterviewBusy=true;dailyInterviewControls();
+  const field=DAILY_INTERVIEW_FIELDS[d.index].key;
+  try{
+    const data=await PILOT.request('/ai/daily-interview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field,answer:message})});
+    const result=data.answer;if(!result||typeof result.accepted!=='boolean')throw Error('回答の確認結果を受け取れませんでした。');
+    if(!result.accepted){d.error=result.reply||'回答を確認できませんでした。もう一度教えてください。';return;}
+    if(field==='siteId'&&!SITES.some(site=>site.id===result.value))throw Error('現場を確認できませんでした。');
+    if(field==='hours'&&(!Number.isFinite(result.hours)||result.hours<0||result.hours>24))throw Error('作業時間を確認できませんでした。');
+    if(field!=='hours'&&typeof result.value!=='string')throw Error('回答の形式が正しくありません。');
+    d.values[field]=field==='hours'?result.hours:result.value;d.answers[field]=message;d.error='';input.value='';
+    if(d.editing){d.editing=false;const missing=DAILY_INTERVIEW_FIELDS.findIndex(f=>!Object.prototype.hasOwnProperty.call(d.values,f.key));d.complete=missing===-1;if(!d.complete)d.index=missing;}
+    else if(d.index===DAILY_INTERVIEW_FIELDS.length-1)d.complete=true;else d.index++;
+  }catch(e){d.error=e.message;showToast('回答を確認できませんでした。入力は残っています。',4500);}
+  finally{dailyInterviewBusy=false;if(aiReportMode==='daily'){renderDailyInterview();readDailyInterviewQuestion();}}
+}
+async function commitDailyInterview(){
+  const d=dailyInterview;if(!d||!d.complete||d.saved||dailyInterviewBusy||activeSpeechRecognition)return;
+  stopDailyInterviewVoice();
+  if(!d.pending){
+    const v=d.values;if(!v.date||!v.siteId||!v.content||!SITES.some(s=>s.id===v.siteId)||!Number.isFinite(v.hours)||v.hours<0||v.hours>24){showToast('日付・現場・作業内容・時間を確認してください。');return;}
+    const key=Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
+    d.pending={commitId:key,draft:{reply:'',questions:[],reports:[{siteId:v.siteId,siteNameHint:'',date:v.date,entries:[{content:v.content,worker:v.worker||'',hours:v.hours}]}],tasks:[]},sourceText:DAILY_INTERVIEW_FIELDS.map(f=>f.label+'：'+(d.answers[f.key]||'')).join('\n')};
+  }
+  dailyInterviewBusy=true;renderDailyInterview();
+  let saved=false;
+  try{
+    const data=await PILOT.request('/ai/report-conversation/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d.pending)});
+    if(!data.ok||!Array.isArray(data.reportIds)||!data.reportIds.length)throw Error('登録結果を確認できませんでした。');
+    d.pending=null;d.saved=true;saved=true;showToast('✅ 日報を登録しました。',4500);
+  }catch(e){showToast('登録結果を確認できません。同じ内容で再送してください：'+e.message,6000);}
+  finally{dailyInterviewBusy=false;renderDailyInterview();if(saved)readDailyInterviewQuestion();}
+  if(saved){try{await loadServerState();renderAll();renderReportList();}catch(e){showToast('登録済みです。一覧は再読み込みして確認してください。',5000);}}
+}
+
 let aiConversationDraft=null, aiConversationHistory=[], aiConversationBusy=false, aiConversationPending=null;
 function aiConversationCanSave(d){
   return !!d && !d.questions.length && !!(d.reports.length+d.tasks.length)
@@ -2305,45 +2420,57 @@ async function commitAiConversation(){
 let aiReportSourceText = '';
 let aiReportMode = 'card';
 function selectAiReportMode(mode){
-  if(aiConversationBusy || aiConversationPending){showToast('処理中、または登録結果の確認待ちです。');return;}
-  if(aiConversationDraft && mode!==aiReportMode){showToast('下書きがあります。会話を続けるか、新しい報告に切り替えてください。');return;}
-  aiReportMode = ['daily','conversation'].includes(mode) ? mode : 'card';
-  document.getElementById('ai-report-mode-conversation').style.cssText='grid-column:1/-1;'+(mode==='conversation'?'background:#1F4E79;color:white;':'background:white;color:#4A5568;');
-  const isCard = aiReportMode === 'card';
-  if(mode==='conversation'){
+  if(aiConversationBusy||aiConversationPending||dailyInterviewBusy||dailyInterview?.pending){showToast('処理中、または登録結果の確認待ちです。');return;}
+  if(activeSpeechRecognition?.targetId==='ai-report-source'){showToast('録音・文字起こしが終わってから切り替えてください。');return;}
+  if(aiConversationDraft&&mode!==aiReportMode){showToast('下書きがあります。会話を続けるか、新しい報告に切り替えてください。');return;}
+  if(aiReportMode==='daily'&&mode!=='daily'&&dailyInterview&&!dailyInterview.saved){
+    if((Object.keys(dailyInterview.values).length||document.getElementById('ai-report-source').value.trim())&&!confirm('未保存の日報の回答を破棄して、入力方法を切り替えますか？'))return;
+    dailyInterview=null;document.getElementById('ai-report-source').value='';
+  }
+  if(mode==='daily'&&aiReportMode!=='daily'&&!dailyInterview){
+    const input=document.getElementById('ai-report-source');
+    if(input.value.trim()&&!confirm('入力中の文章をクリアして、日報の質問を始めますか？'))return;
+    input.value='';
+  }
+  stopDailyInterviewVoice();
+  aiReportMode=['daily','conversation'].includes(mode)?mode:'card';
+  const selected='background:#1F4E79;color:white;border:1px solid #1F4E79;',normal='background:white;color:#4A5568;border:1px solid #CBD5E0;';
+  ['conversation','card','daily'].forEach(key=>document.getElementById('ai-report-mode-'+key).style.cssText=(key==='conversation'?'grid-column:1/-1;':'')+(key===aiReportMode?selected:normal));
+  document.getElementById('ai-daily-interview').style.display='none';
+  document.getElementById('ai-report-source').disabled=false;
+  document.getElementById('ai-report-source').style.display='';
+  document.getElementById('ai-report-source-mic').hidden=false;
+  document.getElementById('ai-report-run').style.display='';
+  if(aiReportMode==='daily'){
+    document.getElementById('ai-report-mode-help').textContent='AIが日付・現場名・作業内容・作業員・時間を一つずつ声で質問します。回答を録音して停止すると、次の質問へ進みます。文字入力でも回答できます。';
+    startDailyInterview();return;
+  }
+  aiConversationControls();
+  if(aiReportMode==='conversation'){
     document.getElementById('ai-report-mode-help').textContent='まとめて話す → 日報・タスクを確認 → 必要なところだけ追加・訂正 → 登録。未保存の会話は、このページを開いている間だけ保持します。';
     document.getElementById('ai-report-source').placeholder='例：今日はみな福で天井を撤去しました。吉川が2時間。明日は厨房機器を搬入します。';
-    document.getElementById('ai-report-run').textContent=aiConversationDraft?'追加・訂正を反映':'日報・タスクをまとめる';
-    renderAiConversation();return;
+    document.getElementById('ai-report-run').textContent=aiConversationDraft?'追加・訂正を反映':'日報・タスクをまとめる';renderAiConversation();return;
   }
   document.getElementById('ai-report-result').style.display='none';
   document.getElementById('ai-report-run').textContent='AIに案件を探してもらう';
-  const cardBtn=document.getElementById('ai-report-mode-card');
-  const dailyBtn=document.getElementById('ai-report-mode-daily');
-  const selectedStyle='background:#1F4E79;color:white;border:1px solid #1F4E79;';
-  const normalStyle='background:white;color:#4A5568;border:1px solid #CBD5E0;';
-  cardBtn.style.cssText=isCard?selectedStyle:normalStyle;
-  dailyBtn.style.cssText=isCard?normalStyle:selectedStyle;
-  document.getElementById('ai-report-mode-help').textContent=isCard
-    ? '現場を選んだ後、案件カードの下書きと社長タスク候補を作ります。'
-    : '現場を選んだ後、日報の作業内容・作業者・作業時間の下書きを作ります。';
-  document.getElementById('ai-report-source').placeholder=isCard
-    ? '例：朝霧堂の確認申請は、横山氏から検査機関の回答待ち。壁量修正は提出済み。'
-    : '例：朝霧堂で、山川と留美が9時から15時まで、洗面所の解体と配管の仕込みをした。';
+  document.getElementById('ai-report-mode-help').textContent='現場を選んだ後、案件カードの下書きと社長タスク候補を作ります。';
+  document.getElementById('ai-report-source').placeholder='例：朝霧堂の確認申請は、横山氏から検査機関の回答待ち。壁量修正は提出済み。';
 }
 function openAiReportModal(){
   if(!CURRENT_USER || CURRENT_USER.role!=='admin') return;
-  selectAiReportMode('conversation');
-  if(!aiConversationDraft && !aiConversationHistory.length)document.getElementById('ai-report-source').value='';
   document.getElementById('aiReportModal').classList.add('show');
+  if(!dailyInterview&&!aiConversationDraft&&!aiConversationHistory.length)document.getElementById('ai-report-source').value='';
+  if(dailyInterview?.pending){aiReportMode='daily';renderDailyInterview();}
+  else selectAiReportMode(dailyInterview?'daily':'conversation');
   setTimeout(()=>document.getElementById('ai-report-source').focus(),80);
 }
-function closeAiReportModal(){ if(aiConversationBusy){showToast('処理が終わるまでお待ちください。');return;} stopSpeechInputFor('ai-report-source');document.getElementById('aiReportModal').classList.remove('show'); aiReportSourceText=''; }
+function closeAiReportModal(){ if(aiConversationBusy||dailyInterviewBusy){showToast('処理が終わるまでお待ちください。');return;} stopDailyInterviewVoice();stopSpeechInputFor('ai-report-source');document.getElementById('aiReportModal').classList.remove('show'); aiReportSourceText=''; }
 function aiReportCandidateButton(siteId, note){
   const name=siteName(siteId);
   return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="continueAiReport('${siteId}')">🏗️ ${cardEscape(name)}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
 }
 async function routeAiReport(){
+  if(aiReportMode==='daily'){await answerDailyInterview();return;}
   if(aiReportMode==='conversation'){await sendAiConversation();return;}
   if(activeSpeechRecognition?.targetId==='ai-report-source'){showToast('録音・文字起こしが終わってから操作してください。',3500);return;}
   const source=document.getElementById('ai-report-source').value.trim();

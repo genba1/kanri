@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>建築現場 進捗管理ダッシュボード V62</title>
+<title>建築現場 進捗管理ダッシュボード V63</title>
 <style>
 /* ── Login Screen ── */
 #loginScreen{position:fixed;inset:0;background:linear-gradient(135deg,#002060 0%,#1F4E79 60%,#2E75B6 100%);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -1658,7 +1658,7 @@ async function transcribeSpeech(state){
 }
 async function toggleSpeechInput(targetId,buttonId){
   if(targetId==='ai-report-source'&&aiReportMode==='daily'){
-    if(dailyInterviewBusy||dailyInterview?.complete||dailyInterview?.pending)return;
+    if(dailyInterviewBusy||dailyInterview?.saved||dailyInterview?.pending)return;
     stopDailyInterviewVoice();
   }
   if(activeSpeechRecognition){
@@ -2279,7 +2279,7 @@ function dailyQuestion(){
   if(d.complete)return '内容がそろいました。確認して登録してください。追加・訂正もできます。';
   if(d.error)return d.error;
   if(d.index<0)return d.editing?'追加したいことや、直したいところをお話しください。':'日報の内容を話してください。';
-  return DAILY_INTERVIEW_FIELDS[d.index].question;
+  return (d.index>=2?'作業'+(d.row+1)+'：':'')+DAILY_INTERVIEW_FIELDS[d.index].question;
 }
 function dailyVoiceKind(){
   const d=dailyInterview;
@@ -2325,6 +2325,7 @@ function dailyInterviewControls(){
   const mic=document.getElementById('ai-report-source-mic');mic.disabled=locked||d.saved;mic.hidden=d.saved;
   const run=document.getElementById('ai-report-run');run.style.display=d.saved?'none':'';run.disabled=locked||recording||d.saved;run.textContent=dailyInterviewBusy?'日報を整理中…':d.index<0&&!d.editing&&!d.complete?'日報をまとめる':'追加・訂正を反映';
   document.querySelectorAll('[data-daily-interview-control]').forEach(button=>button.disabled=locked||recording||(d.saved&&button.textContent==='訂正'));
+  document.querySelectorAll('#daily-manual-editor input,#daily-manual-editor textarea,#daily-manual-editor select').forEach(el=>el.disabled=locked||recording);
   const save=document.getElementById('ai-daily-interview-save');if(save)save.disabled=dailyInterviewBusy||recording;
 }
 function renderDailyInterview(){
@@ -2333,21 +2334,22 @@ function renderDailyInterview(){
   // 入力欄を再生成せず移動し、録音中・入力中の状態を保つ。
   const answerControls=document.getElementById('ai-report-answer-controls');answerControls.remove();
   const escape=v=>cardEscape(String(v??''));
-  const summary=DAILY_INTERVIEW_FIELDS.map((f,index)=>{
-    const known=Object.prototype.hasOwnProperty.call(d.values,f.key);
-    const value=!known?'未回答':f.key==='siteId'?siteName(d.values.siteId):f.key==='hours'?d.values.hours+'時間':(d.values[f.key]||'省略');
-    return `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #E2E8F0;"><div style="min-width:0;overflow-wrap:anywhere;${known?'':'color:#718096;'}"><strong>${f.label}：</strong>${escape(value)}</div>${!d.saved&&!d.pending?`<button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="editDailyInterview(${index})">訂正</button>`:''}</div>`;
-  }).join('');
+  const line=(f,index,row=-1)=>{
+    const source=row<0?d.values:d.entries[row],known=Object.prototype.hasOwnProperty.call(source,f.key);
+    const value=!known?'未回答':f.key==='siteId'?siteName(source.siteId):f.key==='hours'?source.hours+'時間':(source[f.key]||'省略');
+    return `<div style="display:flex;gap:8px;justify-content:space-between;padding:7px 0;border-bottom:1px solid #E2E8F0;"><div style="white-space:pre-wrap;overflow-wrap:anywhere;"><strong>${f.label}：</strong>${escape(value)}</div>${!d.saved&&!d.pending?`<button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="editDailyInterview(${index},${row})">訂正</button>`:''}</div>`;
+  };
+  const summary=DAILY_INTERVIEW_FIELDS.slice(0,2).map((f,i)=>line(f,i)).join('')+d.entries.map((e,row)=>`<div style="padding:10px;margin-top:8px;border:1px solid #CBD5E0;border-radius:6px;"><strong>作業 ${row+1}</strong>${DAILY_INTERVIEW_FIELDS.slice(2).map((f,i)=>line(f,i+2,row)).join('')}${!d.saved&&!d.pending&&d.entries.length>1?`<button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="removeDailyRow(${row})">この作業行を削除</button>`:''}</div>`).join('');
   const title=d.saved?'日報を登録しました':d.complete?'登録前の確認':d.index<0?(d.editing?'追加・訂正':'まとめて日報入力'):'不足している項目：'+DAILY_INTERVIEW_FIELDS[d.index].label;
-  box.innerHTML=`<div style="padding:12px;background:#EBF8FF;border:1px solid #90CDF4;border-radius:8px;margin-bottom:10px;"><strong>V62　${title}</strong><p id="ai-daily-question" role="status" style="margin:8px 0;line-height:1.7;">${escape(dailyQuestion())}</p><button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="readDailyInterviewQuestion()">🔊 質問をもう一度読む</button> <button type="button" id="ai-daily-voice-toggle" class="btn btn-white btn-sm" onclick="toggleDailyVoice()">読み上げ：${dailyVoiceEnabled?'オン':'オフ'}</button><div style="font-size:11px;margin-top:5px;color:#4A5568;">質問はAIが生成する日本語音声です。音声生成にはAPI利用料がかかります。</div><div id="ai-daily-voice-status" style="font-size:11px;margin-top:5px;color:#4A5568;"></div></div><div id="ai-daily-answer-slot"></div><div style="font-size:13px;margin-bottom:10px;">${summary}</div>${d.pending?'<p style="color:#C53030;">登録結果を確認できていません。内容は変えず、同じ内容で再送してください。</p>':''}${d.complete&&!d.saved?`<button type="button" class="btn btn-green" id="ai-daily-interview-save" onclick="commitDailyInterview()">${d.pending?'同じ内容で登録結果を確認・再送':'この内容で登録'}</button> ${!d.pending?'<button type="button" class="btn btn-white" data-daily-interview-control onclick="editDailyInterview(-1)">追加・訂正する</button>':''}`:''} <button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="resetDailyInterview()">新しい日報</button>`;
+  box.innerHTML=`<div style="padding:12px;background:#EBF8FF;border:1px solid #90CDF4;border-radius:8px;margin-bottom:10px;"><strong>V63　${title}</strong><p id="ai-daily-question" role="status" style="margin:8px 0;line-height:1.7;">${escape(dailyQuestion())}</p><button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="readDailyInterviewQuestion()">🔊 質問をもう一度読む</button> <button type="button" id="ai-daily-voice-toggle" class="btn btn-white btn-sm" onclick="toggleDailyVoice()">読み上げ：${dailyVoiceEnabled?'オン':'オフ'}</button><div style="font-size:11px;margin-top:5px;color:#4A5568;">質問はAIが生成する日本語音声です。音声生成にはAPI利用料がかかります。</div><div id="ai-daily-voice-status" style="font-size:11px;margin-top:5px;color:#4A5568;"></div></div><div id="ai-daily-answer-slot"></div><div id="daily-manual-editor"></div><div style="font-size:13px;margin-bottom:10px;">${summary}</div>${!d.saved&&!d.pending?'<button type="button" class="btn btn-white" data-daily-interview-control onclick="addDailyRow()">＋ 別の作業を追加</button>':''}${d.pending?'<p style="color:#C53030;">登録結果を確認できていません。内容は変えず、同じ内容で再送してください。</p>':''}${d.complete&&!d.saved?`<button type="button" class="btn btn-green" id="ai-daily-interview-save" onclick="commitDailyInterview()">${d.pending?'同じ内容で登録結果を確認・再送':'この内容で登録'}</button> ${!d.pending?'<button type="button" class="btn btn-white" data-daily-interview-control onclick="editDailyInterview(-1)">追加・訂正する</button>':''}`:''} <button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="resetDailyInterview()">新しい日報</button>`;
   document.getElementById('ai-daily-answer-slot').appendChild(answerControls);
   answerControls.style.display=d.saved?'none':'';
-  document.getElementById('ai-report-answer-label').textContent=d.editing||d.complete?'追加・訂正する内容を音声または文字で入力':d.index>=0?'質問への回答を音声または文字で入力':'報告を音声または文字で入力';
+  document.getElementById('ai-report-answer-label').textContent=d.editing?'訂正する内容を音声または文字で入力':d.index>=0?'質問への回答を音声または文字で入力':'報告を音声または文字で入力';
   document.getElementById('ai-report-source').placeholder=d.index<0?'例：昨日、みな福で天井を撤去。吉川と山川が2時間。':DAILY_INTERVIEW_FIELDS[d.index].hint;
-  dailyInterviewControls();
+  renderDailyManualEditor();dailyInterviewControls();
 }
 function startDailyInterview(){
-  if(!dailyInterview)dailyInterview={index:-1,values:{},answers:{},history:[],complete:false,editing:false,pending:null,error:'',saved:false};
+  if(!dailyInterview)dailyInterview={index:-1,values:{},entries:[{}],row:0,answers:{},history:[],complete:false,editing:false,pending:null,error:'',saved:false};
   document.getElementById('ai-report-result').style.display='none';renderDailyInterview();readDailyInterviewQuestion();
 }
 function resetDailyInterview(){
@@ -2360,10 +2362,55 @@ function revealDailyInterviewAnswer(){
   const question=document.getElementById('ai-daily-question');
   if(mic&&!mic.hidden)(question||mic).scrollIntoView({block:'start',behavior:'auto'});
 }
-function editDailyInterview(index){
-  const d=dailyInterview;if(!d||dailyInterviewBusy||d.pending||d.saved||activeSpeechRecognition)return;
-  d.index=index;d.complete=false;d.editing=true;d.error='';
+function dailyCanEdit(){return dailyInterview&&!dailyInterviewBusy&&!dailyInterview.pending&&!dailyInterview.saved&&!activeSpeechRecognition;}
+function dailyMissing(){
+  const d=dailyInterview;
+  for(let i=0;i<2;i++)if(!Object.hasOwn(d.values,DAILY_INTERVIEW_FIELDS[i].key)){d.index=i;return false;}
+  for(let row=0;row<d.entries.length;row++)for(let i=2;i<5;i++)if(!Object.hasOwn(d.entries[row],DAILY_INTERVIEW_FIELDS[i].key)){d.row=row;d.index=i;return false;}
+  d.index=-1;return true;
+}
+function editDailyInterview(index,row=-1){
+  if(!dailyCanEdit())return;const d=dailyInterview;
+  d.index=index;if(row>=0)d.row=row;d.complete=false;d.editing=true;d.error='';
   document.getElementById('ai-report-source').value='';renderDailyInterview();revealDailyInterviewAnswer();readDailyInterviewQuestion();
+}
+function addDailyRow(){
+  if(!dailyCanEdit())return;const d=dailyInterview;
+  if(d.entries.length>=10){showToast('作業行は10行までです。');return;}
+  d.entries.push({});d.row=d.entries.length-1;editDailyInterview(2,d.row);
+}
+function removeDailyRow(row){
+  if(!dailyCanEdit()||dailyInterview.entries.length<=1)return;
+  if(!confirm('この作業行を削除しますか？'))return;
+  const d=dailyInterview;d.entries.splice(row,1);d.row=Math.min(d.row,d.entries.length-1);d.editing=false;d.error='';d.complete=dailyMissing();renderDailyInterview();
+}
+function renderDailyManualEditor(){
+  const d=dailyInterview,box=document.getElementById('daily-manual-editor');
+  if(!d.editing||d.saved||d.pending)return;
+  const esc=v=>v===null||v===undefined||v===''?'':cardEscape(String(v));
+  const field=(f,source,row)=>{
+    const id=`daily-edit-${row}-${f.key}`,value=source[f.key]??'';
+    const control=f.key==='siteId'?`<select id="${id}" class="form-input"><option value="">選択してください</option>${SITES.map(site=>`<option value="${esc(site.id)}" ${site.id===value?'selected':''}>${esc(site.name)}</option>`).join('')}</select>`:f.key==='content'?`<textarea id="${id}" class="form-input" rows="3" style="width:100%;resize:vertical;">${esc(value)}</textarea>`:`<input id="${id}" class="form-input" type="${f.key==='date'?'date':f.key==='hours'?'number':'text'}" ${f.key==='hours'?'min="0" max="24" step="0.25"':''} value="${esc(value)}">`;
+    return `<label style="display:block;margin:8px 0;">${f.label}${control}</label>`;
+  };
+  const fields=d.index<0?DAILY_INTERVIEW_FIELDS.slice(0,2).map(f=>field(f,d.values,'common')).join('')+d.entries.map((e,row)=>`<strong>作業 ${row+1}</strong>`+DAILY_INTERVIEW_FIELDS.slice(2).map(f=>field(f,e,row)).join('')).join(''):field(DAILY_INTERVIEW_FIELDS[d.index],d.index<2?d.values:d.entries[d.row],d.index<2?'common':d.row);
+  box.innerHTML=`<div style="padding:12px;background:#F7FAFC;border:1px solid #CBD5E0;border-radius:8px;"><strong>現在の内容を手入力で訂正</strong>${fields}<p style="font-size:12px;">作業員を省略する場合は空欄、時間を省略する場合は0を入力してください。音声で訂正する場合は上の録音ボタンをご利用ください。</p><button type="button" class="btn btn-green" data-daily-interview-control onclick="applyDailyManualEdit()">手入力の訂正を反映</button></div>`;
+}
+function applyDailyManualEdit(){
+  if(!dailyCanEdit())return;const d=dailyInterview,values={...d.values},entries=d.entries.map(e=>({...e}));
+  const read=(f,target,row)=>{
+    const el=document.getElementById(`daily-edit-${row}-${f.key}`);if(!el)return;
+    const value=el.value.trim();if(!value&&f.key!=='worker'){delete target[f.key];return;}
+    target[f.key]=f.key==='hours'?Number(value):value;
+  };
+  try{
+    if(d.index<0){DAILY_INTERVIEW_FIELDS.slice(0,2).forEach(f=>read(f,values,'common'));entries.forEach((e,row)=>DAILY_INTERVIEW_FIELDS.slice(2).forEach(f=>read(f,e,row)));}
+    else read(DAILY_INTERVIEW_FIELDS[d.index],d.index<2?values:entries[d.row],d.index<2?'common':d.row);
+    const date=values.date;if(date){const parsed=new Date(date+'T00:00:00Z');if(!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==date)throw Error('日付を確認してください。');}
+    validateDailyIntakeValues(values);entries.forEach(e=>validateDailyIntakeValues(e));
+    d.values=values;d.entries=entries;d.error='';d.editing=false;d.complete=dailyMissing();
+    d.history.push('手入力訂正：'+JSON.stringify({values,entries}));renderDailyInterview();readDailyInterviewQuestion();
+  }catch(e){showToast(e.message);}
 }
 function validateDailyIntakeValues(raw){
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('日報の確認結果を受け取れませんでした。');
@@ -2382,15 +2429,15 @@ function validateDailyIntakeValues(raw){
 async function answerDailyInterview(){
   const d=dailyInterview;if(!d||dailyInterviewBusy||d.pending||d.saved||activeSpeechRecognition)return;
   const input=document.getElementById('ai-report-source'),message=input.value.trim();if(!message){showToast('報告や追加・訂正を入力するか、音声でお話しください。');return;}
-  stopDailyInterviewVoice();d.complete=false;dailyInterviewBusy=true;dailyInterviewControls();
+  stopDailyInterviewVoice();dailyInterviewBusy=true;dailyInterviewControls();
   try{
-    const data=await PILOT.request('/ai/daily-report-intake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,currentValues:d.values,editingField:d.index>=0?DAILY_INTERVIEW_FIELDS[d.index].key:''})});
+    const data=await PILOT.request('/ai/daily-report-intake-rows',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,currentValues:{...d.values,entries:d.entries},editingRow:d.row,editingField:d.index>=0?DAILY_INTERVIEW_FIELDS[d.index].key:''})});
     if(!data.ok)throw Error('日報を整理できませんでした。');
     const values=validateDailyIntakeValues(data.values);
-    const missing=DAILY_INTERVIEW_FIELDS.findIndex(f=>!Object.prototype.hasOwnProperty.call(values,f.key));
-    d.values=values;d.history.push(message);
-    for(const f of DAILY_INTERVIEW_FIELDS)if(Object.prototype.hasOwnProperty.call(values,f.key))d.answers[f.key]=f.key==='siteId'?siteName(values.siteId):String(values[f.key]);
-    d.error=typeof data.reply==='string'?data.reply:'';d.index=missing;d.complete=missing===-1&&!d.error;d.editing=false;input.value='';
+    if(!Array.isArray(data.values.entries)||!data.values.entries.length||data.values.entries.length>10)throw Error('作業行を確認できませんでした。サーバーもV63に更新してください。');
+    const entries=data.values.entries.map(e=>validateDailyIntakeValues(e));
+    d.values=values;d.entries=entries;d.history.push(message);
+    d.error=typeof data.reply==='string'?data.reply:'';d.complete=dailyMissing()&&!d.error;d.editing=false;input.value='';
   }catch(e){d.error=e.message;showToast('内容を確認できませんでした。入力と前の下書きは残っています。',4500);}
   finally{dailyInterviewBusy=false;if(aiReportMode==='daily'){renderDailyInterview();readDailyInterviewQuestion();}}
 }
@@ -2398,10 +2445,11 @@ async function answerDailyInterview(){
 async function commitDailyInterview(){
   const d=dailyInterview;if(!d||!d.complete||d.saved||dailyInterviewBusy||activeSpeechRecognition)return;
   stopDailyInterviewVoice();
+  if(!d.pending&&document.getElementById('ai-report-source').value.trim()){showToast('入力中の内容を先に反映してください。');return;}
   if(!d.pending){
-    const v=d.values;if(!v.date||!v.siteId||!v.content||!SITES.some(s=>s.id===v.siteId)||!Number.isFinite(v.hours)||v.hours<0||v.hours>24){showToast('日付・現場・作業内容・時間を確認してください。');return;}
+    const v=d.values;if(!v.date||!v.siteId||!SITES.some(s=>s.id===v.siteId)||!d.entries.length||d.entries.some(e=>!e.content||!Object.hasOwn(e,'worker')||!Number.isFinite(e.hours)||e.hours<0||e.hours>24)){showToast('日付・現場・作業内容・時間を確認してください。');return;}
     const key=Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
-    d.pending={commitId:key,draft:{reply:'',questions:[],reports:[{siteId:v.siteId,siteNameHint:'',date:v.date,entries:[{content:v.content,worker:v.worker||'',hours:v.hours}]}],tasks:[]},sourceText:d.history.join('\n')};
+    d.pending={commitId:key,draft:{reply:'',questions:[],reports:[{siteId:v.siteId,siteNameHint:'',date:v.date,entries:d.entries.map(e=>({content:e.content,worker:e.worker||'',hours:e.hours}))}],tasks:[]},sourceText:d.history.join('\n')};
   }
   dailyInterviewBusy=true;renderDailyInterview();
   let saved=false;

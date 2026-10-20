@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>建築現場 進捗管理ダッシュボード V60</title>
+<title>建築現場 進捗管理ダッシュボード V62</title>
 <style>
 /* ── Login Screen ── */
 #loginScreen{position:fixed;inset:0;background:linear-gradient(135deg,#002060 0%,#1F4E79 60%,#2E75B6 100%);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -2278,7 +2278,7 @@ function dailyQuestion(){
   if(d.saved)return '日報を登録しました。次の報告は「新しい日報」から始められます。';
   if(d.complete)return '内容がそろいました。確認して登録してください。追加・訂正もできます。';
   if(d.error)return d.error;
-  if(d.index<0)return d.editing?'追加したいことや、直したいところをお話しください。':'日付・現場・作業内容・作業員・時間を、まとめてお話しください。足りない項目だけお聞きします。';
+  if(d.index<0)return d.editing?'追加したいことや、直したいところをお話しください。':'日報の内容を話してください。';
   return DAILY_INTERVIEW_FIELDS[d.index].question;
 }
 function dailyVoiceKind(){
@@ -2321,9 +2321,9 @@ function dailyInterviewControls(){
   const recording=!!activeSpeechRecognition&&activeSpeechRecognition.targetId==='ai-report-source';
   const locked=dailyInterviewBusy||!!d.pending;
   ['ai-report-mode-conversation','ai-report-mode-card','ai-report-mode-daily'].forEach(id=>document.getElementById(id).disabled=locked||recording);
-  const input=document.getElementById('ai-report-source');input.disabled=locked||d.complete||d.saved;input.style.display=d.complete||d.saved?'none':'';
-  const mic=document.getElementById('ai-report-source-mic');mic.disabled=locked||d.complete||d.saved;mic.hidden=d.complete||d.saved;
-  const run=document.getElementById('ai-report-run');run.style.display=d.complete||d.saved?'none':'';run.disabled=locked||recording||d.complete||d.saved;run.textContent=dailyInterviewBusy?'日報を整理中…':d.index<0&&!d.editing?'日報をまとめる':'追加・訂正を反映';
+  const input=document.getElementById('ai-report-source');input.disabled=locked||d.saved;input.style.display=d.saved?'none':'';
+  const mic=document.getElementById('ai-report-source-mic');mic.disabled=locked||d.saved;mic.hidden=d.saved;
+  const run=document.getElementById('ai-report-run');run.style.display=d.saved?'none':'';run.disabled=locked||recording||d.saved;run.textContent=dailyInterviewBusy?'日報を整理中…':d.index<0&&!d.editing&&!d.complete?'日報をまとめる':'追加・訂正を反映';
   document.querySelectorAll('[data-daily-interview-control]').forEach(button=>button.disabled=locked||recording||(d.saved&&button.textContent==='訂正'));
   const save=document.getElementById('ai-daily-interview-save');if(save)save.disabled=dailyInterviewBusy||recording;
 }
@@ -2339,10 +2339,10 @@ function renderDailyInterview(){
     return `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #E2E8F0;"><div style="min-width:0;overflow-wrap:anywhere;${known?'':'color:#718096;'}"><strong>${f.label}：</strong>${escape(value)}</div>${!d.saved&&!d.pending?`<button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="editDailyInterview(${index})">訂正</button>`:''}</div>`;
   }).join('');
   const title=d.saved?'日報を登録しました':d.complete?'登録前の確認':d.index<0?(d.editing?'追加・訂正':'まとめて日報入力'):'不足している項目：'+DAILY_INTERVIEW_FIELDS[d.index].label;
-  box.innerHTML=`<div style="padding:12px;background:#EBF8FF;border:1px solid #90CDF4;border-radius:8px;margin-bottom:10px;"><strong>V61　${title}</strong><p id="ai-daily-question" role="status" style="margin:8px 0;line-height:1.7;">${escape(dailyQuestion())}</p><button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="readDailyInterviewQuestion()">🔊 質問をもう一度読む</button> <button type="button" id="ai-daily-voice-toggle" class="btn btn-white btn-sm" onclick="toggleDailyVoice()">読み上げ：${dailyVoiceEnabled?'オン':'オフ'}</button><div style="font-size:11px;margin-top:5px;color:#4A5568;">質問はAIが生成する日本語音声です。音声生成にはAPI利用料がかかります。</div><div id="ai-daily-voice-status" style="font-size:11px;margin-top:5px;color:#4A5568;"></div></div><div id="ai-daily-answer-slot"></div><div style="font-size:13px;margin-bottom:10px;">${summary}</div>${d.pending?'<p style="color:#C53030;">登録結果を確認できていません。内容は変えず、同じ内容で再送してください。</p>':''}${d.complete&&!d.saved?`<button type="button" class="btn btn-green" id="ai-daily-interview-save" onclick="commitDailyInterview()">${d.pending?'同じ内容で登録結果を確認・再送':'この内容で登録'}</button> ${!d.pending?'<button type="button" class="btn btn-white" data-daily-interview-control onclick="editDailyInterview(-1)">追加・訂正する</button>':''}`:''} <button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="resetDailyInterview()">新しい日報</button>`;
+  box.innerHTML=`<div style="padding:12px;background:#EBF8FF;border:1px solid #90CDF4;border-radius:8px;margin-bottom:10px;"><strong>V62　${title}</strong><p id="ai-daily-question" role="status" style="margin:8px 0;line-height:1.7;">${escape(dailyQuestion())}</p><button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="readDailyInterviewQuestion()">🔊 質問をもう一度読む</button> <button type="button" id="ai-daily-voice-toggle" class="btn btn-white btn-sm" onclick="toggleDailyVoice()">読み上げ：${dailyVoiceEnabled?'オン':'オフ'}</button><div style="font-size:11px;margin-top:5px;color:#4A5568;">質問はAIが生成する日本語音声です。音声生成にはAPI利用料がかかります。</div><div id="ai-daily-voice-status" style="font-size:11px;margin-top:5px;color:#4A5568;"></div></div><div id="ai-daily-answer-slot"></div><div style="font-size:13px;margin-bottom:10px;">${summary}</div>${d.pending?'<p style="color:#C53030;">登録結果を確認できていません。内容は変えず、同じ内容で再送してください。</p>':''}${d.complete&&!d.saved?`<button type="button" class="btn btn-green" id="ai-daily-interview-save" onclick="commitDailyInterview()">${d.pending?'同じ内容で登録結果を確認・再送':'この内容で登録'}</button> ${!d.pending?'<button type="button" class="btn btn-white" data-daily-interview-control onclick="editDailyInterview(-1)">追加・訂正する</button>':''}`:''} <button type="button" class="btn btn-white btn-sm" data-daily-interview-control onclick="resetDailyInterview()">新しい日報</button>`;
   document.getElementById('ai-daily-answer-slot').appendChild(answerControls);
-  answerControls.style.display=d.complete||d.saved?'none':'';
-  document.getElementById('ai-report-answer-label').textContent=d.editing?'訂正する内容を音声または文字で入力':d.index>=0?'質問への回答を音声または文字で入力':'報告を音声または文字で入力';
+  answerControls.style.display=d.saved?'none':'';
+  document.getElementById('ai-report-answer-label').textContent=d.editing||d.complete?'追加・訂正する内容を音声または文字で入力':d.index>=0?'質問への回答を音声または文字で入力':'報告を音声または文字で入力';
   document.getElementById('ai-report-source').placeholder=d.index<0?'例：昨日、みな福で天井を撤去。吉川と山川が2時間。':DAILY_INTERVIEW_FIELDS[d.index].hint;
   dailyInterviewControls();
 }
@@ -2357,7 +2357,8 @@ function resetDailyInterview(){
 }
 function revealDailyInterviewAnswer(){
   const mic=document.getElementById('ai-report-source-mic');
-  if(mic&&!mic.hidden)mic.scrollIntoView({block:'center',behavior:'auto'});
+  const question=document.getElementById('ai-daily-question');
+  if(mic&&!mic.hidden)(question||mic).scrollIntoView({block:'start',behavior:'auto'});
 }
 function editDailyInterview(index){
   const d=dailyInterview;if(!d||dailyInterviewBusy||d.pending||d.saved||activeSpeechRecognition)return;
@@ -2379,9 +2380,9 @@ function validateDailyIntakeValues(raw){
   return values;
 }
 async function answerDailyInterview(){
-  const d=dailyInterview;if(!d||dailyInterviewBusy||d.pending||d.complete||d.saved||activeSpeechRecognition)return;
+  const d=dailyInterview;if(!d||dailyInterviewBusy||d.pending||d.saved||activeSpeechRecognition)return;
   const input=document.getElementById('ai-report-source'),message=input.value.trim();if(!message){showToast('報告や追加・訂正を入力するか、音声でお話しください。');return;}
-  stopDailyInterviewVoice();dailyInterviewBusy=true;dailyInterviewControls();
+  stopDailyInterviewVoice();d.complete=false;dailyInterviewBusy=true;dailyInterviewControls();
   try{
     const data=await PILOT.request('/ai/daily-report-intake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,currentValues:d.values,editingField:d.index>=0?DAILY_INTERVIEW_FIELDS[d.index].key:''})});
     if(!data.ok)throw Error('日報を整理できませんでした。');
@@ -2505,7 +2506,7 @@ function selectAiReportMode(mode){
   document.getElementById('ai-report-run').style.display='';
   if(aiReportMode==='daily'){
     document.getElementById('ai-report-mode-help').textContent='最初はまとめてお話しください。不足する項目だけ質問します。録音を停止すると日報を整理し、最後に確認・追加・訂正して登録できます。';
-    startDailyInterview();return;
+    startDailyInterview();revealDailyInterviewAnswer();return;
   }
   aiConversationControls();
   if(aiReportMode==='conversation'){

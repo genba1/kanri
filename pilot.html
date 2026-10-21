@@ -889,7 +889,6 @@ input,select,textarea,button{font-family:inherit}
     <div class="modal-head"><h2>🎙️ AIに報告</h2><button class="modal-close" onclick="closeAiReportModal()">✕</button></div>
     <div class="modal-body">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <button type="button" class="btn btn-sm" style="grid-column:1/-1" id="ai-report-mode-conversation" onclick="selectAiReportMode('conversation')">💬 会話で日報・タスクをまとめる</button>
         <button type="button" class="btn btn-sm" id="ai-report-mode-card" onclick="selectAiReportMode('card')">🧭 案件カードへ記入</button>
         <button type="button" class="btn btn-sm" id="ai-report-mode-daily" onclick="selectAiReportMode('daily')">📋 日報へ記入</button>
       </div>
@@ -2323,7 +2322,7 @@ function dailyInterviewControls(){
   const d=dailyInterview;if(!d)return;
   const recording=!!activeSpeechRecognition&&activeSpeechRecognition.targetId==='ai-report-source';
   const locked=dailyInterviewBusy||!!d.pending;
-  ['ai-report-mode-conversation','ai-report-mode-card','ai-report-mode-daily'].forEach(id=>document.getElementById(id).disabled=locked||recording);
+  ['ai-report-mode-card','ai-report-mode-daily'].forEach(id=>document.getElementById(id).disabled=locked||recording);
   const input=document.getElementById('ai-report-source');input.disabled=locked||d.saved;input.style.display=d.saved?'none':'';
   const mic=document.getElementById('ai-report-source-mic');mic.disabled=locked||d.saved;mic.hidden=d.saved;
   const run=document.getElementById('ai-report-run');run.style.display=d.saved?'none':'';run.disabled=locked||recording||d.saved;run.textContent=dailyInterviewBusy?'日報を整理中…':d.index<0&&!d.editing&&!d.complete?'日報をまとめる':'追加・訂正を反映';
@@ -2492,75 +2491,11 @@ async function commitDailyInterview(){
   if(saved){try{await loadServerState();renderAll();renderReportList();}catch(e){showToast('登録済みです。一覧は再読み込みして確認してください。',5000);}}
 }
 
-let aiConversationDraft=null, aiConversationHistory=[], aiConversationBusy=false, aiConversationPending=null;
-function aiConversationCanSave(d){
-  return !!d && !d.questions.length && !!(d.reports.length+d.tasks.length)
-    && d.reports.every(r=>r.siteId && r.date && r.entries.length && r.entries.every(e=>e.content))
-    && d.tasks.every(t=>t.title && (!t.needsSite || t.siteId));
-}
-function aiConversationControls(){
-  const lock=aiConversationBusy||!!aiConversationPending;
-  ['ai-report-source','ai-report-source-mic','ai-report-run','ai-report-mode-conversation','ai-report-mode-card','ai-report-mode-daily'].forEach(id=>{document.getElementById(id).disabled=lock;});
-  const save=document.getElementById('ai-conversation-save');if(save)save.disabled=aiConversationBusy||(!aiConversationPending&&!aiConversationCanSave(aiConversationDraft));
-}
-function renderAiConversation(){
-  const el=document.getElementById('ai-report-result'),d=aiConversationDraft;
-  el.style.display='block';
-  const text=v=>cardEscape(String(v??''));
-  el.innerHTML=aiConversationHistory.map(h=>`<div style="white-space:pre-wrap;padding:8px;margin:6px 0;background:${h.role==='user'?'#EBF8FF':'#F0FFF4'};border-radius:8px;"><strong>${h.role==='user'?'あなた':'AI'}</strong><br>${text(h.text)}</div>`).join('');
-  if(d){
-    el.innerHTML+=`<div style="border:1px solid #CBD5E0;padding:10px;border-radius:8px;overflow-wrap:anywhere;"><strong>登録前のまとめ</strong><h3>日報 ${d.reports.length}件</h3>${d.reports.map(r=>`<div style="margin:8px 0;"><strong>${text(r.siteId?siteName(r.siteId):(r.siteNameHint||'現場を確認してください'))} ／ ${text(r.date||'日付未確認')}</strong>${r.entries.map(e=>`<div>${text(e.content)}<br><small>作業者：${text(e.worker||'未入力')} ／ 時間：${e.hours?text(e.hours)+'時間':'未入力'}</small></div>`).join('')}</div>`).join('')}<h3>社長タスク ${d.tasks.length}件</h3>${d.tasks.map(t=>`<div style="margin:8px 0;"><strong>${text(t.title)}</strong><div>${text(t.siteId?siteName(t.siteId):(t.needsSite?(t.siteNameHint||'現場未確認'):'共通タスク'))} ／ ${t.kind==='waiting'?'回答待ち':'実行すること'} ／ 期限：${text(t.dueDate||'未指定')}</div><div style="white-space:pre-wrap">${text(t.note)}</div></div>`).join('')}${d.questions.length?'<p>確認したいこと</p><ul>'+d.questions.map(q=>'<li>'+text(q)+'</li>').join('')+'</ul>':''}<p>この内容で登録してよいですか。違うところだけ教えてください。</p><button id="ai-conversation-save" class="btn btn-green" onclick="commitAiConversation()">${aiConversationPending?'同じ内容で登録結果を確認・再送':'この内容で登録'}</button><button class="btn btn-white" onclick="resetAiConversation()" ${aiConversationPending?'disabled':''}>新しい報告</button></div>`;
-  }
-  if(aiConversationPending)el.innerHTML+='<p style="color:#C53030">登録結果を確認できていません。内容を変えず、上の確認・再送ボタンを押してください。</p>';
-  aiConversationControls();
-}
-function resetAiConversation(){
-  if(aiConversationBusy||aiConversationPending)return;
-  if(aiConversationDraft&&!confirm('未保存の下書きを破棄して、新しい報告を始めますか？'))return;
-  aiConversationDraft=null;aiConversationHistory=[];document.getElementById('ai-report-source').value='';selectAiReportMode('conversation');
-}
-async function sendAiConversation(){
-  if(aiConversationBusy||aiConversationPending)return;
-  if(activeSpeechRecognition?.targetId==='ai-report-source'){showToast('録音・文字起こしが終わってから操作してください。');return;}
-  const input=document.getElementById('ai-report-source'),message=input.value.trim();
-  if(!message){showToast('報告や追加・訂正を入力してください。');return;}
-  aiConversationBusy=true;aiConversationControls();
-  const button=document.getElementById('ai-report-run');button.textContent='AIがまとめています…';
-  try{
-    const data=await PILOT.request('/ai/report-conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:aiSourceWithWorkerNames(message),currentDraft:aiConversationDraft})});
-    const d=normalizeAiNameFields(data.draft);
-    if(!d || !Array.isArray(d.reports)||!Array.isArray(d.tasks)||!Array.isArray(d.questions)||!d.reports.every(r=>Array.isArray(r.entries)))throw Error('AIのまとめの形式が正しくありません。');
-    aiConversationDraft=d;aiConversationHistory.push({role:'user',text:message},{role:'assistant',text:d.reply||'まとめを確認してください。'});input.value='';
-  }catch(e){showToast('まとめを更新できません：'+e.message,5000);}
-  finally{aiConversationBusy=false;button.textContent=aiConversationDraft?'追加・訂正を反映':'日報・タスクをまとめる';renderAiConversation();}
-}
-async function commitAiConversation(){
-  if(aiConversationBusy)return;
-  if(activeSpeechRecognition?.targetId==='ai-report-source'){showToast('録音・文字起こしが終わってから操作してください。');return;}
-  if(!aiConversationPending){
-    if(document.getElementById('ai-report-source').value.trim()){showToast('入力中の追加・訂正を、先に反映してください。');return;}
-    if(!aiConversationCanSave(aiConversationDraft)){showToast('確認したいことをまとめて入力し、下書きに反映してください。');return;}
-    const key=Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
-    aiConversationPending={commitId:key,draft:JSON.parse(JSON.stringify(aiConversationDraft)),sourceText:aiConversationHistory.filter(h=>h.role==='user').map(h=>h.text).join('\n')};
-  }
-  aiConversationBusy=true;renderAiConversation();let saved=false;
-  try{
-    const data=await PILOT.request('/ai/report-conversation/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(aiConversationPending)});
-    if(!data.ok)throw Error('登録結果を確認できませんでした。');
-    saved=true;aiConversationDraft=null;aiConversationPending=null;aiConversationHistory=[];
-    document.getElementById('ai-report-source').value='';
-    showToast(`日報${data.reportIds.length}件・タスク${data.taskIds.length}件を登録しました。`,5000);
-  }catch(e){showToast('登録結果を確認できません。同じ内容で再送できます：'+e.message,6000);}
-  finally{aiConversationBusy=false;renderAiConversation();document.getElementById('ai-report-run').textContent=aiConversationDraft?'追加・訂正を反映':'日報・タスクをまとめる';}
-  if(saved){try{await loadServerState();renderAll();renderReportList();}catch(e){showToast('登録は完了しました。一覧はページを再読み込みして確認してください。',5000);}}
-}
-
 let aiReportSourceText = '';
 let aiReportMode = 'card';
 function selectAiReportMode(mode){
-  if(aiConversationBusy||aiConversationPending||dailyInterviewBusy||dailyInterview?.pending){showToast('処理中、または登録結果の確認待ちです。');return;}
+  if(dailyInterviewBusy||dailyInterview?.pending){showToast('処理中、または登録結果の確認待ちです。');return;}
   if(activeSpeechRecognition?.targetId==='ai-report-source'){showToast('録音・文字起こしが終わってから切り替えてください。');return;}
-  if(aiConversationDraft&&mode!==aiReportMode){showToast('下書きがあります。会話を続けるか、新しい報告に切り替えてください。');return;}
   if(aiReportMode==='daily'&&mode!=='daily'&&dailyInterview&&!dailyInterview.saved){
     if((Object.keys(dailyInterview.values).length||document.getElementById('ai-report-source').value.trim())&&!confirm('未保存の日報の回答を破棄して、入力方法を切り替えますか？'))return;
     dailyInterview=null;document.getElementById('ai-report-source').value='';
@@ -2571,9 +2506,9 @@ function selectAiReportMode(mode){
     input.value='';
   }
   stopDailyInterviewVoice();
-  aiReportMode=['daily','conversation'].includes(mode)?mode:'card';
+  aiReportMode=mode==='daily'?'daily':'card';
   const selected='background:#1F4E79;color:white;border:1px solid #1F4E79;',normal='background:white;color:#4A5568;border:1px solid #CBD5E0;';
-  ['conversation','card','daily'].forEach(key=>document.getElementById('ai-report-mode-'+key).style.cssText=(key==='conversation'?'grid-column:1/-1;':'')+(key===aiReportMode?selected:normal));
+  ['card','daily'].forEach(key=>document.getElementById('ai-report-mode-'+key).style.cssText=key===aiReportMode?selected:normal);
   document.getElementById('ai-daily-interview').style.display='none';
   const answerControls=document.getElementById('ai-report-answer-controls');
   document.getElementById('ai-report-answer-home').appendChild(answerControls);answerControls.style.display='';
@@ -2586,12 +2521,6 @@ function selectAiReportMode(mode){
     document.getElementById('ai-report-mode-help').textContent='最初はまとめてお話しください。不足する項目だけ質問します。録音を停止すると日報を整理し、最後に確認・追加・訂正して登録できます。';
     startDailyInterview();revealDailyInterviewAnswer();return;
   }
-  aiConversationControls();
-  if(aiReportMode==='conversation'){
-    document.getElementById('ai-report-mode-help').textContent='';
-    document.getElementById('ai-report-source').placeholder='例：今日はみな福で天井を撤去しました。吉川が2時間。明日は厨房機器を搬入します。';
-    document.getElementById('ai-report-run').textContent=aiConversationDraft?'追加・訂正を反映':'日報・タスクをまとめる';renderAiConversation();return;
-  }
   document.getElementById('ai-report-result').style.display='none';
   document.getElementById('ai-report-run').textContent='AIに案件を探してもらう';
   document.getElementById('ai-report-mode-help').textContent='現場を選んだ後、案件カードの下書きと社長タスク候補を作ります。';
@@ -2600,19 +2529,18 @@ function selectAiReportMode(mode){
 function openAiReportModal(){
   if(!CURRENT_USER || CURRENT_USER.role!=='admin') return;
   document.getElementById('aiReportModal').classList.add('show');
-  if(!dailyInterview&&!aiConversationDraft&&!aiConversationHistory.length)document.getElementById('ai-report-source').value='';
+  if(!dailyInterview)document.getElementById('ai-report-source').value='';
   if(dailyInterview?.pending){aiReportMode='daily';renderDailyInterview();}
-  else selectAiReportMode(dailyInterview?'daily':'conversation');
+  else selectAiReportMode(dailyInterview?'daily':'card');
   setTimeout(()=>document.getElementById('ai-report-source').focus(),80);
 }
-function closeAiReportModal(){ if(aiConversationBusy||dailyInterviewBusy){showToast('処理が終わるまでお待ちください。');return;} stopDailyInterviewVoice();stopSpeechInputFor('ai-report-source');document.getElementById('aiReportModal').classList.remove('show'); aiReportSourceText=''; }
+function closeAiReportModal(){ if(dailyInterviewBusy){showToast('処理が終わるまでお待ちください。');return;} stopDailyInterviewVoice();stopSpeechInputFor('ai-report-source');document.getElementById('aiReportModal').classList.remove('show'); aiReportSourceText=''; }
 function aiReportCandidateButton(siteId, note){
   const name=siteName(siteId);
   return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="continueAiReport('${siteId}')">🏗️ ${cardEscape(name)}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
 }
 async function routeAiReport(){
   if(aiReportMode==='daily'){await answerDailyInterview();return;}
-  if(aiReportMode==='conversation'){await sendAiConversation();return;}
   if(activeSpeechRecognition?.targetId==='ai-report-source'){showToast('録音・文字起こしが終わってから操作してください。',3500);return;}
   const source=document.getElementById('ai-report-source').value.trim();
   if(!source){showToast('⚠️ 報告内容を入力してください');return;}

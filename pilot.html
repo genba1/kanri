@@ -434,6 +434,7 @@ input,select,textarea,button{font-family:inherit}
 .archive-row[open] .archive-row-arrow{transform:rotate(90deg);}
 .archive-row-body{border-top:1px solid #E2E8F0;padding:12px;}
 @media(max-width:600px){.archive-row>summary{gap:5px;padding:10px 7px;font-size:12px;}.archive-row-invoice{font-size:10px;}.archive-row-sales{width:88px;font-size:11px;}}
+#ai-report-mode-help:empty{display:none;}
 </style>
 <link rel="stylesheet" href="estimate.css?v=45">
 </head>
@@ -887,7 +888,6 @@ input,select,textarea,button{font-family:inherit}
   <div class="modal" style="max-width:620px;">
     <div class="modal-head"><h2>🎙️ AIに報告</h2><button class="modal-close" onclick="closeAiReportModal()">✕</button></div>
     <div class="modal-body">
-      <div style="background:#FFF9E6;border:1px solid #F6D365;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#744210;">音声入力ボタンで録音し、停止するとAIが文字起こしします。音声はサーバー経由でOpenAIへ送信します（API従量課金）。「日報へ記入」では、回答を停止後に確認し、次の質問へ進みます。最後の登録ボタンを押すまで保存されません。</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <button type="button" class="btn btn-sm" style="grid-column:1/-1" id="ai-report-mode-conversation" onclick="selectAiReportMode('conversation')">💬 会話で日報・タスクをまとめる</button>
         <button type="button" class="btn btn-sm" id="ai-report-mode-card" onclick="selectAiReportMode('card')">🧭 案件カードへ記入</button>
@@ -1787,7 +1787,7 @@ function renderSites(){
       <span class="status-badge ${badgeCls}">${s.status}</span>
       <div class="site-name" style="padding-right:0;">${s.name}</div>
       <div class="site-meta">📍 ${s.addr||'—'} &nbsp;｜&nbsp; 👷 ${s.mgr||'—'}</div>
-      ${s.note?`<div class="site-meta" style="color:#E53E3E;font-size:11px;">📝 ${s.note}</div>`:''}
+      ${s.note?`<div class="site-meta" style="color:#000000;font-size:11px;">📝 ${s.note}</div>`:''}
       <div class="site-footer">
         <span>📅 本日: <strong style="color:#E53E3E;">${todayT}</strong>件</span>
         <span>📆 今週: <strong style="color:#ED8936;">${weekT}</strong>件</span>
@@ -2558,7 +2558,7 @@ function selectAiReportMode(mode){
   }
   aiConversationControls();
   if(aiReportMode==='conversation'){
-    document.getElementById('ai-report-mode-help').textContent='まとめて話す → 日報・タスクを確認 → 必要なところだけ追加・訂正 → 登録。未保存の会話は、このページを開いている間だけ保持します。';
+    document.getElementById('ai-report-mode-help').textContent='';
     document.getElementById('ai-report-source').placeholder='例：今日はみな福で天井を撤去しました。吉川が2時間。明日は厨房機器を搬入します。';
     document.getElementById('ai-report-run').textContent=aiConversationDraft?'追加・訂正を反映':'日報・タスクをまとめる';renderAiConversation();return;
   }
@@ -3373,7 +3373,7 @@ async function loadArchives(){
           ${invoiceParts.length?`<div style="font-size:12px;color:#4A5568;margin-top:4px;overflow-wrap:anywhere;">${invoiceParts.join('　｜　')}</div>`:''}
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit('${id}')">✏️ 整理</button>`:''}
-            <button class="btn btn-white btn-sm" onclick="toggleArchiveReports('${id}')">日報を見る</button>
+            <button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="toggleArchiveReports('${id}')">日報を見る</button>
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload('${id}')">＋ 請求書を添付</button>`:''}
           </div>
           ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}

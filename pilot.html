@@ -2419,6 +2419,29 @@ function applyDailyManualEdit(){
 function normalizeDailyWorkerName(value){
   return String(value??'').replace(/(^|[\s、,，・/／&＆＋+]|と|及び|および)(?:長井|長い)(?=(?:さん|氏|様)?(?:$|[\s、,，・/／&＆＋+]|と|及び|および))/g,'$1永井');
 }
+// V69: 全AI入力で人名の表記を共有する。一般の形容詞や現場名は一括置換しない。
+function normalizeAiPersonText(value){
+  return String(value??'')
+    .replace(/(?:長井|長い)(?=(?:さん|様|氏|くん|君)(?:$|[\s、,，。.!！?？：:]|が|は|に|へ|を|と|の|から|まで))/g,'永井')
+    .replace(/((?:作業員|作業者|担当者|担当|職人|氏名)(?:名)?\s*(?:[：:]|は|が)?\s*)([^\n。！？]+)/g,(_,label,names)=>label+normalizeDailyWorkerName(names))
+    .replace(/(?:長井|長い)(?=に(?:連絡|確認|依頼|相談|伝え|聞|電話|お願い|報告))/g,'永井');
+}
+function aiSourceWithWorkerNames(source){
+  const text=normalizeAiPersonText(source);
+  return text+'\n\n【人名の表記ルール（報告内容ではありません）】\n作業員・担当者など人名の「ながい」は「永井」です。音声認識の「長井」「長い」は、人を指す場合だけ「永井」に補正してください。「長い板」「長い時間」など普通の文章や現場名・地名は変更しないでください。';
+}
+function normalizeAiNameFields(value){
+  if(Array.isArray(value))return value.map(normalizeAiNameFields);
+  if(!value||typeof value!=='object')return value;
+  const result={...value};
+  for(const [key,item] of Object.entries(result)){
+    if(key==='worker'&&typeof item==='string')result[key]=normalizeDailyWorkerName(item);
+    else if(['title','note','content','reply','reason'].includes(key)&&typeof item==='string')result[key]=normalizeAiPersonText(item);
+    else if(key==='questions'&&Array.isArray(item))result[key]=item.map(q=>typeof q==='string'?normalizeAiPersonText(q):q);
+    else if(item&&typeof item==='object')result[key]=normalizeAiNameFields(item);
+  }
+  return result;
+}
 function validateDailyIntakeValues(raw){
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('日報の確認結果を受け取れませんでした。');
   const values={};
@@ -2504,8 +2527,8 @@ async function sendAiConversation(){
   aiConversationBusy=true;aiConversationControls();
   const button=document.getElementById('ai-report-run');button.textContent='AIがまとめています…';
   try{
-    const data=await PILOT.request('/ai/report-conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,currentDraft:aiConversationDraft})});
-    const d=data.draft;
+    const data=await PILOT.request('/ai/report-conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:aiSourceWithWorkerNames(message),currentDraft:aiConversationDraft})});
+    const d=normalizeAiNameFields(data.draft);
     if(!d || !Array.isArray(d.reports)||!Array.isArray(d.tasks)||!Array.isArray(d.questions)||!d.reports.every(r=>Array.isArray(r.entries)))throw Error('AIのまとめの形式が正しくありません。');
     aiConversationDraft=d;aiConversationHistory.push({role:'user',text:message},{role:'assistant',text:d.reply||'まとめを確認してください。'});input.value='';
   }catch(e){showToast('まとめを更新できません：'+e.message,5000);}
@@ -2596,7 +2619,7 @@ async function routeAiReport(){
   const button=document.getElementById('ai-report-run'); const result=document.getElementById('ai-report-result');
   button.disabled=true;button.textContent='AIが案件を確認中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">登録済み現場と照合しています…</div>';
   try{
-    aiReportSourceText=source;const data=await PILOT.routeReport(source);const route=data.route||{};
+    aiReportSourceText=source;const data=await PILOT.routeReport(aiSourceWithWorkerNames(source));const route=data.route||{};
     const actionText=aiReportMode==='daily' ? 'この現場の日報下書きを作ります' : 'この案件のカード下書きを作ります';
     if(route.status==='matched'&&route.siteId){
       result.innerHTML=`<div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:11px;font-size:13px;color:#276749;"><strong>該当候補：${cardEscape(siteName(route.siteId))}</strong><div style="margin-top:5px;">${cardEscape(route.reason)}</div>${aiReportCandidateButton(route.siteId,actionText)}</div>`;
@@ -2621,8 +2644,8 @@ async function continueAiReport(siteId){
 async function continueAiReportDaily(siteId,source){
   showToast('📋 AIが日報下書きを作成中…',5000);
   try{
-    const data=await PILOT.createDailyReportDraft(source);
-    aiDailyReportDraft=data.draft||{};
+    const data=await PILOT.createDailyReportDraft(aiSourceWithWorkerNames(source));
+    aiDailyReportDraft=normalizeAiNameFields(data.draft||{});
     aiDailyReportSourceText=source;
     await applyAiDailyReportDraft(siteId);
   }catch(e){showToast('❌ AIの日報下書きを作成できません: '+e.message,4000);}
@@ -2652,7 +2675,7 @@ async function draftAiDailyReport(){
   const button=document.getElementById('ai-daily-report-run');const result=document.getElementById('ai-daily-report-result');
   button.disabled=true;button.textContent='AIが日報を整理中…';result.style.display='block';result.innerHTML='<div style="font-size:13px;color:#718096;">現場と日報の内容を整理しています…</div>';
   try{
-    const data=await PILOT.createDailyReportDraft(source);const draft=data.draft||{};aiDailyReportDraft=draft;aiDailyReportSourceText=source;
+    const data=await PILOT.createDailyReportDraft(aiSourceWithWorkerNames(source));const draft=normalizeAiNameFields(data.draft||{});aiDailyReportDraft=draft;aiDailyReportSourceText=source;
     const summary=`${draft.date||'日付未設定'} ／ ${Array.isArray(draft.entries)?draft.entries.length:0}件の作業行`;
     if(draft.status==='matched'&&draft.siteId){
       result.innerHTML=`<div style="background:#F0FFF4;border:1px solid #9AE6B4;border-radius:8px;padding:11px;font-size:13px;color:#276749;"><strong>該当現場：${cardEscape(siteName(draft.siteId))}</strong><div style="margin-top:5px;">${cardEscape(summary)}</div><div style="margin-top:5px;">${cardEscape(draft.reason||'下書きを確認してください。')}</div>${aiDailyCandidateButton(draft.siteId,'日報入力画面へ下書きを入れる')}</div>`;
@@ -2715,7 +2738,7 @@ async function draftTasksForSource(source,targetId,forcedSiteId=''){
   const result=document.getElementById(targetId);if(!source||!result)return {ok:false,count:0};
   aiTaskSourceText=source;aiTaskDraftTargetId=targetId;aiTaskDrafts=[];
   result.innerHTML='<div style="font-size:12px;color:#718096;margin:12px 0 4px;">🧭 同じ報告から社長タスク候補を整理しています…</div>';
-  try{const data=await PILOT.createTaskDraft(source);if(!Array.isArray(data?.drafts))throw new Error('AIの候補データの形式が正しくありません。');aiTaskDrafts=data.drafts.map(x=>({...x,siteId:forcedSiteId||x.siteId,saved:false}));renderAiTaskDrafts(targetId);return {ok:true,count:aiTaskDrafts.length};}
+  try{const data=await PILOT.createTaskDraft(aiSourceWithWorkerNames(source));if(!Array.isArray(data?.drafts))throw new Error('AIの候補データの形式が正しくありません。');aiTaskDrafts=normalizeAiNameFields(data.drafts).map(x=>({...x,siteId:forcedSiteId||x.siteId,saved:false}));renderAiTaskDrafts(targetId);return {ok:true,count:aiTaskDrafts.length};}
   catch(e){aiTaskDrafts=[];result.innerHTML=`<div style="color:#C53030;font-size:12px;margin-top:10px;">タスク候補を作成できません: ${cardEscape(e.message)}</div>`;return {ok:false,count:0};}
 }
 async function draftAiTasks(){

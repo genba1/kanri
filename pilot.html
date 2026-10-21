@@ -2291,7 +2291,10 @@ async function readDailyInterviewQuestion(){
   const generation=dailyVoiceGeneration,status=document.getElementById('ai-daily-voice-status');
   if(!status)return;
   if(!dailyVoiceEnabled){status.textContent='読み上げはオフです。文字だけでも入力できます。';return;}
-  const kind=dailyVoiceKind();status.textContent='AI音声を準備しています。待たずに録音を始めても大丈夫です。';
+  const kind=dailyVoiceKind();
+  // 冒頭の案内は読み上げず、不足項目・訂正・確認の音声は継続する。
+  if(kind==='intro'){status.textContent='';return;}
+  status.textContent='AI音声を準備しています。待たずに録音を始めても大丈夫です。';
   try{
     if(!dailyVoiceCache.has(kind)){
       const pending=PILOT.request('/ai/daily-voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind})}).then(data=>{
@@ -2401,7 +2404,7 @@ function applyDailyManualEdit(){
   const read=(f,target,row)=>{
     const el=document.getElementById(`daily-edit-${row}-${f.key}`);if(!el)return;
     const value=el.value.trim();if(!value&&f.key!=='worker'){delete target[f.key];return;}
-    target[f.key]=f.key==='hours'?Number(value):value;
+    target[f.key]=f.key==='hours'?Number(value):f.key==='worker'?normalizeDailyWorkerName(value):value;
   };
   try{
     if(d.index<0){DAILY_INTERVIEW_FIELDS.slice(0,2).forEach(f=>read(f,values,'common'));entries.forEach((e,row)=>DAILY_INTERVIEW_FIELDS.slice(2).forEach(f=>read(f,e,row)));}
@@ -2411,6 +2414,10 @@ function applyDailyManualEdit(){
     d.values=values;d.entries=entries;d.error='';d.editing=false;d.complete=dailyMissing();
     d.history.push('手入力訂正：'+JSON.stringify({values,entries}));renderDailyInterview();readDailyInterviewQuestion();
   }catch(e){showToast(e.message);}
+}
+// V68: 作業員欄に限り、永井さんの同音誤変換を補正する。
+function normalizeDailyWorkerName(value){
+  return String(value??'').replace(/(^|[\s、,，・/／&＆＋+]|と|及び|および)(?:長井|長い)(?=(?:さん|氏|様)?(?:$|[\s、,，・/／&＆＋+]|と|及び|および))/g,'$1永井');
 }
 function validateDailyIntakeValues(raw){
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('日報の確認結果を受け取れませんでした。');
@@ -2422,7 +2429,7 @@ function validateDailyIntakeValues(raw){
     else if(typeof v!=='string'||(f.key!=='worker'&&!v.trim()))throw Error('日報の項目を確認できませんでした。');
     if(f.key==='siteId'&&!SITES.some(s=>s.id===v))throw Error('現場を確認できませんでした。');
     if(f.key==='date'&&!/^\d{4}-\d{2}-\d{2}$/.test(v))throw Error('日付を確認できませんでした。');
-    values[f.key]=v;
+    values[f.key]=f.key==='worker'?normalizeDailyWorkerName(v):v;
   }
   return values;
 }

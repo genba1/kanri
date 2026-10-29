@@ -435,6 +435,17 @@ input,select,textarea,button{font-family:inherit}
 .archive-row-body{border-top:1px solid #E2E8F0;padding:12px;}
 @media(max-width:600px){.archive-row>summary{gap:5px;padding:10px 7px;font-size:12px;}.archive-row-invoice{font-size:10px;}.archive-row-sales{width:88px;font-size:11px;}}
 #ai-report-mode-help:empty{display:none;}
+
+#sitePhotoModal{z-index:3100;}
+#sitePhotoModal [hidden]{display:none!important;}
+#sitePhotoModal .modal{width:100%;max-width:1000px;}
+.site-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
+.site-photo-card{border:1px solid #CBD5E0;border-radius:8px;background:white;padding:6px;text-align:left;color:#2D3748;cursor:pointer;min-width:0;}
+.site-photo-card img{width:100%;height:140px;object-fit:cover;background:#EDF2F7;border-radius:5px;display:block;}
+.site-photo-card small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px;}
+#site-photo-viewer img{display:block;max-width:100%;max-height:55vh;margin:10px auto;object-fit:contain;}
+#site-photo-source{padding:12px;background:#F7FAFC;border-radius:6px;white-space:pre-wrap;line-height:1.7;margin-top:10px;}
+@media(max-width:600px){.site-photo-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}#sitePhotoModal .modal{max-height:95dvh;}}
 </style>
 <link rel="stylesheet" href="estimate.css?v=45">
 </head>
@@ -1091,6 +1102,28 @@ input,select,textarea,button{font-family:inherit}
 </div>
 
 <!-- ===== REPORT PHOTO MODAL ===== -->
+
+<div class="modal-overlay" id="sitePhotoModal" role="dialog" aria-modal="true" aria-labelledby="site-photo-title">
+ <div class="modal" style="max-height:92vh;overflow-y:auto;">
+  <div class="modal-head"><h2 id="site-photo-title">📷 写真一覧</h2><button class="modal-close" aria-label="写真一覧を閉じる" onclick="closeSitePhotos()">✕</button></div>
+  <div class="modal-body">
+   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+    <label>並び順 <select id="site-photo-order" class="form-input" style="width:auto;display:inline-block;" onchange="sortSitePhotos()"><option value="asc">古い日報から</option><option value="desc">新しい日報から</option></select></label>
+    <button class="btn btn-white btn-sm" onclick="openSitePhotos(SITE_PHOTOS.siteId)">再読み込み</button>
+   </div>
+   <div id="site-photo-status" role="status" aria-live="polite" style="margin-bottom:12px;"></div>
+   <div id="site-photo-viewer" hidden>
+    <button class="btn btn-white btn-sm" onclick="hideSitePhotoViewer()">一覧に戻る</button>
+    <div id="site-photo-image"></div>
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><button id="site-photo-prev" class="btn btn-white" onclick="stepSitePhoto(-1)">◀ 前へ</button><span id="site-photo-caption"></span><button id="site-photo-next" class="btn btn-white" onclick="stepSitePhoto(1)">次へ ▶</button></div>
+    <button class="btn btn-white btn-sm" style="margin-top:10px;" onclick="showSitePhotoSource()">元の日報を見る</button>
+    <div id="site-photo-source" hidden></div>
+   </div>
+   <div class="site-photo-grid" id="site-photo-grid"></div>
+  </div>
+ </div>
+</div>
+
 <div class="modal-overlay" id="reportPhotoModal">
   <div class="modal" style="max-width:760px;">
     <div class="modal-head"><h2 id="reportPhotoTitle">📷 現場写真</h2><button class="modal-close" onclick="closeReportPhotos()">✕</button></div>
@@ -2199,6 +2232,7 @@ function openDetail(siteId){
     <div style="margin-bottom:12px;">
       <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSiteToDatabase('${s.id}');closeDetail()">📦 アーカイブへ移動</button>
     </div>
+    ${sitePhotoButton(s.id)}
     ${projectCardHtml(s)}
     ${buildSiteReportHtml(siteId)}`;
 
@@ -3338,6 +3372,7 @@ async function loadArchives(){
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit('${id}')">✏️ 整理</button>`:''}
             <button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="toggleArchiveReports('${id}')">日報を見る</button>
+            ${sitePhotoButton(site.id)}
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload('${id}')">＋ 請求書を添付</button>`:''}
           </div>
           ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}
@@ -3791,6 +3826,121 @@ function fmtDateJP(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   return `${d.getMonth()+1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
 }
+
+// V72: 現場別写真一覧。日報と写真の保存先・紐付けは変更しない。
+let SITE_PHOTOS={sequence:0,siteId:null,items:[],urls:new Map(),pending:new Map(),index:-1,observer:null,focus:null};
+function sitePhotoButton(siteId){
+  return `<button type="button" class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" data-site-id="${photoHtmlEscape(siteId)}" onclick="openSitePhotos(this.dataset.siteId)">📷 写真一覧</button>`;
+}
+function releaseSitePhotos(){
+  SITE_PHOTOS.sequence++;
+  SITE_PHOTOS.observer?.disconnect();SITE_PHOTOS.observer=null;
+  SITE_PHOTOS.urls.forEach(url=>URL.revokeObjectURL(url));
+  SITE_PHOTOS.urls.clear();SITE_PHOTOS.pending.clear();SITE_PHOTOS.items=[];SITE_PHOTOS.index=-1;
+}
+function closeSitePhotos(){
+  document.getElementById('sitePhotoModal').classList.remove('show');
+  releaseSitePhotos();document.getElementById('site-photo-grid').innerHTML='';document.getElementById('site-photo-image').innerHTML='';
+  SITE_PHOTOS.focus?.focus();
+}
+async function openSitePhotos(siteId){
+  const focus=document.activeElement;
+  releaseSitePhotos();SITE_PHOTOS.siteId=siteId;SITE_PHOTOS.focus=focus;
+  const seq=SITE_PHOTOS.sequence;
+  const site=[...SITES,...ARCHIVES].find(s=>String(s.id)===String(siteId));
+  document.getElementById('site-photo-title').textContent=`📷 写真一覧：${site?.name||siteId}`;
+  const status=document.getElementById('site-photo-status');
+  status.textContent='日報と写真を確認しています…';
+  document.getElementById('site-photo-grid').innerHTML='';hideSitePhotoViewer();
+  document.getElementById('sitePhotoModal').classList.add('show');
+  document.querySelector('#sitePhotoModal .modal-close').focus();
+  try{
+    const result=await PILOT.reports(siteId);
+    if(seq!==SITE_PHOTOS.sequence)return;
+    const reports=result.reports||[],items=[];let cursor=0,failed=0;
+    // 既存APIを使用し、同時リクエストを4件以内に制限する。
+    await Promise.all(Array.from({length:Math.min(4,reports.length)},async()=>{
+      while(cursor<reports.length&&seq===SITE_PHOTOS.sequence){
+        const report=reports[cursor++];
+        if(report.photoCount!==null&&report.photoCount!==undefined&&Number(report.photoCount)===0)continue;
+        try{
+          const data=await PILOT.reportPhotos(report.id);
+          if(seq!==SITE_PHOTOS.sequence)return;
+          (data.photos||[]).forEach(photo=>items.push({photo,report}));
+        }catch(e){failed++;}
+      }
+    }));
+    if(seq!==SITE_PHOTOS.sequence)return;
+    SITE_PHOTOS.items=items;sortSitePhotos();
+    status.textContent=`写真 ${items.length}枚（日報の日付順）`+(failed?`。${failed}件の日報の写真を取得できませんでした。「再読み込み」で再試行できます。`:items.length?'':'。この現場には写真がありません。');
+  }catch(e){if(seq===SITE_PHOTOS.sequence)status.textContent='写真一覧を取得できませんでした：'+e.message+'。「再読み込み」で再試行できます。';}
+}
+function sortSitePhotos(){
+  hideSitePhotoViewer();SITE_PHOTOS.observer?.disconnect();
+  const direction=document.getElementById('site-photo-order').value==='desc'?-1:1;
+  SITE_PHOTOS.items.sort((a,b)=>direction*(String(a.report.date||'').localeCompare(String(b.report.date||''))||Number(a.report.id)-Number(b.report.id)||Number(a.photo.id)-Number(b.photo.id)));
+  const grid=document.getElementById('site-photo-grid');
+  grid.innerHTML=SITE_PHOTOS.items.map((item,i)=>`<button class="site-photo-card" data-index="${i}" onclick="viewSitePhoto(${i})"><img alt="${photoHtmlEscape(item.photo.original_name||'現場写真')}" loading="lazy"><small>${photoHtmlEscape(item.report.date)} ／ 日報 #${Number(item.report.id)}</small><small>${photoHtmlEscape(item.photo.original_name||'写真')}</small><small class="photo-load-status">読み込み待ち</small></button>`).join('');
+  const seq=SITE_PHOTOS.sequence,queue=[];let running=0;
+  function pump(){
+    if(seq!==SITE_PHOTOS.sequence)return;
+    while(running<4&&queue.length){
+      const card=queue.shift();running++;
+      const item=SITE_PHOTOS.items[Number(card.dataset.index)];
+      sitePhotoUrl(item,seq).then(url=>{if(seq!==SITE_PHOTOS.sequence)return;card.querySelector('img').src=url;card.querySelector('.photo-load-status').textContent='';}).catch(()=>{if(seq===SITE_PHOTOS.sequence)card.querySelector('.photo-load-status').textContent='取得失敗・押すと再試行';}).finally(()=>{running--;pump();});
+    }
+  }
+  if(typeof IntersectionObserver==='undefined'){queue.push(...grid.querySelectorAll('.site-photo-card'));pump();return;}
+  SITE_PHOTOS.observer=new IntersectionObserver(entries=>{entries.forEach(entry=>{if(entry.isIntersecting){SITE_PHOTOS.observer.unobserve(entry.target);queue.push(entry.target);}});pump();},{root:document.querySelector('#sitePhotoModal .modal'),rootMargin:'200px'});
+  grid.querySelectorAll('.site-photo-card').forEach(card=>SITE_PHOTOS.observer.observe(card));
+}
+async function sitePhotoUrl(item,seq){
+  const key=String(item.photo.id);
+  if(SITE_PHOTOS.urls.has(key))return SITE_PHOTOS.urls.get(key);
+  if(SITE_PHOTOS.pending.has(key))return SITE_PHOTOS.pending.get(key);
+  const promise=(async()=>{
+    const blob=await PILOT.photoBlob(item.photo.id);
+    if(seq!==SITE_PHOTOS.sequence)throw new Error('画面が閉じられました');
+    const url=URL.createObjectURL(blob);SITE_PHOTOS.urls.set(key,url);return url;
+  })();
+  SITE_PHOTOS.pending.set(key,promise);
+  try{return await promise;}finally{if(seq===SITE_PHOTOS.sequence)SITE_PHOTOS.pending.delete(key);}
+}
+async function viewSitePhoto(index){
+  const item=SITE_PHOTOS.items[index];if(!item)return;
+  SITE_PHOTOS.index=index;const seq=SITE_PHOTOS.sequence;
+  document.getElementById('site-photo-grid').hidden=true;
+  document.getElementById('site-photo-viewer').hidden=false;
+  document.getElementById('site-photo-source').hidden=true;
+  document.getElementById('site-photo-prev').disabled=index===0;
+  document.getElementById('site-photo-next').disabled=index===SITE_PHOTOS.items.length-1;
+  document.getElementById('site-photo-caption').textContent=`${index+1} / ${SITE_PHOTOS.items.length}　${item.report.date||''}`;
+  const box=document.getElementById('site-photo-image');box.textContent='写真を読み込んでいます…';
+  try{
+    const url=await sitePhotoUrl(item,seq);
+    if(seq!==SITE_PHOTOS.sequence||SITE_PHOTOS.index!==index)return;
+    box.innerHTML=`<img src="${url}" alt="${photoHtmlEscape(item.photo.original_name||'現場写真')}"><div style="text-align:center;overflow-wrap:anywhere;">${photoHtmlEscape(item.photo.original_name||'')}</div>`;
+  }catch(e){if(seq===SITE_PHOTOS.sequence&&SITE_PHOTOS.index===index)box.innerHTML='<p>写真を取得できませんでした。</p><button class="btn btn-white" onclick="viewSitePhoto(SITE_PHOTOS.index)">再試行</button>';}
+}
+function stepSitePhoto(delta){return viewSitePhoto(SITE_PHOTOS.index+delta);}
+function hideSitePhotoViewer(){
+  SITE_PHOTOS.index=-1;document.getElementById('site-photo-viewer').hidden=true;
+  document.getElementById('site-photo-grid').hidden=false;document.getElementById('site-photo-image').innerHTML='';
+}
+function showSitePhotoSource(){
+  const item=SITE_PHOTOS.items[SITE_PHOTOS.index];if(!item)return;
+  const report=item.report,box=document.getElementById('site-photo-source');
+  box.textContent=`元の日報：${report.date||''}　#${report.id}\n`+(report.entries||[]).map(e=>`・${e.content||''}　${e.worker||''}　${e.hours||0}h`).join('\n');box.hidden=false;
+}
+document.getElementById('sitePhotoModal').addEventListener('click',e=>{if(e.target.id==='sitePhotoModal')closeSitePhotos();});
+document.addEventListener('keydown',e=>{
+  if(!document.getElementById('sitePhotoModal').classList.contains('show'))return;
+  if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();if(SITE_PHOTOS.index>=0)hideSitePhotoViewer();else closeSitePhotos();}
+  if(SITE_PHOTOS.index>=0&&!/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){
+    if(e.key==='ArrowLeft'){e.preventDefault();stepSitePhoto(-1);}
+    if(e.key==='ArrowRight'){e.preventDefault();stepSitePhoto(1);}
+  }
+},true);
 
 function reportPhotoButton(report){
   const count=report.photoCount;

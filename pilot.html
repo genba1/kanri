@@ -981,6 +981,12 @@ input,select,textarea,button{font-family:inherit}
       <div style="font-size:12px;font-weight:700;color:#1F4E79;margin:12px 0 6px;">作業内容</div>
       <div id="archive-report-edit-rows"></div>
       <button type="button" class="btn btn-white btn-sm" style="border:1.5px solid #90CDF4;color:#1F4E79;margin-top:8px;" onclick="addArchiveReportEditRow()">＋ 作業行を追加</button>
+      <div class="form-group" style="margin-top:18px;">
+        <label class="form-label" for="archive-report-photo-input">写真を追加</label>
+        <input type="file" id="archive-report-photo-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onchange="prepareArchiveReportPhotos(this.files)" style="font-size:13px;max-width:100%;">
+        <div style="font-size:12px;color:#718096;margin-top:6px;">写真は「保存」を押すと追加されます。既存の写真はそのまま残ります。</div>
+        <div id="archive-report-photo-status" role="status" aria-live="polite" style="font-size:12px;margin-top:6px;"></div>
+      </div>
     </div>
     <div class="modal-foot"><button class="btn btn-white" style="border:1.5px solid #CBD5E0;color:#4A5568;" onclick="closeArchiveReportEdit()">キャンセル</button><button class="btn btn-green" onclick="saveArchiveReportEdit()">保存</button></div>
   </div>
@@ -3487,6 +3493,29 @@ async function toggleArchiveReports(siteId){
   }catch(e){box.innerHTML=`<div style="padding:10px;color:#C53030;font-size:12px;">日報を読み込めませんでした：${archiveEsc(e.message)}</div>`;}
 }
 let archiveEditingReportId=null;
+let archiveReportPhotoFiles=[];
+let archiveReportBusy=false;
+function archivePhotoStatus(text,isError=false){
+  const el=document.getElementById('archive-report-photo-status');
+  el.textContent=text;el.style.color=isError?'#C53030':'#4A5568';
+}
+function setArchiveReportBusy(busy){
+  archiveReportBusy=busy;
+  document.querySelectorAll('#archiveReportEditModal button, #archiveReportEditModal input').forEach(el=>el.disabled=busy);
+}
+async function prepareArchiveReportPhotos(fileList){
+  if(archiveReportBusy)return;
+  const files=Array.from(fileList||[]);archiveReportPhotoFiles=[];
+  if(!files.length){archivePhotoStatus('');return;}
+  setArchiveReportBusy(true);archivePhotoStatus(`写真${files.length}枚を確認・圧縮しています…`);
+  try{
+    const prepared=[];
+    for(const file of files)prepared.push(await compressReportPhoto(file));
+    archiveReportPhotoFiles=prepared;
+    archivePhotoStatus(`写真${prepared.length}枚を保存待ちにしました（合計 ${bytesLabel(prepared.reduce((n,f)=>n+f.size,0))}）。`);
+  }catch(e){document.getElementById('archive-report-photo-input').value='';archivePhotoStatus(e.message,true);}
+  finally{setArchiveReportBusy(false);}
+}
 function archiveEditRowHtml(entry={}){
   return `<div class="archive-report-edit-row" style="display:grid;grid-template-columns:minmax(0,1fr) 100px 72px 32px;gap:6px;align-items:center;margin:6px 0;">
     <input class="ar-edit-content form-input" value="${archiveEsc(entry.content||'')}" placeholder="作業内容" style="padding:7px 8px;min-width:0;">
@@ -3496,22 +3525,31 @@ function archiveEditRowHtml(entry={}){
   </div>`;
 }
 function openArchiveReportEdit(reportId){
+  if(archiveReportBusy)return;
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
   const report=ARCHIVE_REPORTS.find(r=>r.id===reportId);if(!report){showToast('⚠️ 日報が見つかりません');return;}
   archiveEditingReportId=reportId;
+  archiveReportPhotoFiles=[];
+  document.getElementById('archive-report-photo-input').value='';
+  archivePhotoStatus('');
   document.getElementById('archive-report-edit-title').textContent=`📦 アーカイブ日報を編集（${ARCHIVES.find(site=>site.id===report.siteId)?.name||'アーカイブ'}）`;
   document.getElementById('archive-report-edit-date').value=report.date||'';
   document.getElementById('archive-report-edit-rows').innerHTML=(report.entries||[]).map(archiveEditRowHtml).join('')||archiveEditRowHtml();
   document.getElementById('archiveReportEditModal').classList.add('show');
 }
 function addArchiveReportEditRow(){
+  if(archiveReportBusy)return;
   document.getElementById('archive-report-edit-rows').insertAdjacentHTML('beforeend',archiveEditRowHtml());
 }
 function closeArchiveReportEdit(){
+  if(archiveReportBusy)return;
   archiveEditingReportId=null;
+  archiveReportPhotoFiles=[];
+  document.getElementById('archive-report-photo-input').value='';archivePhotoStatus('');
   document.getElementById('archiveReportEditModal').classList.remove('show');
 }
 async function saveArchiveReportEdit(){
+  if(archiveReportBusy)return;
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
   const report=ARCHIVE_REPORTS.find(r=>r.id===archiveEditingReportId);if(!report)return;
   const date=document.getElementById('archive-report-edit-date').value;
@@ -3524,13 +3562,26 @@ async function saveArchiveReportEdit(){
     if(content||worker)entries.push({siteId:report.siteId,content,worker,hours});
   });
   if(!entries.length){showToast('⚠️ 作業内容を1件以上入力してください');return;}
+  setArchiveReportBusy(true);
+  let reportSaved=false;
   try{
     await PILOT.updateReport(report.id,{date,siteId:report.siteId,entries,version:report.version});
     report.date=date;report.entries=entries;report.version+=1;
-    closeArchiveReportEdit();
+    reportSaved=true;
+    const total=archiveReportPhotoFiles.length;let uploaded=0;
+    while(archiveReportPhotoFiles.length){
+      archivePhotoStatus(`写真を保存中… ${uploaded+1}/${total}`);
+      await PILOT.uploadPhoto(report.id,archiveReportPhotoFiles[0]);
+      archiveReportPhotoFiles.shift();uploaded++;
+      if(report.photoCount!==null&&report.photoCount!==undefined)report.photoCount=Number(report.photoCount)+1;
+    }
+    setArchiveReportBusy(false);closeArchiveReportEdit();
+    showToast(total?'✅ アーカイブ日報と写真を保存しました':'✅ アーカイブ日報を更新しました');
     await loadArchives();
-    showToast('✅ アーカイブ日報を更新しました');
-  }catch(e){showToast('❌ 日報を更新できません: '+e.message,3500);}
+  }catch(e){
+    const message=reportSaved?`日報は保存済みです。写真は残り${archiveReportPhotoFiles.length}枚です。「保存」で再試行できます：${e.message}`:`日報を更新できません：${e.message}`;
+    archivePhotoStatus(message,true);showToast('❌ '+message,5500);
+  }finally{setArchiveReportBusy(false);}
 }
 
 // =========================================================
@@ -3539,7 +3590,7 @@ async function saveArchiveReportEdit(){
 ['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal','adminTaskEditModal','archiveReportEditModal','archiveLedgerEditModal','invoiceImportModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
-    if(e.target===this){if(id==='aiReportModal'){closeAiReportModal();return;}this.classList.remove('show');}
+    if(e.target===this){if(id==='archiveReportEditModal'){closeArchiveReportEdit();return;}if(id==='aiReportModal'){closeAiReportModal();return;}this.classList.remove('show');}
   });
 });
 

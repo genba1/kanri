@@ -1624,6 +1624,14 @@ function markUnsaved() {
 // =========================================================
 // UTILITIES
 // =========================================================
+// V74: Encode text/attributes separately from JavaScript arguments.
+function htmlText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function htmlJsArg(value) {
+  return htmlText(JSON.stringify(String(value ?? '')).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'));
+}
+
 function isToday(dateStr) {
   const d = new Date(dateStr);
   return d.getFullYear()===TODAY.getFullYear()&&d.getMonth()===TODAY.getMonth()&&d.getDate()===TODAY.getDate();
@@ -1814,18 +1822,18 @@ function renderSites(){
     const badgeCls=badgeMap[s.status]||'badge-active';
     const todayT=TASKS.filter(t=>taskIsOpen(t)&&t.siteId===s.id&&isToday(t.dueDate)).length;
     const weekT=TASKS.filter(t=>taskIsOpen(t)&&t.siteId===s.id&&isThisWeek(t.dueDate)).length;
-    return`<div class="site-card" id="card-${s.id}" onclick="openDetail('${s.id}')" style="cursor:pointer;">
+    return`<div class="site-card" id="card-${htmlText(s.id)}" onclick="openDetail(${htmlJsArg(s.id)})" style="cursor:pointer;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <div class="site-id">${s.id.startsWith('_') ? '' : s.id}</div>
+        <div class="site-id">${htmlText(s.id.startsWith('_') ? '' : s.id)}</div>
         <div class="site-card-actions" onclick="event.stopPropagation()" style="position:static;opacity:inherit;display:flex;gap:4px;">
-          <button class="btn-icon" onclick="openSiteModal('${s.id}')" title="編集">✏️</button>
-          <button class="btn-icon del" onclick="confirmDeleteSite('${s.id}')" title="削除">🗑️</button>
+          <button class="btn-icon" onclick="openSiteModal(${htmlJsArg(s.id)})" title="編集">✏️</button>
+          <button class="btn-icon del" onclick="confirmDeleteSite(${htmlJsArg(s.id)})" title="削除">🗑️</button>
         </div>
       </div>
-      <span class="status-badge ${badgeCls}">${s.status}</span>
-      <div class="site-name" style="padding-right:0;">${s.name}</div>
-      <div class="site-meta">📍 ${s.addr||'—'} &nbsp;｜&nbsp; 👷 ${s.mgr||'—'}</div>
-      ${s.note?`<div class="site-meta" style="color:#000000;font-size:11px;">📝 ${s.note}</div>`:''}
+      <span class="status-badge ${badgeCls}">${htmlText(s.status)}</span>
+      <div class="site-name" style="padding-right:0;">${htmlText(s.name)}</div>
+      <div class="site-meta">📍 ${htmlText(s.addr||'—')} &nbsp;｜&nbsp; 👷 ${htmlText(s.mgr||'—')}</div>
+      ${s.note?`<div class="site-meta" style="color:#000000;font-size:11px;">📝 ${htmlText(s.note)}</div>`:''}
       <div class="site-footer">
         <span>📅 本日: <strong style="color:#E53E3E;">${todayT}</strong>件</span>
         <span>📆 今週: <strong style="color:#ED8936;">${weekT}</strong>件</span>
@@ -1988,7 +1996,7 @@ async function saveSite(){
 function confirmDeleteSite(siteId){
   const s=SITES.find(x=>x.id===siteId);
   document.getElementById('confirmMsg').innerHTML=
-    `<strong>「${s.name}」</strong> を削除しますか？<br><br>この操作は元に戻せません。`;
+    `<strong>「${htmlText(s.name)}」</strong> を削除しますか？<br><br>この操作は元に戻せません。`;
   document.getElementById('confirmOkBtn').onclick=async()=>{
     try {
       await PILOT.deleteSite(siteId, s.version);
@@ -2083,9 +2091,9 @@ async function archiveSite(siteId){
     : siteReports.map(r=>{
         const entryRows = r.entries.map(e=>`
           <tr>
-            <td>${e.content||'—'}</td>
-            <td>${e.worker||'—'}</td>
-            <td style="text-align:right;">${e.hours||0}h</td>
+            <td>${htmlText(e.content||'—')}</td>
+            <td>${htmlText(e.worker||'—')}</td>
+            <td style="text-align:right;">${htmlText(e.hours||0)}h</td>
           </tr>`).join('');
         const totalHours = r.entries.reduce((s,e)=>s+(parseFloat(e.hours)||0),0);
         return `
@@ -2120,7 +2128,7 @@ async function archiveSite(siteId){
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>アーカイブ：${s.name}</title>
+<title>アーカイブ：${htmlText(s.name)}</title>
 <style>
   body{font-family:'Hiragino Sans','Yu Gothic','Segoe UI',sans-serif;color:#2d3748;font-size:14px;padding:32px;max-width:900px;margin:0 auto;}
   h1{font-size:22px;color:#1F4E79;margin-bottom:4px;}
@@ -2137,17 +2145,17 @@ async function archiveSite(siteId){
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
   <div style="font-size:36px;">🏗️</div>
   <div>
-    <h1>${s.name}</h1>
-    <div class="meta">アーカイブID：${archiveId}　／　アーカイブ出力日：${nowStr}</div>
+    <h1>${htmlText(s.name)}</h1>
+    <div class="meta">アーカイブID：${htmlText(archiveId)}　／　アーカイブ出力日：${nowStr}</div>
   </div>
 </div>
 
 <h2>📋 現場情報</h2>
 <table>
-  <tr><td class="label">ステータス</td><td colspan="3">${s.status||'—'}</td></tr>
-  <tr><td class="label">所在地</td><td colspan="3">${s.addr||'—'}</td></tr>
+  <tr><td class="label">ステータス</td><td colspan="3">${htmlText(s.status||'—')}</td></tr>
+  <tr><td class="label">所在地</td><td colspan="3">${htmlText(s.addr||'—')}</td></tr>
 
-  <tr><td class="label">担当者</td><td>${s.mgr||'—'}</td><td class="label">現況メモ</td><td>${s.note||'—'}</td></tr>
+  <tr><td class="label">担当者</td><td>${htmlText(s.mgr||'—')}</td><td class="label">現況メモ</td><td>${htmlText(s.note||'—')}</td></tr>
   <tr><td class="label">着工日</td><td>${fmtD(s.start)}</td><td class="label">竣工予定日</td><td>${fmtD(s.end)}</td></tr>
 </table>
 
@@ -2213,24 +2221,24 @@ function openDetail(siteId){
   const procs=s.procs||Array(9).fill(0);
 
   document.getElementById('detail-content').innerHTML=`
-    ${s.id.startsWith('_') ? '' : `<div style="font-size:11px;font-weight:600;color:#2E75B6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${s.id}</div>`}
-    <div style="font-size:16px;font-weight:700;color:#1F4E79;margin-bottom:4px;padding-right:36px;">${s.name}</div>
+    ${s.id.startsWith('_') ? '' : `<div style="font-size:11px;font-weight:600;color:#2E75B6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${htmlText(s.id)}</div>`}
+    <div style="font-size:16px;font-weight:700;color:#1F4E79;margin-bottom:4px;padding-right:36px;">${htmlText(s.name)}</div>
     <div style="margin:10px 0;padding:12px;background:#F7FAFC;border-radius:8px;">
-      <div class="detail-row"><div class="dl">所在地</div><div>📍 ${s.addr||'—'}</div></div>
-      <div class="detail-row"><div class="dl">担当者</div><div>👷 ${s.mgr||'—'}</div></div>
-      <div class="detail-row"><div class="dl">請負形態</div><div>${s.contract||'—'}</div></div>
+      <div class="detail-row"><div class="dl">所在地</div><div>📍 ${htmlText(s.addr||'—')}</div></div>
+      <div class="detail-row"><div class="dl">担当者</div><div>👷 ${htmlText(s.mgr||'—')}</div></div>
+      <div class="detail-row"><div class="dl">請負形態</div><div>${htmlText(s.contract||'—')}</div></div>
       <div class="detail-row"><div class="dl">着工</div><div>${s.start?fmtDate(s.start):'—'}</div></div>
       <div class="detail-row"><div class="dl">竣工予定</div><div>${s.end?fmtDate(s.end)+' ('+daysLeft(s.end)+')':'—'}</div></div>
-      ${s.note?`<div class="detail-row" style="border:none;"><div class="dl">現況</div><div style="color:#E53E3E;font-weight:600;">📝 ${s.note}</div></div>`:''}
+      ${s.note?`<div class="detail-row" style="border:none;"><div class="dl">現況</div><div style="color:#000000;font-weight:600;">📝 ${htmlText(s.note)}</div></div>`:''}
     </div>
     <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#4A5568;flex:1;" onclick="openSiteModal('${s.id}');closeDetail()">✏️ 現場を編集</button>
+      <button class="btn btn-white btn-sm" style="border:1.5px solid #CBD5E0;color:#4A5568;flex:1;" onclick="openSiteModal(${htmlJsArg(s.id)});closeDetail()">✏️ 現場を編集</button>
     </div>
     <div style="margin-bottom:12px;">
-      <button class="btn btn-amber btn-sm" style="width:100%;" onclick="goToReportWithSite('${s.id}');closeDetail()">📋 日報入力へ</button>
+      <button class="btn btn-amber btn-sm" style="width:100%;" onclick="goToReportWithSite(${htmlJsArg(s.id)});closeDetail()">📋 日報入力へ</button>
     </div>
     <div style="margin-bottom:12px;">
-      <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSiteToDatabase('${s.id}');closeDetail()">📦 アーカイブへ移動</button>
+      <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSiteToDatabase(${htmlJsArg(s.id)});closeDetail()">📦 アーカイブへ移動</button>
     </div>
     ${sitePhotoButton(s.id)}
     ${projectCardHtml(s)}
@@ -2261,7 +2269,7 @@ function projectTaskRowsHtml(siteId, inModal=false) {
       <div style="font-weight:700;color:#1F4E79;line-height:1.45;">${taskKindLabel(task.kind)}　${cardEscape(task.title)}</div>
       <div style="color:#4A5568;margin-top:4px;">📅 ${cardEscape(taskDueText(task))}</div>
       ${task.note?`<div style="color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(task.note)}</div>`:''}
-      <button class="btn btn-sm" style="margin-top:7px;background:white;border:1px solid #9AE6B4;color:#276749;" data-complete-task="${task.id}" onclick="completeAdminTask(${task.id})">✅ 完了にする</button>
+      <button class="btn btn-sm" style="margin-top:7px;background:white;border:1px solid #9AE6B4;color:#276749;" data-complete-task="${Number(task.id)}" onclick="completeAdminTask(${Number(task.id)})">✅ 完了にする</button>
     </div>`;
   }).join('');
 }
@@ -2271,7 +2279,7 @@ function projectCardHtml(site) {
   return `<div style="margin:14px 0;padding:13px;background:#F0F7FF;border:1px solid #BEE3F8;border-radius:9px;">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px;">
       <strong style="color:#1F4E79;font-size:13px;">🧭 案件カード（現在地）</strong>
-      <button class="btn btn-ai btn-sm" onclick="openProjectCard('${site.id}')">AIで整理</button>
+      <button class="btn btn-ai btn-sm" onclick="openProjectCard(${htmlJsArg(site.id)})">AIで整理</button>
     </div>
     <div style="font-size:12px;color:#4A5568;">この現場の未完了タスク</div>
     <div id="detail-card-current-tasks">${projectTaskRowsHtml(site.id)}</div>
@@ -2577,7 +2585,7 @@ function openAiReportModal(){
 function closeAiReportModal(){ if(dailyInterviewBusy){showToast('処理が終わるまでお待ちください。');return;} stopDailyInterviewVoice();stopSpeechInputFor('ai-report-source');document.getElementById('aiReportModal').classList.remove('show'); aiReportSourceText=''; }
 function aiReportCandidateButton(siteId, note){
   const name=siteName(siteId);
-  return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="continueAiReport('${siteId}')">🏗️ ${cardEscape(name)}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
+  return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="continueAiReport(${htmlJsArg(siteId)})">🏗️ ${cardEscape(name)}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
 }
 async function routeAiReport(){
   if(aiReportMode==='daily'){await answerDailyInterview();return;}
@@ -2634,7 +2642,7 @@ function closeAiDailyReportModal(){
   aiDailyReportDraft=null;
 }
 function aiDailyCandidateButton(siteId, note){
-  return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="applyAiDailyReportDraft('${siteId}')">🏗️ ${cardEscape(siteName(siteId))}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
+  return `<button class="btn btn-white btn-sm" style="display:block;width:100%;text-align:left;border:1px solid #90CDF4;margin-top:7px;color:#1F4E79;" onclick="applyAiDailyReportDraft(${htmlJsArg(siteId)})">🏗️ ${cardEscape(siteName(siteId))}<span style="display:block;font-size:11px;color:#718096;margin-top:3px;">${cardEscape(note)}</span></button>`;
 }
 async function draftAiDailyReport(){
   if(activeSpeechRecognition?.targetId==='ai-daily-report-source'){showToast('録音・文字起こしが終わってから操作してください。',3500);return;}
@@ -2858,17 +2866,17 @@ function renderAdminTasks(){
   if(!tasks.length){el.innerHTML='<div style="text-align:center;padding:25px 8px;color:#718096;font-size:13px;">タスクはまだありません。報告を話して、必要なものだけ追加してください。</div>';return;}
   el.innerHTML=tasks.map((task,index)=>{
     const done=!taskIsOpen(task);const wait=task.kind==='waiting';const border=done?'#CBD5E0':wait?'#ED8936':'#2E75B6';
-    return `<div data-order-task="${task.id}" style="border-left:4px solid ${border};border-radius:8px;background:${done?'#F7FAFC':wait?'#FFF9E6':'#F7FBFF'};padding:11px 12px;margin-bottom:9px;opacity:${done?'.62':'1'};">
+    return `<div data-order-task="${Number(task.id)}" style="border-left:4px solid ${border};border-radius:8px;background:${done?'#F7FAFC':wait?'#FFF9E6':'#F7FBFF'};padding:11px 12px;margin-bottom:9px;opacity:${done?'.62':'1'};">
       ${taskOrderDraft?`<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px;">
-        <button class="btn btn-sm" aria-label="${cardEscape(task.title)}をドラッグして移動" style="touch-action:none;cursor:grab;min-width:44px;min-height:40px;background:white;border:1px solid #CBD5E0;" onpointerdown="beginTaskOrderDrag(event,${task.id})" ${taskOrderSaving?'disabled':''}>↕</button>
+        <button class="btn btn-sm" aria-label="${cardEscape(task.title)}をドラッグして移動" style="touch-action:none;cursor:grab;min-width:44px;min-height:40px;background:white;border:1px solid #CBD5E0;" onpointerdown="beginTaskOrderDrag(event,${Number(task.id)})" ${taskOrderSaving?'disabled':''}>↕</button>
         <span style="font-size:12px;color:#718096;">${index+1}番目</span>
-        <button class="btn btn-sm" aria-label="${cardEscape(task.title)}を上へ" onclick="stepTaskOrder(${task.id},-1)" ${taskOrderSaving||index===0?'disabled':''}>↑</button>
-        <button class="btn btn-sm" aria-label="${cardEscape(task.title)}を下へ" onclick="stepTaskOrder(${task.id},1)" ${taskOrderSaving||index===tasks.length-1?'disabled':''}>↓</button>
+        <button class="btn btn-sm" aria-label="${cardEscape(task.title)}を上へ" onclick="stepTaskOrder(${Number(task.id)},-1)" ${taskOrderSaving||index===0?'disabled':''}>↑</button>
+        <button class="btn btn-sm" aria-label="${cardEscape(task.title)}を下へ" onclick="stepTaskOrder(${Number(task.id)},1)" ${taskOrderSaving||index===tasks.length-1?'disabled':''}>↓</button>
       </div>`:''}
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;"><div style="font-weight:700;font-size:14px;line-height:1.45;text-decoration:${done?'line-through':'none'};">${taskKindLabel(task.kind)}　${cardEscape(task.title)}</div>${done?'<span style="font-size:11px;color:#718096;white-space:nowrap;">完了</span>':'<span style="font-size:11px;color:#2E75B6;white-space:nowrap;">未完了</span>'}</div>
       <div style="font-size:12px;color:#4A5568;margin-top:6px;">🏗️ ${cardEscape(task.siteId?siteName(task.siteId):'共通タスク（現場に紐づけない）')}　｜　📅 ${cardEscape(taskDueText(task))}</div>
       ${task.note?`<div style="font-size:12px;color:#718096;margin-top:4px;white-space:pre-wrap;">${cardEscape(task.note)}</div>`:''}
-      ${done||taskOrderDraft?'':`<div style="display:flex;gap:7px;margin-top:8px;"><button class="btn btn-sm" style="background:white;border:1px solid #90CDF4;color:#1F4E79;" onclick="openAdminTaskEdit(${task.id})">✏️ 編集</button><button class="btn btn-sm" style="background:white;border:1px solid #9AE6B4;color:#276749;" data-complete-task="${task.id}" onclick="completeAdminTask(${task.id})">✅ 完了にする</button></div>`}
+      ${done||taskOrderDraft?'':`<div style="display:flex;gap:7px;margin-top:8px;"><button class="btn btn-sm" style="background:white;border:1px solid #90CDF4;color:#1F4E79;" onclick="openAdminTaskEdit(${Number(task.id)})">✏️ 編集</button><button class="btn btn-sm" style="background:white;border:1px solid #9AE6B4;color:#276749;" data-complete-task="${Number(task.id)}" onclick="completeAdminTask(${Number(task.id)})">✅ 完了にする</button></div>`}
     </div>`;
   }).join('');
 }
@@ -3063,7 +3071,7 @@ function renderSchedule(){
   } else {
     SITES.forEach(site => {
       html += '<tr>';
-      html += `<td class="sch-site-name" title="${site.name}" onclick="goToSiteCard('${site.id}')" style="cursor:pointer;">${site.name}</td>`;
+      html += `<td class="sch-site-name" title="${htmlText(site.name)}" onclick="goToSiteCard(${htmlJsArg(site.id)})" style="cursor:pointer;">${htmlText(site.name)}</td>`;
       days.forEach(d => {
         const ds = toStr(d);
         const isToday = d.getTime() === today.getTime();
@@ -3078,14 +3086,14 @@ function renderSchedule(){
         cellReports.forEach(r => {
           r.entries.forEach(e => {
             if(e.content){
-              const full = (e.content + (e.worker ? ' ／ ' + e.worker : '')).replace(/'/g,"&#39;");
-              entries += `<span class="sch-entry" onclick="event.stopPropagation();showSchPopup('${full}',${r.id})">${e.content}</span>`;
+              const full = (e.content + (e.worker ? ' ／ ' + e.worker : ''));
+              entries += `<span class="sch-entry" onclick="event.stopPropagation();showSchPopup(${htmlJsArg(full)},${Number(r.id)})">${htmlText(e.content)}</span>`;
             }
           });
         });
 
-        const siteIdEsc = site.id.replace(/'/g,"&#39;");
-        html += `<td class="sch-cell ${cellCls}" onclick="showSchNewPopup('${siteIdEsc}','${ds}')">${entries}</td>`;
+        const siteIdEsc = site.id;
+        html += `<td class="sch-cell ${cellCls}" onclick="showSchNewPopup(${htmlJsArg(siteIdEsc)},${htmlJsArg(ds)})">${entries}</td>`;
       });
       html += '</tr>';
     });
@@ -3370,10 +3378,10 @@ async function loadArchives(){
           ${ledger}
           ${invoiceParts.length?`<div style="font-size:12px;color:#4A5568;margin-top:4px;overflow-wrap:anywhere;">${invoiceParts.join('　｜　')}</div>`:''}
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
-            ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit('${id}')">✏️ 整理</button>`:''}
-            <button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="toggleArchiveReports('${id}')">日報を見る</button>
+            ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit(${htmlJsArg(site.id)})">✏️ 整理</button>`:''}
+            <button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="toggleArchiveReports(${htmlJsArg(site.id)})">日報を見る</button>
             ${sitePhotoButton(site.id)}
-            ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload('${id}')">＋ 請求書を添付</button>`:''}
+            ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload(${htmlJsArg(site.id)})">＋ 請求書を添付</button>`:''}
           </div>
           ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}
           <div id="archive-reports-${id}" style="margin-top:8px;"></div>
@@ -3521,7 +3529,7 @@ async function toggleArchiveReports(siteId){
     if(!reports.length){box.innerHTML='<div style="padding:10px;color:#718096;font-size:12px;">日報はありません。</div>';box.dataset.loaded='1';return;}
     const canEditArchiveReports=CURRENT_USER&&CURRENT_USER.role==='admin';
     box.innerHTML=reports.map(report=>`<div style="border-top:1px solid #E2E8F0;padding:9px 4px;font-size:12px;">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><strong style="color:#1F4E79;">${archiveEsc(report.date)}</strong><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${reportPhotoButton(report)}${canEditArchiveReports?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;padding:3px 8px;font-size:11px;" onclick="openArchiveReportEdit(${report.id})">✏️ 編集</button>`:''}</div></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><strong style="color:#1F4E79;">${archiveEsc(report.date)}</strong><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${reportPhotoButton(report)}${canEditArchiveReports?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;padding:3px 8px;font-size:11px;" onclick="openArchiveReportEdit(${Number(report.id)})">✏️ 編集</button>`:''}</div></div>
       ${(report.entries||[]).map(entry=>`<div style="margin-top:4px;line-height:1.6;">・${archiveEsc(entry.content)}　${archiveEsc(entry.worker)}　${archiveEsc(entry.hours||0)}h</div>`).join('')}
     </div>`).join('');
     box.dataset.loaded='1';
@@ -3681,7 +3689,7 @@ function updateReportWeekday() {
 
 function buildSiteOptions(selectedId) {
   const blank = `<option value="">現場を選択</option>`;
-  const opts = SITES.map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${s.id.startsWith('_') ? '' : '['+s.id+'] '}${s.name}</option>`).join('');
+  const opts = SITES.map(s => `<option value="${htmlText(s.id)}" ${s.id===selectedId?'selected':''}>${htmlText(s.id.startsWith('_') ? '' : '['+s.id+'] ')}${htmlText(s.name)}</option>`).join('');
   return blank + opts;
 }
 
@@ -3716,17 +3724,17 @@ function buildReportRows(entries) {
       <td style="padding:4px 6px;color:#A0AEC0;font-size:12px;text-align:center;">${i+1}</td>
       <td style="padding:4px 6px;">
         <div style="display:flex;gap:4px;align-items:center;">
-          <input type="text" class="re-content form-input" placeholder="作業内容" value="${e.content||''}" style="padding:6px 8px;font-size:13px;flex:1;min-width:0;">
+          <input type="text" class="re-content form-input" placeholder="作業内容" value="${htmlText(e.content||'')}" style="padding:6px 8px;font-size:13px;flex:1;min-width:0;">
           <button class="report-expand-btn" type="button" onclick="openReportExpand(this.parentElement.querySelector('.re-content'),'作業内容')">📝</button>
         </div>
       </td>
       <td style="padding:4px 6px;">
         <div style="display:flex;gap:4px;align-items:center;">
-          <input type="text" class="re-worker form-input" placeholder="氏名" value="${e.worker||''}" style="padding:6px 8px;font-size:13px;flex:1;min-width:0;">
+          <input type="text" class="re-worker form-input" placeholder="氏名" value="${htmlText(e.worker||'')}" style="padding:6px 8px;font-size:13px;flex:1;min-width:0;">
           <button class="report-expand-btn" type="button" onclick="openReportExpand(this.parentElement.querySelector('.re-worker'),'作業者氏名')">📝</button>
         </div>
       </td>
-      <td style="padding:4px 6px;"><input type="number" class="re-hours form-input" placeholder="時間" min="0.5" max="24" step="0.5" value="${e.hours||''}" style="padding:6px 8px;font-size:13px;width:70px;"></td>`;
+      <td style="padding:4px 6px;"><input type="number" class="re-hours form-input" placeholder="時間" min="0.5" max="24" step="0.5" value="${htmlText(e.hours||'')}" style="padding:6px 8px;font-size:13px;width:70px;"></td>`;
     container.appendChild(tr);
   }
 }
@@ -3948,7 +3956,7 @@ function reportPhotoButton(report){
     return '<span class="btn report-photo-none">写真なし</span>';
   }
   const label=count===null||count===undefined?'📷 写真（未確認）':`📷 写真${Number(count)}枚`;
-  return `<button type="button" class="btn report-photo-btn" onclick="openReportPhotos(${Number(report.id)},'${photoHtmlEscape(report.date)}')">${label}</button>`;
+  return `<button type="button" class="btn report-photo-btn" onclick="openReportPhotos(${Number(report.id)},${htmlJsArg(report.date)})">${label}</button>`;
 }
 function photoHtmlEscape(value){ return String(value||'').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 async function openReportPhotos(reportId, date){
@@ -3984,19 +3992,19 @@ function buildSiteReportHtml(siteId) {
   const blocks = show.map(item => {
     const entryRows = item.entries.map(e => `
       <div style="display:flex;gap:8px;padding:4px 0 4px 10px;border-left:2px solid #BEE3F8;font-size:12px;color:#2D3748;align-items:baseline;">
-        <span style="font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.content||'—'}</span>
-        <span style="color:#4A5568;white-space:nowrap;flex-shrink:0;">${e.hours||0}h</span>
-        <span style="color:#718096;white-space:nowrap;flex-shrink:0;">${e.worker||'—'}</span>
+        <span style="font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${htmlText(e.content||'—')}</span>
+        <span style="color:#4A5568;white-space:nowrap;flex-shrink:0;">${htmlText(e.hours||0)}h</span>
+        <span style="color:#718096;white-space:nowrap;flex-shrink:0;">${htmlText(e.worker||'—')}</span>
       </div>`).join('');
     return `
       <div style="border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#FAFBFD;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <span style="color:#1F4E79;font-weight:700;font-size:13px;">📅 ${fmtDateJP(item.date)}</span>
           <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
-            <button onclick="editReport(${item.reportId});closeDetail()"
+            <button onclick="editReport(${Number(item.reportId)});closeDetail()"
               style="background:#EBF8FF;border:1px solid #90CDF4;color:#2B6CB0;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">✏️ 編集</button>
             ${reportPhotoButton({id:item.reportId,date:item.date,photoCount:item.photoCount})}
-            <button onclick="deleteReport(${item.reportId});openDetail('${siteId}')"
+            <button onclick="deleteReport(${Number(item.reportId)});openDetail(${htmlJsArg(siteId)})"
               style="background:#FFF5F5;border:1px solid #FEB2B2;color:#C53030;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">🗑️</button>
           </div>
         </div>
@@ -4024,10 +4032,10 @@ function renderReportList() {
     const rows = r.entries.map(e => {
       const sn = reportSite || SITES.find(s=>s.id===e.siteId);
       return `<tr>
-        <td>${sn ? sn.name : '—'}</td>
-        <td>${e.content||'—'}</td>
-        <td style="text-align:center;">${e.hours||0}h</td>
-        <td>${e.worker||'—'}</td>
+        <td>${htmlText(sn ? sn.name : '—')}</td>
+        <td>${htmlText(e.content||'—')}</td>
+        <td style="text-align:center;">${htmlText(e.hours||0)}h</td>
+        <td>${htmlText(e.worker||'—')}</td>
       </tr>`;
     }).join('');
     return `<div class="report-list-item">
@@ -4035,8 +4043,8 @@ function renderReportList() {
         <span class="report-list-date">📅 ${fmtDateJP(r.date)}</span>
         <div style="display:flex;gap:6px;">
           ${reportPhotoButton(r)}
-          <button class="btn btn-white btn-sm" style="border:1px solid #CBD5E0;" onclick="editReport(${r.id})">✏️ 修正</button>
-          <button class="btn btn-red btn-sm" onclick="deleteReport(${r.id})">🗑️</button>
+          <button class="btn btn-white btn-sm" style="border:1px solid #CBD5E0;" onclick="editReport(${Number(r.id)})">✏️ 修正</button>
+          <button class="btn btn-red btn-sm" onclick="deleteReport(${Number(r.id)})">🗑️</button>
         </div>
       </div>
       <table class="report-list-table">

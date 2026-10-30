@@ -2017,6 +2017,7 @@ function confirmDeleteSite(siteId){
 // 新サーバー運用：端末にHTMLを書き出さず、現場と日報をDB上でアーカイブ状態へ移す。
 let archiveMoveSiteId=null,archiveMoveBusy=false;
 function archiveSiteToDatabase(siteId){
+  if(CURRENT_USER?.role!=='admin'){showToast('この操作は社長だけが利用できます。');return;}
   if(archiveMoveBusy)return;
   const site=SITES.find(s=>s.id===siteId);if(!site){showToast('⚠️ 現場が見つかりません');return;}
   archiveMoveSiteId=siteId;
@@ -2034,6 +2035,7 @@ function archiveSiteToDatabase(siteId){
 }
 function closeArchiveMove(){if(archiveMoveBusy)return;archiveMoveSiteId=null;document.getElementById('archive-move-file').value='';document.getElementById('archiveMoveModal').classList.remove('show');}
 async function saveArchiveMove(){
+  if(CURRENT_USER?.role!=='admin'){showToast('この操作は社長だけが利用できます。');return;}
   if(archiveMoveBusy)return;
   const site=SITES.find(s=>s.id===archiveMoveSiteId);if(!site)return;
   const isAdmin=CURRENT_USER?.role==='admin',file=isAdmin?document.getElementById('archive-move-file').files[0]:null;
@@ -2237,9 +2239,9 @@ function openDetail(siteId){
     <div style="margin-bottom:12px;">
       <button class="btn btn-amber btn-sm" style="width:100%;" onclick="goToReportWithSite(${htmlJsArg(s.id)});closeDetail()">📋 日報入力へ</button>
     </div>
-    <div style="margin-bottom:12px;">
+    ${CURRENT_USER?.role==='admin'?`<div style="margin-bottom:12px;">
       <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSiteToDatabase(${htmlJsArg(s.id)});closeDetail()">📦 アーカイブへ移動</button>
-    </div>
+    </div>`:''}
     ${sitePhotoButton(s.id)}
     ${projectCardHtml(s)}
     ${buildSiteReportHtml(siteId)}`;

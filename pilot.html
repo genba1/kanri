@@ -1147,6 +1147,24 @@ input,select,textarea,button{font-family:inherit}
 <div class="toast" id="toast"></div>
 
 <script src="heic2any.min.js"></script>
+<style>
+#sitePdfModal{z-index:3200;}#sitePdfModal [hidden]{display:none!important;}
+#sitePdfModal .modal{width:100%;max-width:1100px;max-height:95dvh;overflow:auto;}
+.site-pdf-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #E2E8F0;}
+.site-pdf-row small{color:#718096;}#site-pdf-list{margin:12px 0;}
+</style>
+<div class="modal-overlay" id="sitePdfModal" role="dialog" aria-modal="true" aria-labelledby="site-pdf-title">
+ <div class="modal">
+  <div class="modal-head"><h2 id="site-pdf-title">📄 PDF一覧</h2><button class="modal-close" id="site-pdf-close" type="button" onclick="closeSitePdfs()" aria-label="PDF一覧を閉じる">✕</button></div>
+  <div class="modal-body">
+   <div id="site-pdf-upload" hidden><label for="site-pdf-input">PDFを追加（1ファイル20MBまで・複数選択可）</label><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"><input type="file" id="site-pdf-input" accept="application/pdf,.pdf" multiple style="max-width:100%;"><button class="btn btn-blue btn-sm" id="site-pdf-add" type="button" onclick="addSitePdfs()">追加する</button></div></div>
+   <div style="margin-top:12px;"><button class="btn btn-white btn-sm" id="site-pdf-refresh" type="button" onclick="loadSitePdfs()">再読込</button></div>
+   <div id="site-pdf-status" role="status" aria-live="polite" style="margin-top:8px;"></div>
+   <div id="site-pdf-list"></div><div id="site-pdf-preview"></div>
+  </div>
+ </div>
+</div>
+<script src="site-pdfs.js"></script>
 <script src="pilot-api.js"></script>
 <script>
 // =========================================================
@@ -1834,6 +1852,7 @@ function renderSites(){
       <div class="site-name" style="padding-right:0;">${htmlText(s.name)}</div>
       <div class="site-meta">📍 ${htmlText(s.addr||'—')} &nbsp;｜&nbsp; 👷 ${htmlText(s.mgr||'—')}</div>
       ${s.note?`<div class="site-meta" style="color:#000000;font-size:11px;">📝 ${htmlText(s.note)}</div>`:''}
+      <div style="margin-top:8px;">${sitePdfButton(s.id)}</div>
       <div class="site-footer">
         <span>📅 本日: <strong style="color:#E53E3E;">${todayT}</strong>件</span>
         <span>📆 今週: <strong style="color:#ED8936;">${weekT}</strong>件</span>
@@ -2017,7 +2036,6 @@ function confirmDeleteSite(siteId){
 // 新サーバー運用：端末にHTMLを書き出さず、現場と日報をDB上でアーカイブ状態へ移す。
 let archiveMoveSiteId=null,archiveMoveBusy=false;
 function archiveSiteToDatabase(siteId){
-  if(CURRENT_USER?.role!=='admin'){showToast('この操作は社長だけが利用できます。');return;}
   if(archiveMoveBusy)return;
   const site=SITES.find(s=>s.id===siteId);if(!site){showToast('⚠️ 現場が見つかりません');return;}
   archiveMoveSiteId=siteId;
@@ -2035,7 +2053,6 @@ function archiveSiteToDatabase(siteId){
 }
 function closeArchiveMove(){if(archiveMoveBusy)return;archiveMoveSiteId=null;document.getElementById('archive-move-file').value='';document.getElementById('archiveMoveModal').classList.remove('show');}
 async function saveArchiveMove(){
-  if(CURRENT_USER?.role!=='admin'){showToast('この操作は社長だけが利用できます。');return;}
   if(archiveMoveBusy)return;
   const site=SITES.find(s=>s.id===archiveMoveSiteId);if(!site)return;
   const isAdmin=CURRENT_USER?.role==='admin',file=isAdmin?document.getElementById('archive-move-file').files[0]:null;
@@ -2239,10 +2256,10 @@ function openDetail(siteId){
     <div style="margin-bottom:12px;">
       <button class="btn btn-amber btn-sm" style="width:100%;" onclick="goToReportWithSite(${htmlJsArg(s.id)});closeDetail()">📋 日報入力へ</button>
     </div>
-    ${CURRENT_USER?.role==='admin'?`<div style="margin-bottom:12px;">
+    <div style="margin-bottom:12px;">
       <button class="btn btn-sm" style="width:100%;background:#EDF2F7;color:#2D3748;border:1.5px solid #CBD5E0;" onclick="archiveSiteToDatabase(${htmlJsArg(s.id)});closeDetail()">📦 アーカイブへ移動</button>
-    </div>`:''}
-    ${sitePhotoButton(s.id)}
+    </div>
+    ${sitePhotoButton(s.id)} ${sitePdfButton(s.id)}
     ${projectCardHtml(s)}
     ${buildSiteReportHtml(siteId)}`;
 
@@ -3382,7 +3399,7 @@ async function loadArchives(){
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveLedgerEdit(${htmlJsArg(site.id)})">✏️ 整理</button>`:''}
             <button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="toggleArchiveReports(${htmlJsArg(site.id)})">日報を見る</button>
-            ${sitePhotoButton(site.id)}
+            ${sitePhotoButton(site.id)} ${sitePdfButton(site.id)}
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload(${htmlJsArg(site.id)})">＋ 請求書を添付</button>`:''}
           </div>
           ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}

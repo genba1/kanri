@@ -1852,7 +1852,6 @@ function renderSites(){
       <div class="site-name" style="padding-right:0;">${htmlText(s.name)}</div>
       <div class="site-meta">📍 ${htmlText(s.addr||'—')} &nbsp;｜&nbsp; 👷 ${htmlText(s.mgr||'—')}</div>
       ${s.note?`<div class="site-meta" style="color:#000000;font-size:11px;">📝 ${htmlText(s.note)}</div>`:''}
-      <div style="margin-top:8px;">${sitePdfButton(s.id)}</div>
       <div class="site-footer">
         <span>📅 本日: <strong style="color:#E53E3E;">${todayT}</strong>件</span>
         <span>📆 今週: <strong style="color:#ED8936;">${weekT}</strong>件</span>

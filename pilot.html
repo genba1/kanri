@@ -1071,13 +1071,13 @@ input,select,textarea,button{font-family:inherit}
 
 <div class="modal-overlay" id="archiveInvoiceUploadModal">
   <div class="modal" style="max-width:620px;">
-    <div class="modal-head"><h2>🧾 請求書を添付</h2><button class="modal-close" id="archive-invoice-close" onclick="closeArchiveInvoiceUpload()">✕</button></div>
+    <div class="modal-head"><h2 id="archive-invoice-heading">🧾 請求書を添付</h2><button class="modal-close" id="archive-invoice-close" onclick="closeArchiveInvoiceUpload()">✕</button></div>
     <div class="modal-body">
       <div id="archive-invoice-target" style="font-weight:700;word-break:break-word;margin-bottom:14px;"></div>
-      <label class="form-label" for="archive-invoice-file">請求書ファイル</label>
+      <label class="form-label" id="archive-invoice-label" for="archive-invoice-file">請求書ファイル</label>
       <input id="archive-invoice-file" class="form-input" type="file" accept=".xlsx,.xlsm,.xls,.pdf,.jpg,.jpeg,.png" style="width:100%;padding:9px;">
-      <p style="font-size:12px;color:#718096;line-height:1.7;">Excel・PDF・JPEG・PNG／1ファイル20MB以下。ZIPにする必要はありません。</p>
-      <p style="font-size:12px;color:#718096;line-height:1.7;">ファイルをこの案件へ保存します。A管理名や売上金額の変更は、案件の「整理」から行ってください。請求書の明細は自動では取り込みません。</p>
+      <p id="archive-invoice-formats" style="font-size:12px;color:#718096;line-height:1.7;">Excel・PDF・JPEG・PNG／1ファイル20MB以下。ZIPにする必要はありません。</p>
+      <p id="archive-invoice-help" style="font-size:12px;color:#718096;line-height:1.7;">ファイルをこの案件へ保存します。A管理名や売上金額の変更は、案件の「整理」から行ってください。請求書の明細は自動では取り込みません。</p>
       <p id="archive-invoice-status" role="status" aria-live="polite" style="font-size:13px;white-space:pre-line;"></p>
     </div>
     <div class="modal-foot"><button class="btn btn-white" id="archive-invoice-cancel" onclick="closeArchiveInvoiceUpload()">キャンセル</button><button class="btn btn-green" id="archive-invoice-save" onclick="saveArchiveInvoiceUpload()">この案件へ保存</button></div>
@@ -3400,6 +3400,7 @@ async function loadArchives(){
             <button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="toggleArchiveReports(${htmlJsArg(site.id)})">日報を見る</button>
             ${sitePhotoButton(site.id)} ${sitePdfButton(site.id)}
             ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload(${htmlJsArg(site.id)})">＋ 請求書を添付</button>`:''}
+            ${isAdmin?`<button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;" onclick="openArchiveInvoiceUpload(${htmlJsArg(site.id)},true)">＋ 工程表を添付</button>`:''}
           </div>
           ${site.archiveSummary?`<div style="font-size:12px;color:#718096;white-space:pre-line;margin-top:8px;">${archiveEsc(site.archiveSummary)}</div>`:''}
           <div id="archive-reports-${id}" style="margin-top:8px;"></div>
@@ -3415,12 +3416,19 @@ async function loadArchives(){
 }
 let archiveInvoiceUploadSiteId=null;
 let archiveInvoiceUploadBusy=false;
-function openArchiveInvoiceUpload(siteId){
+function openArchiveInvoiceUpload(siteId,isSchedule=false){
   if(archiveInvoiceUploadBusy||!CURRENT_USER||CURRENT_USER.role!=='admin')return;
   const site=ARCHIVES.find(s=>s.id===siteId);if(!site){showToast('⚠️ アーカイブが見つかりません');return;}
   archiveInvoiceUploadSiteId=siteId;
   document.getElementById('archive-invoice-target').textContent='添付先：'+site.name;
-  document.getElementById('archive-invoice-file').value='';
+  const input=document.getElementById('archive-invoice-file');
+  input.value='';
+  input.dataset.kind=isSchedule?'schedule':'invoice';
+  input.accept=isSchedule?'.xlsx,.xlsm,.xls':'.xlsx,.xlsm,.xls,.pdf,.jpg,.jpeg,.png';
+  document.getElementById('archive-invoice-heading').textContent=isSchedule?'📊 工程表を添付':'🧾 請求書を添付';
+  document.getElementById('archive-invoice-label').textContent=isSchedule?'工程表のExcelファイル':'請求書ファイル';
+  document.getElementById('archive-invoice-formats').textContent=isSchedule?'Excel（.xlsx・.xlsm・.xls）／1ファイル20MB以下。':'Excel・PDF・JPEG・PNG／1ファイル20MB以下。ZIPにする必要はありません。';
+  document.getElementById('archive-invoice-help').hidden=isSchedule;
   document.getElementById('archive-invoice-status').textContent='';
   document.getElementById('archiveInvoiceUploadModal').classList.add('show');
 }
@@ -3434,20 +3442,25 @@ async function saveArchiveInvoiceUpload(){
   if(archiveInvoiceUploadBusy||!CURRENT_USER||CURRENT_USER.role!=='admin')return;
   const site=ARCHIVES.find(s=>s.id===archiveInvoiceUploadSiteId);
   const status=document.getElementById('archive-invoice-status');
-  const file=document.getElementById('archive-invoice-file').files[0];
+  const input=document.getElementById('archive-invoice-file');
+  const file=input.files[0];
+  const isSchedule=input.dataset.kind==='schedule';
+  const label=isSchedule?'工程表':'請求書';
+  const extensions=isSchedule?/\.(xlsx|xlsm|xls)$/i:/\.(xlsx|xlsm|xls|pdf|jpe?g|png)$/i;
   function error(text){status.style.color='#C53030';status.textContent=text;}
   if(!site)return error('添付先を確認できません。画面を閉じて案件を選び直してください。');
-  if(!file)return error('請求書ファイルを選んでください。');
-  if(!/\.(xlsx|xlsm|xls|pdf|jpe?g|png)$/i.test(file.name))return error('Excel・PDF・JPEG・PNGのファイルを選んでください。');
+  if(!file)return error(label+'ファイルを選んでください。');
+  if(!extensions.test(file.name))return error(isSchedule?'工程表のExcelファイルを選んでください。':'Excel・PDF・JPEG・PNGのファイルを選んでください。');
   if(file.size===0)return error('空のファイルは保存できません。');
   if(file.size>20*1024*1024)return error('ファイルは20MB以下にしてください。');
   const siteId=site.id;
   const controls=['archive-invoice-file','archive-invoice-save','archive-invoice-cancel','archive-invoice-close'];
   archiveInvoiceUploadBusy=true;controls.forEach(id=>document.getElementById(id).disabled=true);
-  status.style.color='#718096';status.textContent='請求書を保存しています…';
+  status.style.color='#718096';status.textContent=label+'を保存しています…';
   let saved=false;
   try{
-    await PILOT.uploadDocument(siteId,file,{documentType:'invoice',title:site.name});
+    const metadata=isSchedule?{documentType:'other',title:'工程表'}:{documentType:'invoice',title:site.name};
+    await PILOT.uploadDocument(siteId,file,metadata);
     saved=true;
   }catch(e){error('保存できませんでした：'+e.message);}
   finally{archiveInvoiceUploadBusy=false;controls.forEach(id=>document.getElementById(id).disabled=false);}
@@ -3455,7 +3468,7 @@ async function saveArchiveInvoiceUpload(){
   closeArchiveInvoiceUpload();
   const box=document.getElementById('archive-documents-'+siteId);
   if(box)await toggleArchiveDocuments(siteId);
-  showToast('✅ この案件へ請求書を保存しました。A管理名は「整理」で確認できます。',4500);
+  showToast(isSchedule?'✅ この案件へ工程表を保存しました。':'✅ この案件へ請求書を保存しました。A管理名は「整理」で確認できます。',4500);
 }
 
 function archiveSalesText(amount){
@@ -3471,7 +3484,9 @@ function archiveDocumentsHtml(siteId,docs){
   const badge=docs.length?`<span style="display:inline-block;border-radius:5px;background:#E6FFFA;color:#276749;padding:4px 8px;font-weight:700;">📎 書類あり（${docs.length}件）</span>`:`<span style="display:inline-block;border-radius:5px;background:#EDF2F7;color:#5B6B7B;padding:4px 8px;">書類なし</span>`;
   return `<div style="border-top:1px solid #E2E8F0;padding-top:10px;font-size:12px;">${badge}</div>`+docs.map(doc=>{
     const fileName=doc.original_name||doc.title||'書類';
-    return `<div style="padding:8px 3px;font-size:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;"><div style="min-width:0;overflow-wrap:anywhere;">${doc.document_type==='invoice'?'🧾 請求書':'📎 書類'}<br><span style="color:#4A5568;">${archiveEsc(fileName)}</span></div><button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;flex:none;" data-document-id="${archiveEsc(doc.id)}" data-document-name="${archiveEsc(fileName)}" onclick="downloadArchiveDocument(Number(this.dataset.documentId),this.dataset.documentName)">書類を開く</button></div>`;
+    const isSchedule=doc.document_type==='other'&&doc.title==='工程表'&&/\.(xlsx|xlsm|xls)$/i.test(fileName);
+    const label=isSchedule?'📊 工程表':(doc.document_type==='invoice'?'🧾 請求書':'📎 書類');
+    return `<div style="padding:8px 3px;font-size:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;"><div style="min-width:0;overflow-wrap:anywhere;">${label}<br><span style="color:#4A5568;">${archiveEsc(fileName)}</span></div><button class="btn btn-white btn-sm" style="border:1px solid #90CDF4;color:#1F4E79;white-space:nowrap;flex:none;" data-document-id="${archiveEsc(doc.id)}" data-document-name="${archiveEsc(fileName)}" onclick="downloadArchiveDocument(Number(this.dataset.documentId),this.dataset.documentName)">${isSchedule?'ダウンロード':'書類を開く'}</button></div>`;
   }).join('');
 }
 async function toggleArchiveDocuments(siteId){

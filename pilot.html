@@ -591,7 +591,7 @@ input,select,textarea,button{font-family:inherit}
       <div style="margin-top:14px;">
         <label style="font-size:13px;font-weight:600;color:#4A5568;display:block;margin-bottom:5px;">📷 現場写真（任意・複数可）</label>
         <input type="file" id="report-photo-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onchange="prepareReportPhotos(this.files)" style="font-size:13px;max-width:100%;">
-        <div style="font-size:11px;color:#718096;margin-top:4px;">HEIFは端末内でJPEGへ変換します。JPEG・PNG・WebPも含め、1枚3MB以下で保存します。</div>
+        <div style="font-size:11px;color:#718096;margin-top:4px;">HEIFは端末内でJPEGへ変換します。JPEG・PNG・WebPも含め、1枚2MB以下で保存します。</div>
         <div id="report-photo-status" style="font-size:12px;color:#4A5568;margin-top:6px;"></div>
       </div>
       <div class="report-actions" style="margin-top:14px;">
@@ -1765,7 +1765,7 @@ function reportPhotoStatus(text, isError=false){
   el.textContent=text; el.style.color=isError?'#C53030':'#4A5568';
 }
 async function compressReportPhoto(file){
-  const maxBytes=3*1024*1024;
+  const maxBytes=2*1024*1024;
   const heif=/image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
   if(heif){
     if(typeof heic2any!=='function') throw new Error('HEIF変換部品を読み込めませんでした。画面を更新してからもう一度お試しください。');
@@ -1792,7 +1792,7 @@ async function compressReportPhoto(file){
         return new File([blob],base+ext,{type:mime,lastModified:file.lastModified});
       }
     }
-    throw new Error(`${file.name} を3MB以下にできませんでした。`);
+    throw new Error(`${file.name} を2MB以下にできませんでした。`);
   } finally { URL.revokeObjectURL(url); }
 }
 async function prepareReportPhotos(fileList){

@@ -1117,6 +1117,8 @@ input,select,textarea,button{font-family:inherit}
     <div id="site-photo-image"></div>
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><button id="site-photo-prev" class="btn btn-white" onclick="stepSitePhoto(-1)">◀ 前へ</button><span id="site-photo-caption"></span><button id="site-photo-next" class="btn btn-white" onclick="stepSitePhoto(1)">次へ ▶</button></div>
     <button class="btn btn-white btn-sm" style="margin-top:10px;" onclick="showSitePhotoSource()">元の日報を見る</button>
+    <button type="button" class="btn btn-red btn-sm" id="site-photo-delete" style="margin-top:10px;" onclick="deleteSiteReportPhoto(this)" hidden>この写真を削除</button>
+    <div id="site-photo-delete-status" data-photo-delete-status role="status" style="color:#C53030;font-size:12px;"></div>
     <div id="site-photo-source" hidden></div>
    </div>
    <div class="site-photo-grid" id="site-photo-grid"></div>
@@ -1128,6 +1130,7 @@ input,select,textarea,button{font-family:inherit}
   <div class="modal" style="max-width:760px;">
     <div class="modal-head"><h2 id="reportPhotoTitle">📷 現場写真</h2><button class="modal-close" onclick="closeReportPhotos()">✕</button></div>
     <div class="modal-body" id="reportPhotoBody"><div style="color:#718096;font-size:13px;">読み込み中です…</div></div>
+    <div id="report-photo-delete-status" data-photo-delete-status role="status" style="color:#C53030;font-size:12px;margin:0 16px;"></div>
   </div>
 </div>
 
@@ -3666,7 +3669,7 @@ async function saveArchiveReportEdit(){
 ['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal','adminTaskEditModal','archiveReportEditModal','archiveLedgerEditModal','invoiceImportModal'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('click',function(e){
-    if(e.target===this){if(id==='archiveReportEditModal'){closeArchiveReportEdit();return;}if(id==='aiReportModal'){closeAiReportModal();return;}this.classList.remove('show');}
+    if(e.target===this){if(id==='archiveReportEditModal'){closeArchiveReportEdit();return;}if(id==='aiReportModal'){closeAiReportModal();return;}if(id==='reportPhotoModal'){closeReportPhotos();return;}this.classList.remove('show');}
   });
 });
 
@@ -3678,6 +3681,7 @@ document.addEventListener('keydown',e=>{
     ['siteModal','confirmModal','projectCardModal','reportPhotoModal','aiReportModal','aiDailyReportModal','aiTaskModal'].forEach(id=>{
       const el = document.getElementById(id);
       if(id==='aiReportModal'){closeAiReportModal();return;}
+      if(id==='reportPhotoModal'){closeReportPhotos();return;}
       if(el) el.classList.remove('show');
     });
   }
@@ -3884,8 +3888,7 @@ function closeSitePhotos(){
   releaseSitePhotos();document.getElementById('site-photo-grid').innerHTML='';document.getElementById('site-photo-image').innerHTML='';
   SITE_PHOTOS.focus?.focus();
 }
-async function openSitePhotos(siteId){
-  const focus=document.activeElement;
+async function openSitePhotos(siteId, focus=document.activeElement){
   releaseSitePhotos();SITE_PHOTOS.siteId=siteId;SITE_PHOTOS.focus=focus;
   const seq=SITE_PHOTOS.sequence;
   const site=[...SITES,...ARCHIVES].find(s=>String(s.id)===String(siteId));
@@ -3907,7 +3910,7 @@ async function openSitePhotos(siteId){
         try{
           const data=await PILOT.reportPhotos(report.id);
           if(seq!==SITE_PHOTOS.sequence)return;
-          (data.photos||[]).forEach(photo=>items.push({photo,report}));
+          (data.photos||[]).forEach(photo=>items.push({photo,report,canDelete:data.canDelete===true}));
         }catch(e){failed++;}
       }
     }));
@@ -3955,6 +3958,10 @@ async function viewSitePhoto(index){
   document.getElementById('site-photo-source').hidden=true;
   document.getElementById('site-photo-prev').disabled=index===0;
   document.getElementById('site-photo-next').disabled=index===SITE_PHOTOS.items.length-1;
+  const deleteButton=document.getElementById('site-photo-delete');
+  deleteButton.hidden=!item.canDelete;
+  deleteButton.disabled=REPORT_PHOTO_DELETIONS.has(item.report.id);
+  document.getElementById('site-photo-delete-status').textContent='';
   document.getElementById('site-photo-caption').textContent=`${index+1} / ${SITE_PHOTOS.items.length}　${item.report.date||''}`;
   const box=document.getElementById('site-photo-image');box.textContent='写真を読み込んでいます…';
   try{
@@ -3962,6 +3969,13 @@ async function viewSitePhoto(index){
     if(seq!==SITE_PHOTOS.sequence||SITE_PHOTOS.index!==index)return;
     box.innerHTML=`<img src="${url}" alt="${photoHtmlEscape(item.photo.original_name||'現場写真')}"><div style="text-align:center;overflow-wrap:anywhere;">${photoHtmlEscape(item.photo.original_name||'')}</div>`;
   }catch(e){if(seq===SITE_PHOTOS.sequence&&SITE_PHOTOS.index===index)box.innerHTML='<p>写真を取得できませんでした。</p><button class="btn btn-white" onclick="viewSitePhoto(SITE_PHOTOS.index)">再試行</button>';}
+}
+async function deleteSiteReportPhoto(button){
+  const item=SITE_PHOTOS.items[SITE_PHOTOS.index];
+  if(!item?.canDelete)return;
+  const {sequence,siteId,focus}=SITE_PHOTOS;
+  const deleted=await deleteReportPhoto(item.report.id,item.photo.id,item.photo.original_name,button);
+  if(deleted&&sequence===SITE_PHOTOS.sequence)await openSitePhotos(siteId,focus);
 }
 function stepSitePhoto(delta){return viewSitePhoto(SITE_PHOTOS.index+delta);}
 function hideSitePhotoViewer(){
@@ -3985,29 +3999,115 @@ document.addEventListener('keydown',e=>{
 
 function reportPhotoButton(report){
   const count=report.photoCount;
-  if(count!==null&&count!==undefined&&Number(count)===0){
-    return '<span class="btn report-photo-none">写真なし</span>';
-  }
+  const photoReportId=Number(report.id);
+  if(count!==null&&count!==undefined&&Number(count)===0)
+    return `<span class="btn report-photo-none" data-photo-report-id="${photoReportId}">写真なし</span>`;
   const label=count===null||count===undefined?'📷 写真（未確認）':`📷 写真${Number(count)}枚`;
-  return `<button type="button" class="btn report-photo-btn" onclick="openReportPhotos(${Number(report.id)},${htmlJsArg(report.date)})">${label}</button>`;
+  return `<button type="button" class="btn report-photo-btn" data-photo-report-id="${photoReportId}" onclick="openReportPhotos(${photoReportId},${htmlJsArg(report.date)})">${label}</button>`;
 }
 function photoHtmlEscape(value){ return String(value||'').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+const REPORT_PHOTO_DELETIONS=new Set();
+let reportPhotoView=null;
+
+async function deleteReportPhoto(reportId,photoId,name,button){
+  if(REPORT_PHOTO_DELETIONS.has(reportId))return false;
+  if(!confirm(`「${name||'この写真'}」を削除しますか？\n削除すると元に戻せません。`))return false;
+  REPORT_PHOTO_DELETIONS.add(reportId);
+  button.disabled=true;
+  const status=button.closest('.modal')?.querySelector('[data-photo-delete-status]');
+  if(status)status.textContent='';
+  try{
+    const result=await PILOT.request(`/reports/${reportId}/photos/${photoId}`,{method:'DELETE'});
+    const count=result.photoCount;
+    for(const report of [...REPORTS,...ARCHIVE_REPORTS]){
+      if(report.id===reportId)report.photoCount=count;
+    }
+    document.querySelectorAll(`button[data-photo-report-id="${reportId}"]`).forEach(el=>{
+      if(count===0){
+        const empty=document.createElement('span');
+        empty.className='btn report-photo-none';
+        empty.dataset.photoReportId=reportId;
+        empty.textContent='写真なし';
+        el.replaceWith(empty);
+      }else{
+        el.textContent=`📷 写真${count}枚`;
+      }
+    });
+    showToast('✅ 写真を削除しました',2200);
+    return true;
+  }catch(e){
+    const message='写真を削除できません: '+e.message;
+    if(status&&button.isConnected)status.textContent=message;
+    showToast('❌ '+message,4000);
+    return false;
+  }finally{
+    REPORT_PHOTO_DELETIONS.delete(reportId);
+    button.disabled=false;
+  }
+}
+
 async function openReportPhotos(reportId, date){
+  closeReportPhotos();
+  const view={urls:new Set()};
+  reportPhotoView=view;
   const modal=document.getElementById('reportPhotoModal');
+  const body=document.getElementById('reportPhotoBody');
   document.getElementById('reportPhotoTitle').textContent=`📷 現場写真（${fmtDateJP(date)}）`;
-  document.getElementById('reportPhotoBody').innerHTML='<div style="color:#718096;font-size:13px;">読み込み中です…</div>';
+  body.textContent='読み込み中です…';
   modal.classList.add('show');
   try{
-    const result=await PILOT.reportPhotos(reportId); const photos=result.photos||[];
-    if(!photos.length){ document.getElementById('reportPhotoBody').innerHTML='<div style="color:#718096;font-size:13px;">この日報には写真がありません。</div>'; return; }
-    const items=await Promise.all(photos.map(async photo=>{
-      try { const blob=await PILOT.photoBlob(photo.id); const url=URL.createObjectURL(blob); return `<a href="${url}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;"><img src="${url}" alt="${photoHtmlEscape(photo.original_name)}" style="display:block;width:100%;height:150px;object-fit:cover;border-radius:8px;background:#EDF2F7;"><div style="font-size:11px;color:#4A5568;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px;">${photoHtmlEscape(photo.original_name)}・${bytesLabel(photo.bytes)}</div></a>`; }
-      catch(e){ return `<div style="font-size:12px;color:#C53030;">写真を表示できません</div>`; }
+    const {photos=[],canDelete}=await PILOT.reportPhotos(reportId);
+    if(reportPhotoView!==view)return;
+    if(!photos.length){body.textContent='この日報には写真がありません。';return;}
+    body.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;"></div><div style="font-size:11px;color:#718096;margin-top:12px;">写真を押すと原寸を別画面で開きます。</div>';
+    const grid=body.firstElementChild;
+    await Promise.all(photos.map(async photo=>{
+      const item=document.createElement('div');
+      item.innerHTML='<div style="font-size:12px;">読み込み中です…</div>';
+      const preview=item.firstElementChild;
+      grid.append(item);
+      let url;
+      try{
+        const blob=await PILOT.photoBlob(photo.id);
+        if(reportPhotoView!==view)return;
+        url=URL.createObjectURL(blob);
+        view.urls.add(url);
+        preview.innerHTML=`<a href="${url}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;"><img src="${url}" alt="${photoHtmlEscape(photo.original_name)}" style="display:block;width:100%;height:150px;object-fit:cover;border-radius:8px;background:#EDF2F7;"></a>`;
+      }catch(e){
+        if(reportPhotoView!==view)return;
+        preview.textContent='写真を表示できません';
+      }
+      const label=document.createElement('div');
+      label.style.cssText='font-size:11px;color:#4A5568;overflow-wrap:anywhere;margin:4px 0;';
+      label.textContent=`${photo.original_name||'写真'}・${bytesLabel(photo.bytes)}`;
+      item.append(label);
+      if(canDelete===true){
+        const button=document.createElement('button');
+        button.type='button';
+        button.className='btn btn-red btn-sm';
+        button.textContent='削除';
+        button.setAttribute('aria-label',`${photo.original_name||'写真'}を削除`);
+        button.onclick=async()=>{
+          const deleted=await deleteReportPhoto(reportId,photo.id,photo.original_name,button);
+          if(!deleted||reportPhotoView!==view)return;
+          if(url){URL.revokeObjectURL(url);view.urls.delete(url);}
+          item.remove();
+          if(!grid.childElementCount)body.textContent='この日報には写真がありません。';
+        };
+        item.append(button);
+      }
     }));
-    document.getElementById('reportPhotoBody').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;">${items.join('')}</div><div style="font-size:11px;color:#718096;margin-top:12px;">写真を押すと原寸を別画面で開きます。</div>`;
-  }catch(e){ document.getElementById('reportPhotoBody').innerHTML=`<div style="font-size:13px;color:#C53030;">写真を読み込めません: ${photoHtmlEscape(e.message)}</div>`; }
+  }catch(e){
+    if(reportPhotoView===view)body.textContent='写真を読み込めません: '+e.message;
+  }
 }
-function closeReportPhotos(){ document.getElementById('reportPhotoModal').classList.remove('show'); }
+function closeReportPhotos(){
+  document.getElementById('reportPhotoModal').classList.remove('show');
+  reportPhotoView?.urls.forEach(url=>URL.revokeObjectURL(url));
+  reportPhotoView=null;
+  document.getElementById('reportPhotoBody').textContent='';
+  document.getElementById('report-photo-delete-status').textContent='';
+}
 
 function buildSiteReportHtml(siteId) {
   // その現場に関連する日報を日報単位でグループ化して新しい順で表示

@@ -437,6 +437,17 @@ input,select,textarea,button{font-family:inherit}
 #ai-report-mode-help:empty{display:none;}
 
 #sitePhotoModal{z-index:3100;}
+#photoZoomModal[hidden]{display:none;}
+#photoZoomModal{position:fixed;inset:0;z-index:10000;background:#131923;color:#fff;display:flex;flex-direction:column;overscroll-behavior:none;}
+.photo-zoom-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px;padding-top:max(12px,env(safe-area-inset-top));background:#202b3b;flex:none;}
+.photo-zoom-toolbar button{min-width:44px;min-height:44px;border:1px solid #8190a8;border-radius:7px;background:#fff;color:#172334;padding:8px 12px;font-size:15px;cursor:pointer;}
+#photo-zoom-title{flex:1;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;}
+#photo-zoom-stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;overscroll-behavior:none;cursor:grab;user-select:none;-webkit-user-select:none;}
+#photo-zoom-stage:active{cursor:grabbing;}
+#photo-zoom-image{position:absolute;left:50%;top:50%;max-width:none;max-height:none;margin:0;transform-origin:center;pointer-events:none;user-select:none;-webkit-user-drag:none;}
+#photo-zoom-help{padding:8px 12px;padding-bottom:max(8px,env(safe-area-inset-bottom));font-size:12px;color:#d1d9e6;background:#202b3b;}
+.photo-expand-button{display:block;width:100%;padding:0;border:0;background:transparent;cursor:zoom-in;}
+#reportPhotoModal{z-index:3100;}
 #sitePhotoModal [hidden]{display:none!important;}
 #sitePhotoModal .modal{width:100%;max-width:1000px;}
 .site-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
@@ -1132,6 +1143,19 @@ input,select,textarea,button{font-family:inherit}
     <div class="modal-body" id="reportPhotoBody"><div style="color:#718096;font-size:13px;">読み込み中です…</div></div>
     <div id="report-photo-delete-status" data-photo-delete-status role="status" style="color:#C53030;font-size:12px;margin:0 16px;"></div>
   </div>
+</div>
+
+<div id="photoZoomModal" role="dialog" aria-modal="true" aria-labelledby="photo-zoom-title" hidden>
+  <div class="photo-zoom-toolbar">
+    <span id="photo-zoom-title">写真の拡大</span>
+    <button type="button" id="photo-zoom-out" aria-label="写真を縮小">－</button>
+    <output id="photo-zoom-scale" aria-label="写真の拡大率">100%</output>
+    <button type="button" id="photo-zoom-in" aria-label="写真を拡大">＋</button>
+    <button type="button" id="photo-zoom-reset">全体表示</button>
+    <button type="button" id="photo-zoom-close">閉じる</button>
+  </div>
+  <div id="photo-zoom-stage"><img id="photo-zoom-image" alt="" draggable="false"></div>
+  <div id="photo-zoom-help" role="status">読み込み中です…</div>
 </div>
 
 <!-- ===== DELETE CONFIRM MODAL ===== -->
@@ -3675,6 +3699,7 @@ async function saveArchiveReportEdit(){
 
 // Close detail panel on Escape
 document.addEventListener('keydown',e=>{
+  if(!document.getElementById('photoZoomModal').hidden)return;
   if(e.key==='Escape'){
     closeDetail();
     closeMobileMenu();
@@ -3967,7 +3992,8 @@ async function viewSitePhoto(index){
   try{
     const url=await sitePhotoUrl(item,seq);
     if(seq!==SITE_PHOTOS.sequence||SITE_PHOTOS.index!==index)return;
-    box.innerHTML=`<img src="${url}" alt="${photoHtmlEscape(item.photo.original_name||'現場写真')}"><div style="text-align:center;overflow-wrap:anywhere;">${photoHtmlEscape(item.photo.original_name||'')}</div>`;
+    box.innerHTML=`<button type="button" class="photo-expand-button" aria-label="写真を拡大して見る"><img src="${url}" alt="${photoHtmlEscape(item.photo.original_name||'現場写真')}"><span class="btn btn-white btn-sm">拡大して見る</span></button><div style="text-align:center;overflow-wrap:anywhere;">${photoHtmlEscape(item.photo.original_name||'')}</div>`;
+    box.querySelector('button').onclick=()=>openPhotoZoom(url,item.photo.original_name);
   }catch(e){if(seq===SITE_PHOTOS.sequence&&SITE_PHOTOS.index===index)box.innerHTML='<p>写真を取得できませんでした。</p><button class="btn btn-white" onclick="viewSitePhoto(SITE_PHOTOS.index)">再試行</button>';}
 }
 async function deleteSiteReportPhoto(button){
@@ -3989,6 +4015,7 @@ function showSitePhotoSource(){
 }
 document.getElementById('sitePhotoModal').addEventListener('click',e=>{if(e.target.id==='sitePhotoModal')closeSitePhotos();});
 document.addEventListener('keydown',e=>{
+  if(!document.getElementById('photoZoomModal').hidden)return;
   if(!document.getElementById('sitePhotoModal').classList.contains('show'))return;
   if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();if(SITE_PHOTOS.index>=0)hideSitePhotoViewer();else closeSitePhotos();}
   if(SITE_PHOTOS.index>=0&&!/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){
@@ -3996,6 +4023,151 @@ document.addEventListener('keydown',e=>{
     if(e.key==='ArrowRight'){e.preventDefault();stepSitePhoto(1);}
   }
 },true);
+
+// V86: 写真だけを拡大し、元の一覧の位置を保持する。
+const PHOTO_ZOOM={scale:1,x:0,y:0,width:0,height:0,pointers:new Map(),focus:null,inert:[]};
+const zoomModal=document.getElementById('photoZoomModal');
+const zoomStage=document.getElementById('photo-zoom-stage');
+const zoomImage=document.getElementById('photo-zoom-image');
+
+function paintPhotoZoom(){
+  const state=PHOTO_ZOOM;
+  const limitX=Math.max(0,(state.width*state.scale-zoomStage.clientWidth)/2);
+  const limitY=Math.max(0,(state.height*state.scale-zoomStage.clientHeight)/2);
+  state.x=Math.max(-limitX,Math.min(limitX,state.x));
+  state.y=Math.max(-limitY,Math.min(limitY,state.y));
+  zoomImage.style.transform=`translate(-50%,-50%) translate(${state.x}px,${state.y}px) scale(${state.scale})`;
+  document.getElementById('photo-zoom-scale').textContent=`${Math.round(state.scale*100)}%`;
+  document.getElementById('photo-zoom-out').disabled=state.scale<=1||!state.width;
+  document.getElementById('photo-zoom-in').disabled=state.scale>=8||!state.width;
+}
+function fitPhotoZoom(){
+  if(zoomModal.hidden||!zoomImage.naturalWidth||!zoomImage.complete)return;
+  const ratio=Math.min(zoomStage.clientWidth/zoomImage.naturalWidth,zoomStage.clientHeight/zoomImage.naturalHeight,1);
+  PHOTO_ZOOM.width=zoomImage.naturalWidth*ratio;
+  PHOTO_ZOOM.height=zoomImage.naturalHeight*ratio;
+  zoomImage.style.width=PHOTO_ZOOM.width+'px';
+  zoomImage.style.height=PHOTO_ZOOM.height+'px';
+  PHOTO_ZOOM.scale=1;PHOTO_ZOOM.x=0;PHOTO_ZOOM.y=0;
+  paintPhotoZoom();
+}
+function scalePhotoZoom(scale,point={x:0,y:0}){
+  if(!PHOTO_ZOOM.width)return;
+  const next=Math.max(1,Math.min(8,scale));
+  const factor=next/PHOTO_ZOOM.scale;
+  PHOTO_ZOOM.x=point.x-(point.x-PHOTO_ZOOM.x)*factor;
+  PHOTO_ZOOM.y=point.y-(point.y-PHOTO_ZOOM.y)*factor;
+  PHOTO_ZOOM.scale=next;
+  paintPhotoZoom();
+}
+function zoomPoint(event){
+  const rect=zoomStage.getBoundingClientRect();
+  return {x:event.clientX-rect.left-rect.width/2,y:event.clientY-rect.top-rect.height/2};
+}
+function openPhotoZoom(url,name){
+  if(!zoomModal.hidden)closePhotoZoom();
+  PHOTO_ZOOM.focus=document.activeElement;
+  PHOTO_ZOOM.bodyOverflow=document.body.style.overflow;
+  PHOTO_ZOOM.htmlOverflow=document.documentElement.style.overflow;
+  PHOTO_ZOOM.inert=[...document.body.children].filter(el=>el!==zoomModal&&!el.inert);
+  PHOTO_ZOOM.inert.forEach(el=>el.inert=true);
+  document.body.style.overflow='hidden';
+  document.documentElement.style.overflow='hidden';
+  zoomModal.hidden=false;
+  document.getElementById('photo-zoom-title').textContent=name||'現場写真';
+  document.getElementById('photo-zoom-help').textContent='読み込み中です…';
+  PHOTO_ZOOM.width=0;PHOTO_ZOOM.height=0;
+  PHOTO_ZOOM.scale=1;PHOTO_ZOOM.x=0;PHOTO_ZOOM.y=0;
+  zoomImage.style.visibility='hidden';
+  paintPhotoZoom();
+  zoomImage.onload=()=>{
+    if(zoomModal.hidden)return;
+    fitPhotoZoom();zoomImage.style.visibility='visible';
+    document.getElementById('photo-zoom-help').textContent='指2本・＋／－・マウスホイールで拡大縮小。拡大後はドラッグで移動できます。';
+  };
+  zoomImage.onerror=()=>{
+    if(!zoomModal.hidden)document.getElementById('photo-zoom-help').textContent='写真を読み込めませんでした。閉じてから、もう一度写真を開いてください。';
+  };
+  zoomImage.src=url;
+  document.getElementById('photo-zoom-close').focus({preventScroll:true});
+}
+function closePhotoZoom(){
+  if(zoomModal.hidden)return;
+  zoomModal.hidden=true;
+  PHOTO_ZOOM.pointers.forEach((point,id)=>{if(zoomStage.hasPointerCapture(id))zoomStage.releasePointerCapture(id);});
+  PHOTO_ZOOM.pointers.clear();
+  zoomImage.onload=null;zoomImage.onerror=null;zoomImage.removeAttribute('src');
+  PHOTO_ZOOM.inert.forEach(el=>el.inert=false);PHOTO_ZOOM.inert=[];
+  document.body.style.overflow=PHOTO_ZOOM.bodyOverflow;
+  document.documentElement.style.overflow=PHOTO_ZOOM.htmlOverflow;
+  if(PHOTO_ZOOM.focus?.isConnected)PHOTO_ZOOM.focus.focus({preventScroll:true});
+}
+document.getElementById('photo-zoom-in').onclick=()=>scalePhotoZoom(PHOTO_ZOOM.scale*1.5);
+document.getElementById('photo-zoom-out').onclick=()=>scalePhotoZoom(PHOTO_ZOOM.scale/1.5);
+document.getElementById('photo-zoom-reset').onclick=fitPhotoZoom;
+document.getElementById('photo-zoom-close').onclick=closePhotoZoom;
+zoomStage.addEventListener('pointerdown',event=>{
+  if(event.pointerType==='mouse'&&event.button!==0)return;
+  event.preventDefault();
+  PHOTO_ZOOM.pointers.set(event.pointerId,zoomPoint(event));
+  zoomStage.setPointerCapture(event.pointerId);
+});
+zoomStage.addEventListener('pointermove',event=>{
+  const pointers=PHOTO_ZOOM.pointers;
+  if(!pointers.has(event.pointerId))return;
+  event.preventDefault();
+  const before=[...pointers.values()];
+  const previous=pointers.get(event.pointerId);
+  const point=zoomPoint(event);
+  pointers.set(event.pointerId,point);
+  if(pointers.size===1){
+    PHOTO_ZOOM.x+=point.x-previous.x;PHOTO_ZOOM.y+=point.y-previous.y;
+  }else if(pointers.size===2){
+    const after=[...pointers.values()];
+    const oldDistance=Math.hypot(before[1].x-before[0].x,before[1].y-before[0].y);
+    const newDistance=Math.hypot(after[1].x-after[0].x,after[1].y-after[0].y);
+    const oldCenter={x:(before[0].x+before[1].x)/2,y:(before[0].y+before[1].y)/2};
+    if(oldDistance>0)scalePhotoZoom(PHOTO_ZOOM.scale*newDistance/oldDistance,oldCenter);
+    PHOTO_ZOOM.x+=(after[0].x+after[1].x)/2-oldCenter.x;
+    PHOTO_ZOOM.y+=(after[0].y+after[1].y)/2-oldCenter.y;
+  }
+  paintPhotoZoom();
+});
+for(const type of ['pointerup','pointercancel','lostpointercapture']){
+  zoomStage.addEventListener(type,event=>PHOTO_ZOOM.pointers.delete(event.pointerId));
+}
+zoomStage.addEventListener('wheel',event=>{
+  event.preventDefault();
+  scalePhotoZoom(PHOTO_ZOOM.scale*Math.exp(-Math.max(-100,Math.min(100,event.deltaY))*0.005),zoomPoint(event));
+},{passive:false});
+zoomStage.addEventListener('dblclick',event=>{
+  event.preventDefault();
+  if(PHOTO_ZOOM.scale>1)fitPhotoZoom();else scalePhotoZoom(2,zoomPoint(event));
+});
+// Safariのページ全体のジェスチャーと写真操作が重ならないようにする。
+for(const type of ['gesturestart','gesturechange','gestureend']){
+  zoomStage.addEventListener(type,event=>event.preventDefault(),{passive:false});
+}
+document.addEventListener('keydown',event=>{
+  if(zoomModal.hidden)return;
+  event.stopImmediatePropagation();
+  if(event.key==='Escape'){event.preventDefault();closePhotoZoom();return;}
+  if(event.key==='Tab'){
+    const buttons=[...zoomModal.querySelectorAll('button')].filter(button=>!button.disabled);
+    const index=buttons.indexOf(document.activeElement);
+    event.preventDefault();buttons[(index+(event.shiftKey?-1:1)+buttons.length)%buttons.length].focus();
+  }
+  if(event.key==='+'||event.key==='='){event.preventDefault();scalePhotoZoom(PHOTO_ZOOM.scale*1.5);}
+  if(event.key==='-'){event.preventDefault();scalePhotoZoom(PHOTO_ZOOM.scale/1.5);}
+  if(event.key==='0'){event.preventDefault();fitPhotoZoom();}
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
+    event.preventDefault();
+    PHOTO_ZOOM.x+=event.key==='ArrowLeft'?50:event.key==='ArrowRight'?-50:0;
+    PHOTO_ZOOM.y+=event.key==='ArrowUp'?50:event.key==='ArrowDown'?-50:0;
+    paintPhotoZoom();
+  }
+},true);
+window.addEventListener('resize',fitPhotoZoom);
 
 function reportPhotoButton(report){
   const count=report.photoCount;
@@ -4059,7 +4231,7 @@ async function openReportPhotos(reportId, date){
     const {photos=[],canDelete}=await PILOT.reportPhotos(reportId);
     if(reportPhotoView!==view)return;
     if(!photos.length){body.textContent='この日報には写真がありません。';return;}
-    body.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;"></div><div style="font-size:11px;color:#718096;margin-top:12px;">写真を押すと原寸を別画面で開きます。</div>';
+    body.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;"></div><div style="font-size:11px;color:#718096;margin-top:12px;">写真を押すと拡大できます。</div>';
     const grid=body.firstElementChild;
     await Promise.all(photos.map(async photo=>{
       const item=document.createElement('div');
@@ -4072,7 +4244,8 @@ async function openReportPhotos(reportId, date){
         if(reportPhotoView!==view)return;
         url=URL.createObjectURL(blob);
         view.urls.add(url);
-        preview.innerHTML=`<a href="${url}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;"><img src="${url}" alt="${photoHtmlEscape(photo.original_name)}" style="display:block;width:100%;height:150px;object-fit:cover;border-radius:8px;background:#EDF2F7;"></a>`;
+        preview.innerHTML=`<button type="button" class="photo-expand-button" aria-label="写真を拡大して見る"><img src="${url}" alt="${photoHtmlEscape(photo.original_name)}" style="display:block;width:100%;height:150px;object-fit:cover;border-radius:8px;background:#EDF2F7;"></button>`;
+        preview.querySelector('button').onclick=()=>openPhotoZoom(url,photo.original_name);
       }catch(e){
         if(reportPhotoView!==view)return;
         preview.textContent='写真を表示できません';
